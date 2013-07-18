@@ -1,0 +1,61 @@
+PATH=@DRBD_TEST_DATA@:$PATH
+
+log() {
+    logger "$@"
+}
+
+doit() {
+    local status
+
+    log --tag "${0##*/}" -- "$@"
+    "$@" || status=$?
+    [ -z "$status" ] || log --tag "${0##*/}" -- "(failed with status $status)"
+    return $status
+}
+
+# Convert arguments into a form which the shell can evaluate
+quote_command() {
+    set -- "$(printf '%q ' "$@")"
+    echo "${1% }"
+}
+
+register_cleanup() {
+    local options=`getopt -o +j: --long job: -- "$@"` || return
+    eval set -- "$options"
+    local job
+    while :; do
+	case "$1" in
+	-j|--job)
+	    job=$2
+	    shift
+	    ;;
+	--)
+	    shift
+	    break
+	esac
+	shift
+    done
+    [ -n "$job" ] || return 0
+
+    log --tag register-cleanup -- "$@"
+
+    set -- "$(quote_command "$@")"
+
+    (
+	set -o noclobber
+
+	mkdir -p "@DRBD_TEST_JOBS@"
+	for ((n = 1; ; n++)); do
+	    jobfile="@DRBD_TEST_JOBS@/$job.0.$n"
+	    if cat 2> /dev/null > "$jobfile"; then
+		chmod +x "$jobfile"
+		break
+	    fi <<-EOF
+		#! /bin/sh
+		set -e
+		$1
+		rm -f "$jobfile"
+		EOF
+	done
+    )
+}

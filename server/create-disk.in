@@ -1,0 +1,50 @@
+#! /bin/sh
+
+. @DRBD_TEST_LIB@
+set -e
+
+usage() {
+    [ $1 -eq 0 ] || exec 1>&2
+    echo "USAGE: ${0##*/} [--volume-group=volume-group] [--size=size] [--job=job-name] volume-name"
+    exit $1
+}
+
+options=`getopt -o h --long volume-group:,size:,job: -- "$@"` || usage 1
+eval set -- "$options"
+
+opt_volume_group=
+opt_size=
+opt_job=
+
+while :; do
+    case "$1" in
+    -h)
+	usage 0
+	;;
+    --volume-group)
+	opt_volume_group=$2
+	shift
+	;;
+    --size)
+	opt_size=$2
+	shift
+	;;
+    --job)
+	opt_job=$2
+	shift
+	;;
+    --)
+	shift
+	break
+	;;
+    esac
+    shift
+done
+
+[ -n "$opt_volume_group" -a -n "$opt_size" -a $# -eq 1 ] || usage 1
+
+opt_name=$1
+
+doit lvcreate --size "$opt_size" --name "$opt_name" "$opt_volume_group" > /dev/null
+register_cleanup --job="$opt_job" -- lvremove -f "$opt_volume_group/$opt_name"
+echo "/dev/$opt_volume_group/$opt_name"

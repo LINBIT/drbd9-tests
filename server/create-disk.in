@@ -4,12 +4,12 @@
 set -e
 
 usage() {
-    [ $1 -eq 0 ] || exec 1>&2
+    [ $1 -eq 0 ] || exec >&2
     echo "USAGE: ${0##*/} [--volume-group=volume-group] [--size=size] [--job=job-name] volume-name"
     exit $1
 }
 
-options=`getopt -o h --long volume-group:,size:,job: -- "$@"` || usage 1
+options=`getopt -o h --long volume-group:,size:,job:,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_volume_group=
@@ -18,7 +18,7 @@ opt_job=
 
 while :; do
     case "$1" in
-    -h)
+    -h|--help)
 	usage 0
 	;;
     --volume-group)

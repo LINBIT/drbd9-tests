@@ -30,10 +30,19 @@ m4_define() {
     done
 }
 
+debug() {
+    if [ -n "$opt_debug" ]; then
+	printf "%q " "$@"
+	echo
+     fi >&2
+    "$@"
+}
+
 instantiate_template() {
     local TMPL=$1
     local TMPL_DEFS="$(m4_define RESOURCE NODES ${node_vars[*]})"
-    m4 -P -I ../m4 \
+
+    debug m4 -P -I ../m4 \
 	-D TMPL_DEFS="$TMPL_DEFS" \
 	-D TMPL="$TMPL" \
 	configuration-template.m4
@@ -105,9 +114,10 @@ node_opts="${node_vars[*]/%/:}"
 node_opts="${node_opts,,}"
 node_opts="${node_opts//_/-}"
 
-options=`getopt -o h --long resource:,node:,${node_opts// /,},help -- "$@"` || usage 1
+options=`getopt -o h --long resource:,node:,${node_opts// /,},debug,help -- "$@"` || usage 1
 eval set -- "$options"
 
+opt_debug=
 declare -- RESOURCE
 declare -a NODES
 declare -A ${node_vars[*]}
@@ -116,6 +126,9 @@ while :; do
     case "$1" in
     -h|--help)
 	usage 0
+	;;
+    --debug)
+	opt_debug=1
 	;;
     --resource)
 	RESOURCE=$2

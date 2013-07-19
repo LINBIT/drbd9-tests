@@ -1,7 +1,7 @@
 #! /bin/sh
 
 # Per-node variables in the m4 configuration file templates:
-node_vars=(NODE_ID DEVICE ADDRESS)
+node_vars=(NODE_ID ADDRESS)
 
 m4_define() {
     local name array key
@@ -93,23 +93,32 @@ assign_node_ids() {
 
 declare -A max_minor
 assign_devices() {
-    local node minor
+    local node disk minor expr
 
     for node in "${NODES[@]}"; do
-	if [ -z "${DEVICE[$node]}" ]; then
-	    minor=$(( max_minor[$node]++ ))
-	    DEVICE[$node]="/dev/drbd$minor"
-	fi
+	for disk in ${!DISK*}; do
+	    expr="$disk[\$node]"
+	    if [ -n "${!expr}" ]; then
+		expr="${disk/#DISK/DEVICE}[\$node]"
+		if [ -z "${!expr}" ]; then
+		    minor=$(( max_minor[$node]++ ))
+		    eval "$expr=\"/dev/drbd$minor\""
+		fi
+	    fi
+	done
     done
 }
 
-new_disk() {
-    ((number_of_disks++))
-    if ((max_number_of_disks < number_of_disks)); then
-	eval "declare -g -A DISK$number_of_disks"
-	((max_number_of_disks++))
-	DISKS=("${DISKS[@]}" "DISK$number_of_disks")
-    fi
+new_array() {
+    local NAME=${1^^} name=${1,,}
+    eval "
+	((number_of_${name}s++))
+	if ((max_number_of_${name}s < number_of_${name}s)); then
+	    declare -g -A ${NAME}\$number_of_${name}s
+	    ((max_number_of_${name}s++))
+	    ${NAME}S=(\"\${${NAME}S[@]}\" \"${NAME}\$number_of_${name}s\")
+	fi
+    "
 }
 
 usage() {
@@ -124,12 +133,12 @@ OPTIONS:
   --node=hostname
     Host name of a test node according to \`hostname'.
 
-  --disk=device
-    The lower-level device to use.  When omitted, the value
-    /dev/scratch/\$resource is used.  This option can be
-    used multiple times.  When used before --node, this
-    option defines default disks; these defaults can be
-    overridden for each host (after --node).
+  --disk=device, --meta=device
+    The lower-level device to use for data or metadata.  When
+    omitted, the value /dev/scratch/\$resource is used.  This
+    option can be used multiple times.  When used before
+    --node, this option defines default disks; these defaults
+    can be overridden for each host (after --node).
 
   --address=address
     The network address and port number of a node.  When
@@ -155,7 +164,7 @@ node_opts="${node_vars[*]/%/:}"
 node_opts="${node_opts,,}"
 node_opts="${node_opts//_/-}"
 
-options=`getopt -o h --long resource:,node:,disk:,${node_opts// /,},debug,port:,help -- "$@"` || usage 1
+options=`getopt -o h --long resource:,node:,disk:,meta:,${node_opts// /,},debug,port:,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_debug=
@@ -195,13 +204,11 @@ while :; do
 	# Per-node parameters
 	# Strip leading two dashes, replace dashes with underscores, and convert to uppercase
 	expr=${1#??}; expr=${expr//-/_}; expr=${expr^^}
-	if [ "$1" = "--disk" ]; then
-	    new_disk
-	    expr="$expr$number_of_disks"
-	fi
-
+	number_of=number_of_${expr,,}s
 	case "$1" in
-	--device|--disk)
+	--device|--disk|--meta)
+	    new_array $expr
+	    expr="$expr${!number_of}"
 	    if [ -z "$node" ]; then
 		eval "GLOBAL_$expr=\$2"
 	    else
@@ -226,7 +233,7 @@ done
 
 if [ -z "$GLOBAL_DISK1" ]; then
     number_of_disks=
-    new_disk
+    new_array DISK
     GLOBAL_DISK1="/dev/scratch/$RESOURCE"
 fi
 

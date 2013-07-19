@@ -8,7 +8,7 @@ m4_foreach(`NODE', `(NODES)',
 		volume 0 {
 			device DEVICE(NODE);
 			disk DISK(NODE);
-			meta-disk m4_ifdef(`DISK2', `DISK2(NODE)', `internal');
+			meta-disk m4_ifdef(`META1', `META(NODE)', `internal');
 		}
 		node-id NODE_ID(NODE);
 		address ADDRESS(NODE);

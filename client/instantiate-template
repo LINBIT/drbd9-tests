@@ -1,0 +1,153 @@
+#! /bin/sh
+
+# Per-node variables in the m4 configuration file templates:
+node_vars=(NODE_ID DEVICE DISK META_DISK ADDRESS)
+
+m4_define() {
+    local name array key
+    for name in "$@"; do
+	set -- $(declare -p "$name" 2> /dev/null)
+	case "$2" in
+	-A)
+	    # Asociative array
+	    echo "m4_define_array(\`$name')"
+	    eval "
+		for key in \"\${!$name[@]}\"; do
+		    echo \"$name(\\\`\$key', \\\`\${$name[\$key]}')\"
+		done
+	    "
+	    ;;
+	-a)
+	    # Array
+	    set -- "$(printf "\`%s', " "${NODES[@]}")"
+	    echo "m4_define(\`$name', \`${1%??}')"
+	    ;;
+	--)
+	    # Normal variable
+	    echo "m4_define(\`$name', \`${!name}')"
+	    ;;
+	esac
+    done
+}
+
+instantiate_template() {
+    local TMPL=$1
+    local TMPL_DEFS="$(m4_define RESOURCE NODES ${node_vars[*]})"
+    m4 -P -I ../m4 \
+	-D TMPL_DEFS="$TMPL_DEFS" \
+	-D TMPL="$TMPL" \
+	configuration-template.m4
+}
+
+declare -a node_ids_used
+
+assign_global_values() {
+    local node var expr
+
+    for node in "${NODES[@]}"; do
+	for var in "$@"; do
+	    expr="$var[\$node]"
+	    [ -n "${!expr}" ] || eval "$expr=\"\$GLOBAL_$var\""
+	done
+    done
+}
+
+assign_addresses() {
+    local node address
+
+    for node in "${NODES[@]}"; do
+	if [ -z "${ADDRESS[$node]}" ]; then
+	    if address=$(gethostip -d "$node"); then
+		ADDRESS[$node]="$address:7789"
+	    else
+		status=1
+	    fi
+	fi
+    done
+}
+
+assign_node_ids() {
+    local node expr n
+
+    for node in "${NODES[@]}"; do
+	if [ -z "${NODE_ID[$node]}" ]; then
+	    for ((n = 0; ; n++)); do
+		if [ -z "${node_ids_used[$n]}" ]; then
+		    node_ids_used[$n]=1
+		    break
+		fi
+	    done
+	    NODE_ID[$node]=$n
+	fi
+    done
+}
+
+usage() {
+    [ $1 -eq 0 ] || exec >&2
+    echo "USAGE: ${0##*/} [options] {template}"
+    exit $1
+}
+
+# The options for the per-node variables are the same as the variable names
+# in lower case, with underscores converted to dashes.
+node_opts="${node_vars[*]/%/:}"
+node_opts="${node_opts,,}"
+node_opts="${node_opts//_/-}"
+
+options=`getopt -o h --long resource:,node:,${node_opts// /,},help -- "$@"` || usage 1
+eval set -- "$options"
+
+declare -- RESOURCE
+declare -a NODES
+declare -A ${node_vars[*]}
+
+while :; do
+    case "$1" in
+    -h|--help)
+	usage 0
+	;;
+    --resource)
+	RESOURCE=$2
+	shift
+	;;
+    --node)
+	node=$2
+	NODES=("${NODES[@]}" $node)
+	shift
+	;;
+    --)
+	shift
+	break
+	;;
+    *)
+	# Per-node parameters
+	# Strip leading two dashes, replace dashes with underscores, and convert to uppercase
+	expr=${1#??}; expr=${expr//-/_}; expr=${expr^^}
+	if [ -z "$node" ]; then
+	    case "$1" in
+	    --device|--disk|--meta-disk)
+		eval "GLOBAL_$expr=\$2"
+		;;
+	    *)
+		usage 1
+		;;
+	    esac
+	else
+	    eval "$expr[\$node]=\$2"
+	fi
+	shift
+	;;
+    esac
+    shift
+done
+
+[ -n "$RESOURCE" -a ${#NODES[@]} -ge 1 -a $# -ge 1 ] || usage 1
+
+assign_global_values DEVICE DISK META_DISK
+assign_addresses
+assign_node_ids
+for template in "$@"; do
+    instantiate_template "$template"
+done
+
+exit $status

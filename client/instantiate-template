@@ -39,8 +39,6 @@ instantiate_template() {
 	configuration-template.m4
 }
 
-declare -a node_ids_used
-
 assign_global_values() {
     local node var expr
 
@@ -66,6 +64,7 @@ assign_addresses() {
     done
 }
 
+declare -a node_ids_used
 assign_node_ids() {
     local node expr n
 
@@ -78,6 +77,18 @@ assign_node_ids() {
 		fi
 	    done
 	    NODE_ID[$node]=$n
+	fi
+    done
+}
+
+declare -A max_minor
+assign_devices() {
+    local node minor
+
+    for node in "${NODES[@]}"; do
+	if [ -z "${DEVICE[$node]}" ]; then
+	    minor=$(( max_minor[$node]++ ))
+	    DEVICE[$node]="/dev/drbd$minor"
 	fi
     done
 }
@@ -143,9 +154,12 @@ done
 
 [ -n "$RESOURCE" -a ${#NODES[@]} -ge 1 -a $# -ge 1 ] || usage 1
 
+[ -n "$GLOBAL_DISK" ] || GLOBAL_DISK="/dev/scratch/$RESOURCE"
+
 assign_global_values DEVICE DISK META_DISK
 assign_addresses
 assign_node_ids
+assign_devices
 for template in "$@"; do
     instantiate_template "$template"
 done

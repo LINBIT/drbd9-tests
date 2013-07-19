@@ -1,7 +1,7 @@
 #! /bin/sh
 
 # Per-node variables in the m4 configuration file templates:
-node_vars=(NODE_ID DEVICE DISK META_DISK ADDRESS)
+node_vars=(NODE_ID DEVICE ADDRESS)
 
 m4_define() {
     local name array key
@@ -40,7 +40,8 @@ debug() {
 
 instantiate_template() {
     local TMPL=$1
-    local TMPL_DEFS="$(m4_define RESOURCE NODES ${node_vars[*]})"
+    shift
+    local TMPL_DEFS="$(m4_define "$@")"
 
     debug m4 -P -I ../m4 \
 	-D TMPL_DEFS="$TMPL_DEFS" \
@@ -65,7 +66,7 @@ assign_addresses() {
     for node in "${NODES[@]}"; do
 	if [ -z "${ADDRESS[$node]}" ]; then
 	    if address=$(gethostip -d "$node"); then
-		ADDRESS[$node]="$address:7789"
+		ADDRESS[$node]="$address:$opt_port"
 	    else
 		status=1
 	    fi
@@ -102,9 +103,49 @@ assign_devices() {
     done
 }
 
+new_disk() {
+    ((number_of_disks++))
+    if ((max_number_of_disks < number_of_disks)); then
+	eval "declare -g -A DISK$number_of_disks"
+	((max_number_of_disks++))
+	DISKS=("${DISKS[@]}" "DISK$number_of_disks")
+    fi
+}
+
 usage() {
     [ $1 -eq 0 ] || exec >&2
-    echo "USAGE: ${0##*/} [options] {template}"
+    cat <<EOF
+USAGE: ${0##*/} [options] {template}
+
+OPTIONS:
+  --resource=name
+    Resource name to fill in (e.g., drbd0).
+
+  --node=hostname
+    Host name of a test node according to \`hostname'.
+
+  --disk=device
+    The lower-level device to use.  When omitted, the value
+    /dev/scratch/\$resource is used.  This option can be
+    used multiple times.  When used before --node, this
+    option defines default disks; these defaults can be
+    overridden for each host (after --node).
+
+  --address=address
+    The network address and port number of a node.  When
+    omitted, the first network address of the host according
+    to \`gethostip' is used.  Can only be used after --host.
+
+  --node-id=number
+    The node identifier of a node.  When omitted, node idenfiers
+    are assigned automatically.  Can only be used after --host.
+
+  --device=device
+    The upper-level device to use (e.g., /dev/drbd0).
+
+  --port=number
+    The port number to use by default.
+EOF
     exit $1
 }
 
@@ -114,13 +155,15 @@ node_opts="${node_vars[*]/%/:}"
 node_opts="${node_opts,,}"
 node_opts="${node_opts//_/-}"
 
-options=`getopt -o h --long resource:,node:,${node_opts// /,},debug,help -- "$@"` || usage 1
+options=`getopt -o h --long resource:,node:,disk:,${node_opts// /,},debug,port:,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_debug=
 declare -- RESOURCE
 declare -a NODES
 declare -A ${node_vars[*]}
+number_of_disks=
+opt_port=7789
 
 while :; do
     case "$1" in
@@ -130,6 +173,10 @@ while :; do
     --debug)
 	opt_debug=1
 	;;
+    --port)
+	opt_port=$2
+	shift
+	;;
     --resource)
 	RESOURCE=$2
 	shift
@@ -137,6 +184,7 @@ while :; do
     --node)
 	node=$2
 	NODES=("${NODES[@]}" $node)
+	number_of_disks=
 	shift
 	;;
     --)
@@ -147,18 +195,27 @@ while :; do
 	# Per-node parameters
 	# Strip leading two dashes, replace dashes with underscores, and convert to uppercase
 	expr=${1#??}; expr=${expr//-/_}; expr=${expr^^}
-	if [ -z "$node" ]; then
-	    case "$1" in
-	    --device|--disk|--meta-disk)
-		eval "GLOBAL_$expr=\$2"
-		;;
-	    *)
-		usage 1
-		;;
-	    esac
-	else
-	    eval "$expr[\$node]=\$2"
+	if [ "$1" = "--disk" ]; then
+	    new_disk
+	    expr="$expr$number_of_disks"
 	fi
+
+	case "$1" in
+	--device|--disk)
+	    if [ -z "$node" ]; then
+		eval "GLOBAL_$expr=\$2"
+	    else
+		eval "$expr[\$node]=\$2"
+	    fi
+	    ;;
+	*)
+	    if [ -z "$node" ]; then
+		echo "Option $1 is not allowed before the first --node option" >&2
+		usage 1
+	    fi
+	    eval "$expr[\$node]=\$2"
+	    ;;
+	esac
 	shift
 	;;
     esac
@@ -167,14 +224,19 @@ done
 
 [ -n "$RESOURCE" -a ${#NODES[@]} -ge 1 -a $# -ge 1 ] || usage 1
 
-[ -n "$GLOBAL_DISK" ] || GLOBAL_DISK="/dev/scratch/$RESOURCE"
+if [ -z "$GLOBAL_DISK1" ]; then
+    number_of_disks=
+    new_disk
+    GLOBAL_DISK1="/dev/scratch/$RESOURCE"
+fi
 
-assign_global_values DEVICE DISK META_DISK
+assign_global_values DEVICE "${DISKS[@]}"
 assign_addresses
 assign_node_ids
 assign_devices
+
 for template in "$@"; do
-    instantiate_template "$template"
+    instantiate_template "$template" RESOURCE NODES "${node_vars[@]}" "${DISKS[@]}"
 done
 
 exit $status

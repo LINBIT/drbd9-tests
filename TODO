@@ -12,3 +12,5 @@
 * register_cleanup():
   - Allow to specify a cleanup group.
   - Persistent vs. transient cleanup (things that go away at reboot).
+
+* Template: support more than one volume.

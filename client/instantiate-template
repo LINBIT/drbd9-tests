@@ -1,8 +1,5 @@
 #! /bin/sh
 
-# Per-node variables in the m4 configuration file templates:
-node_vars=(NODE_ID ADDRESS)
-
 m4_define() {
     local name array key
     for name in "$@"; do
@@ -128,17 +125,19 @@ USAGE: ${0##*/} [options] {template}
 
 OPTIONS:
   --resource=name
-    Resource name to fill in (e.g., drbd0).
+    Resource name to fill in (e.g., drbd0).  Required.
 
   --node=hostname
-    Host name of a test node according to \`hostname'.
+    Host name of a test node according to \`hostname'.  This option
+    can be used multiple times, and is requird at least once.
 
   --disk=device, --meta=device
     The lower-level device to use for data or metadata.  When
-    omitted, the value /dev/scratch/\$resource is used.  This
-    option can be used multiple times.  When used before
-    --node, this option defines default disks; these defaults
-    can be overridden for each host (after --node).
+    no lower-level device is specified, the value /dev/scratch/\$resource
+    is used.  When no metadata device is specified, internal metadata
+    are assumed.  Both options can be used multiple times.  When used
+    before --node, they define defaults which can be overridden for each
+    host (after --node).
 
   --address=address
     The network address and port number of a node.  When
@@ -150,7 +149,8 @@ OPTIONS:
     are assigned automatically.  Can only be used after --host.
 
   --device=device
-    The upper-level device to use (e.g., /dev/drbd0).
+    The upper-level device to use (e.g., /dev/drbd0).  When omitted,
+    /dev/drbd\$n devices are assigned automatically.
 
   --port=number
     The port number to use by default.
@@ -158,19 +158,14 @@ EOF
     exit $1
 }
 
-# The options for the per-node variables are the same as the variable names
-# in lower case, with underscores converted to dashes.
-node_opts="${node_vars[*]/%/:}"
-node_opts="${node_opts,,}"
-node_opts="${node_opts//_/-}"
-
-options=`getopt -o h --long resource:,node:,disk:,meta:,${node_opts// /,},debug,port:,help -- "$@"` || usage 1
+options=`getopt -o h --long resource:,node:,device:,disk:,meta:,node-id:,address:,debug,port:,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_debug=
 declare -- RESOURCE
 declare -a NODES
-declare -A ${node_vars[*]}
+declare -a DEVICES DISKS METAS
+declare -A NODE_ID ADDRESS
 number_of_disks=
 opt_port=7789
 
@@ -193,7 +188,9 @@ while :; do
     --node)
 	node=$2
 	NODES=("${NODES[@]}" $node)
+	number_of_devices=
 	number_of_disks=
+	number_of_metas=
 	shift
 	;;
     --)
@@ -232,18 +229,24 @@ done
 [ -n "$RESOURCE" -a ${#NODES[@]} -ge 1 -a $# -ge 1 ] || usage 1
 
 if [ -z "$GLOBAL_DISK1" ]; then
-    number_of_disks=
-    new_array DISK
     GLOBAL_DISK1="/dev/scratch/$RESOURCE"
+    if [ -z "$max_number_of_disks" ]; then
+	new_array DISK
+    fi
 fi
 
-assign_global_values DEVICE "${DISKS[@]}"
+declare -p GLOBAL_DISK1
+declare -p DEVICES
+declare -p DISKS
+declare -p METAS
+
+assign_global_values "${DEVICES[@]}" "${DISKS[@]}" "${METAS[@]}"
 assign_addresses
 assign_node_ids
 assign_devices
 
 for template in "$@"; do
-    instantiate_template "$template" RESOURCE NODES "${node_vars[@]}" "${DISKS[@]}"
+    instantiate_template "$template" RESOURCE NODES NODE_ID ADDRESS "${DEVICES[@]}" "${DISKS[@]}" "${METAS[@]}"
 done
 
 exit $status

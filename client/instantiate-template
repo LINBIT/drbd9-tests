@@ -51,6 +51,8 @@ assign_global_values() {
 
     for node in "${NODES[@]}"; do
 	for var in "$@"; do
+	    var=${var#GLOBAL_}
+	    declare -g -A "$var"
 	    expr="$var[\$node]"
 	    [ -n "${!expr}" ] || eval "$expr=\"\$GLOBAL_$var\""
 	done
@@ -65,6 +67,7 @@ assign_addresses() {
 	    if address=$(gethostip -d "$node"); then
 		ADDRESS[$node]="$address:$opt_port"
 	    else
+		ADDRESS[$node]="$node:$opt_port"
 		status=1
 	    fi
 	fi
@@ -90,32 +93,44 @@ assign_node_ids() {
 
 declare -A max_minor
 assign_devices() {
-    local node disk minor expr
+    local node disk minor device device_node
 
     for node in "${NODES[@]}"; do
 	for disk in ${!DISK*}; do
-	    expr="$disk[\$node]"
-	    if [ -n "${!expr}" ]; then
-		expr="${disk/#DISK/DEVICE}[\$node]"
-		if [ -z "${!expr}" ]; then
-		    minor=$(( max_minor[$node]++ ))
-		    eval "$expr=\"/dev/drbd$minor\""
-		fi
+	    device=${disk/#DISK/DEVICE}
+	    device_node="$device[\$node]"
+	    if ! defined "$device" || [ -z "${!device_node}" ]; then
+		minor=$(( max_minor[$node]++ ))
+		set_node_array "$device" "$node" "/dev/drbd$minor"
 	    fi
 	done
     done
 }
 
-new_array() {
-    local NAME=${1^^} name=${1,,}
-    eval "
-	((number_of_${name}s++))
-	if ((max_number_of_${name}s < number_of_${name}s)); then
-	    declare -g -A ${NAME}\$number_of_${name}s
-	    ((max_number_of_${name}s++))
-	    ${NAME}S=(\"\${${NAME}S[@]}\" \"${NAME}\$number_of_${name}s\")
-	fi
-    "
+declare -A global_count
+add_global() {
+    local name=GLOBAL_$1 value=$2
+    local count=$((++global_count[name]))
+
+    eval "$name$count=\$value"
+}
+
+defined() {
+    declare -p "$1" > /dev/null 2> /dev/null
+}
+
+set_node_array() {
+    local name=$1 node=$2 value=$3
+
+    declare -g -A "$name"
+    eval "$name[\$node]=$value"
+}
+
+add_node_array() {
+    local name=$1 node=$2 value=$3
+    local count=$((++node_array_count[name]))
+
+    set_node_array "$name$count" "$node" "$value"
 }
 
 usage() {
@@ -164,9 +179,7 @@ eval set -- "$options"
 opt_debug=
 declare -- RESOURCE
 declare -a NODES
-declare -a DEVICES DISKS METAS
 declare -A NODE_ID ADDRESS
-number_of_disks=
 opt_port=7789
 
 while :; do
@@ -188,9 +201,7 @@ while :; do
     --node)
 	node=$2
 	NODES=("${NODES[@]}" $node)
-	number_of_devices=
-	number_of_disks=
-	number_of_metas=
+	declare -A node_array_count=()
 	shift
 	;;
     --)
@@ -200,16 +211,13 @@ while :; do
     *)
 	# Per-node parameters
 	# Strip leading two dashes, replace dashes with underscores, and convert to uppercase
-	expr=${1#??}; expr=${expr//-/_}; expr=${expr^^}
-	number_of=number_of_${expr,,}s
+	name=${1#??}; name=${name//-/_}; name=${name^^}
 	case "$1" in
 	--device|--disk|--meta)
-	    new_array $expr
-	    expr="$expr${!number_of}"
 	    if [ -z "$node" ]; then
-		eval "GLOBAL_$expr=\$2"
+		add_global "$name" "$2"
 	    else
-		eval "$expr[\$node]=\$2"
+		add_node_array "$name" "$node" "$2"
 	    fi
 	    ;;
 	*)
@@ -228,25 +236,14 @@ done
 
 [ -n "$RESOURCE" -a ${#NODES[@]} -ge 1 -a $# -ge 1 ] || usage 1
 
-if [ -z "$GLOBAL_DISK1" ]; then
-    GLOBAL_DISK1="/dev/scratch/$RESOURCE"
-    if [ -z "$max_number_of_disks" ]; then
-	new_array DISK
-    fi
-fi
-
-declare -p GLOBAL_DISK1
-declare -p DEVICES
-declare -p DISKS
-declare -p METAS
-
-assign_global_values "${DEVICES[@]}" "${DISKS[@]}" "${METAS[@]}"
+[ -n "$GLOBAL_DISK1" ] || GLOBAL_DISK1="/dev/scratch/$RESOURCE"
+assign_global_values ${!GLOBAL_DEVICE*} ${!GLOBAL_DISK*} ${!GLOBAL_META*}
 assign_addresses
 assign_node_ids
 assign_devices
 
 for template in "$@"; do
-    instantiate_template "$template" RESOURCE NODES NODE_ID ADDRESS "${DEVICES[@]}" "${DISKS[@]}" "${METAS[@]}"
+    instantiate_template "$template" RESOURCE NODES NODE_ID ADDRESS ${!DEVICE*} ${!DISK*} ${!META*}
 done
 
 exit $status

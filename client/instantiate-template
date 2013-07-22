@@ -43,8 +43,7 @@ instantiate_template() {
 
     do_debug m4 -P -I ../m4 \
 	-D TMPL_DEFS="$TMPL_DEFS" \
-	-D TMPL="$TMPL" \
-	main.m4
+	preamble.m4 "$TMPL"
 }
 
 assign_global_values() {

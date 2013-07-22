@@ -8,4 +8,3 @@ m4_next_array(`DISK')
 m4_next_array(`META')
 TMPL_DEFS
 m4_divert`'m4_dnl
-m4_include(TMPL)m4_dnl

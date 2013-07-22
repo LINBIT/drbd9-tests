@@ -28,7 +28,7 @@ m4_define() {
     done
 }
 
-debug() {
+do_debug() {
     if [ -n "$opt_debug" ]; then
 	printf "%q " "$@"
 	echo
@@ -41,7 +41,7 @@ instantiate_template() {
     shift
     local TMPL_DEFS="$(m4_define "$@")"
 
-    debug m4 -P -I ../m4 \
+    do_debug m4 -P -I ../m4 \
 	-D TMPL_DEFS="$TMPL_DEFS" \
 	-D TMPL="$TMPL" \
 	main.m4
@@ -170,6 +170,9 @@ OPTIONS:
 
   --port=number
     The port number to use by default.
+
+  --debug
+    Print the M4 command line used to produce the configuration file.
 EOF
     exit $1
 }

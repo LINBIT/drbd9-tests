@@ -5,11 +5,13 @@ global {
 resource RESOURCE {
 m4_foreach(`NODE', `(NODES)',
 `	on NODE {
-		volume 0 {
+m4_foreach(`VOLUME', `(VOLUMES)',
+`		volume VOLUME {
 			device DEVICE(NODE);
 			disk DISK(NODE);
-			meta-disk m4_default(META(NODE), `internal');
+			meta-disk m4_default(META(NODE),`internal');
 		}
+')m4_dnl
 		node-id NODE_ID(NODE);
 		address ADDRESS(NODE);
 	}

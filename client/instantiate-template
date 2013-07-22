@@ -17,6 +17,7 @@ m4_define() {
 	-a)
 	    # Array
 	    set -- "$(printf "\`%s', " "${NODES[@]}")"
+	    set -- "$(eval "printf \"\\\`%s', \" \"\${$name[@]}\"")"
 	    echo "m4_define(\`$name', \`${1%??}')"
 	    ;;
 	--)
@@ -43,7 +44,7 @@ instantiate_template() {
     debug m4 -P -I ../m4 \
 	-D TMPL_DEFS="$TMPL_DEFS" \
 	-D TMPL="$TMPL" \
-	configuration-template.m4
+	main.m4
 }
 
 assign_global_values() {
@@ -110,7 +111,7 @@ assign_devices() {
 declare -A global_count
 add_global() {
     local name=GLOBAL_$1 value=$2
-    local count=$((++global_count[name]))
+    local count=$((++global_count[$name]))
 
     eval "$name$count=\$value"
 }
@@ -128,7 +129,7 @@ set_node_array() {
 
 add_node_array() {
     local name=$1 node=$2 value=$3
-    local count=$((++node_array_count[name]))
+    local count=$((++node_array_count[$name]))
 
     set_node_array "$name$count" "$node" "$value"
 }
@@ -242,8 +243,10 @@ assign_addresses
 assign_node_ids
 assign_devices
 
+VOLUMES=(${!DISK*})
+VOLUMES=("${VOLUMES[@]/#DISK}")
 for template in "$@"; do
-    instantiate_template "$template" RESOURCE NODES NODE_ID ADDRESS ${!DEVICE*} ${!DISK*} ${!META*}
+    instantiate_template "$template" RESOURCE NODES VOLUMES NODE_ID ADDRESS ${!DEVICE*} ${!DISK*} ${!META*}
 done
 
 exit $status

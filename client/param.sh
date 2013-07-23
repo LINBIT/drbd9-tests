@@ -1,3 +1,6 @@
+# All the defined nodes
+declare -a NODES
+
 # We store all global settings in array[_].
 node=_
 
@@ -29,7 +32,10 @@ set_node_param() {
 }
 
 add_node_param() {
-    local name=$1 node=$2 value=$3
+    # Strip leading two dashes, replace dashes with underscores, and convert to
+    # uppercase
+    local name=${1#--}; name=${name//-/_}; name=${name^^}
+    local node=$2 value=$3
     local count=$((++param_count[$name]))
 
     set_node_param "$name$count" "$node" "$value"

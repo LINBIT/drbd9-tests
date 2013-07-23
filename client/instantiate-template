@@ -1,5 +1,7 @@
 #! /bin/sh
 
+. ./param.sh
+
 m4_define() {
     local name array key
     for name in "$@"; do
@@ -30,7 +32,8 @@ m4_define() {
 
 do_debug() {
     if [ -n "$opt_debug" ]; then
-	printf "%q " "$@"
+	echo -n "#"
+	printf " %q" "$@"
 	echo
      fi >&2
     "$@"
@@ -44,19 +47,6 @@ instantiate_template() {
     do_debug m4 -P -I ../m4 \
 	-D TMPL_DEFS="$TMPL_DEFS" \
 	preamble.m4 "$TMPL"
-}
-
-assign_global_values() {
-    local node var expr
-
-    for node in "${NODES[@]}"; do
-	for var in "$@"; do
-	    var=${var#GLOBAL_}
-	    declare -g -A "$var"
-	    expr="$var[\$node]"
-	    [ -n "${!expr}" ] || eval "$expr=\"\$GLOBAL_$var\""
-	done
-    done
 }
 
 assign_addresses() {
@@ -101,36 +91,14 @@ assign_devices() {
 	    device_node="$device[\$node]"
 	    if ! defined "$device" || [ -z "${!device_node}" ]; then
 		minor=$(( max_minor[$node]++ ))
-		set_node_array "$device" "$node" "/dev/drbd$minor"
+		set_node_param "$device" "$node" "/dev/drbd$minor"
 	    fi
 	done
     done
 }
 
-declare -A global_count
-add_global() {
-    local name=GLOBAL_$1 value=$2
-    local count=$((++global_count[$name]))
-
-    eval "$name$count=\$value"
-}
-
 defined() {
     declare -p "$1" > /dev/null 2> /dev/null
-}
-
-set_node_array() {
-    local name=$1 node=$2 value=$3
-
-    declare -g -A "$name"
-    eval "$name[\$node]=$value"
-}
-
-add_node_array() {
-    local name=$1 node=$2 value=$3
-    local count=$((++node_array_count[$name]))
-
-    set_node_array "$name$count" "$node" "$value"
 }
 
 usage() {
@@ -185,6 +153,9 @@ declare -a NODES
 declare -A NODE_ID ADDRESS
 opt_port=7789
 
+declare -A DISK1
+DISK1[_]="/dev/scratch/$RESOURCE"
+
 while :; do
     case "$1" in
     -h|--help)
@@ -202,9 +173,7 @@ while :; do
 	shift
 	;;
     --node)
-	node=$2
-	NODES=("${NODES[@]}" $node)
-	declare -A node_array_count=()
+	new_node "$2" ${!DEVICE*} ${!DISK*} ${!META*}
 	shift
 	;;
     --)
@@ -217,11 +186,7 @@ while :; do
 	name=${1#??}; name=${name//-/_}; name=${name^^}
 	case "$1" in
 	--device|--disk|--meta)
-	    if [ -z "$node" ]; then
-		add_global "$name" "$2"
-	    else
-		add_node_array "$name" "$node" "$2"
-	    fi
+	    add_node_param "$name" "$node" "$2"
 	    ;;
 	*)
 	    if [ -z "$node" ]; then
@@ -239,12 +204,13 @@ done
 
 [ -n "$RESOURCE" -a ${#NODES[@]} -ge 1 -a $# -ge 1 ] || usage 1
 
-[ -n "$GLOBAL_DISK1" ] || GLOBAL_DISK1="/dev/scratch/$RESOURCE"
-assign_global_values ${!GLOBAL_DEVICE*} ${!GLOBAL_DISK*} ${!GLOBAL_META*}
 assign_addresses
 assign_node_ids
 assign_devices
 
+for array in ${!DEVICE*} ${!DISK*} ${!META*}; do
+    eval "unset $array[_]"
+done
 VOLUMES=(${!DISK*})
 VOLUMES=("${VOLUMES[@]/#DISK}")
 for template in "$@"; do

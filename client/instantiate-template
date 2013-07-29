@@ -1,6 +1,8 @@
 #! /bin/sh
 
-. ./param.sh
+HERE=${0%/*}
+. $HERE/param.sh
+. $HERE/client.sh
 
 m4_define() {
     local name array key
@@ -28,15 +30,6 @@ m4_define() {
 	    ;;
 	esac
     done
-}
-
-do_debug() {
-    if [ -n "$opt_debug" ]; then
-	echo -n "#"
-	printf " %q" "$@"
-	echo
-     fi >&2
-    "$@"
 }
 
 instantiate_template() {

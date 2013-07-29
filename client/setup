@@ -1,0 +1,138 @@
+#! /bin/sh
+
+HERE=${0%/*}
+. $HERE/param.sh
+. $HERE/client.sh
+set -e
+
+instantiate_template() {
+    local I=("${INSTANTIATE[@]}") option
+
+    I[${#I[@]}]=--resource=$opt_resource
+    for node in "${NODES[@]}"; do
+	I[${#I[@]}]=--node=$node
+	for param in DEVICE DISK META NODE_ID ADDRESS; do
+	    eval "[ -n "\${$param[\$node]+x}" ]" || continue
+	    option=${param//_/-}; option=--${option,,}
+	    eval "I[\${#I[@]}]=--\$option=\${$param[\$node]}"
+	done
+    done
+    I[${#I[@]}]=$opt_template
+    $HERE/instantiate-template "${I[@]}"
+}
+
+# - which test nodes?
+# - which test volumes to create, which sizes?
+
+# - receive `drbdsetup events all' output form all nodes
+# - check for state changes (very next state change that matches a pattern,
+#   either no in-between state change or forbidden patterns)
+
+#
+# setup --job=... --resource=... --disk=10M --meta=1M --node=node1 [--address=...] --node=node2 [--address=...]
+# setup --job=... --resource=... --node=node1 --disk=10M --node=node2 --disk=20M
+#
+
+# Die if we cannot access a node ...
+
+# Save current configuration so that standalone scripts can access it
+
+usage() {
+    [ $1 -eq 0 ] || exec >&2
+    cat <<EOF
+    USAGE: ${0##*/} [options] ...
+EOF
+    exit $1
+}
+
+options=`getopt -o h --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,help -- "$@"` || usage 1
+eval set -- "$options"
+
+declare opt_debug= opt_resource= opt_job= opt_create_md=1
+declare opt_template=template.conf.m4
+declare -a INSTANTIATE CREATE_OPTS
+
+while :; do
+    case "$1" in
+    --debug)
+	INSTANTIATE=("${INSTANTIATE[@]}" "$1")
+	;;
+    --port)
+	INSTANTIATE=("${INSTANTIATE[@]}" "$1=$2")
+	;;
+    --job|--volume-group)
+	CREATE_OPTS=("${CREATE_OPTS[@]}" "$1=$2")
+	;;
+    esac
+
+    case "$1" in
+    -h|--help)
+        usage 0
+        ;;
+    --debug)
+        opt_debug=1
+        ;;
+    --job)
+	opt_job=$2
+	shift
+	;;
+    --volume-group)
+	shift
+	;;
+    --resource)
+	opt_resource=$2
+	shift
+	;;
+    --template)
+	opt_template=$2
+	;;
+    --node)
+	new_node "$2"
+	shift
+	;;
+    --device|--disk|--meta)
+	add_node_param "$1-size" "$node" "$2"
+	shift
+	;;
+    --node-id|--address)
+	add_node_param "$1" "$node" "$2"
+	shift
+	;;
+    --port)
+        shift
+        ;;
+    --no-create-md)
+	opt_create_md=
+    --)
+	shift
+	break
+	;;
+    esac
+    shift
+done
+
+[ -n "$opt_job" ] || usage 1
+if [ -z "$opt_resource" ]; then
+    opt_resource=$opt_job
+fi
+INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$opt_resource")
+jobdir=$(jobdir "$opt_job")
+
+for node in "${NODES[@]}"; do
+    for disk in ${!DISK_SIZE*} ${META_SIZE*}; do
+	eval "size=\${$disk[\$node]}"
+	device=$(on_node "$node" create-disk "${CREATE_OPTS}" --size=$size)
+	eval "${disk%_SIZE}[\$node]=\"$device\""
+    done
+done
+
+instantiate_template > $jobdir/drbd.conf
+
+export DRBD_TEST_JOB=$opt_job
+
+for node in "${NODES[@]}"; do
+    on_node "$node" install-config < $jobdir/drbd.conf
+done
+[ -z "$opt_create_md" ] || on_all_nodes drbdadm create-md "$opt_resource"
+
+# Remember settings in file

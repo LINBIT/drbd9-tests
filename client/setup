@@ -130,9 +130,16 @@ instantiate_template > $jobdir/drbd.conf
 
 export DRBD_TEST_JOB=$opt_job
 
-for node in "${NODES[@]}"; do
-    on_node "$node" install-config < $jobdir/drbd.conf
+for ((n = 0; n < ${#NODES[n]}; n++)); do
+    node=${NODES[n]}
+
+    create_coprocess NODE$n ssh root@$node exxe
+
+    # FIXME: Use exxe environment variable substitution
+    P=$(on NODE$n echo "$PATH")
+    on NODE$n export DRBD_TEST_DATA="$DRBD_TEST_DATA:$P"
+    on NODE$n export DRBD_TEST_JOB="$opt_job"
+
+    on -i NODE$n install-config < $jobdir/drbd.conf
 done
 [ -z "$opt_create_md" ] || on_all_nodes drbdadm create-md "$opt_resource"
-
-# Remember settings in file

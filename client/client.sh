@@ -29,7 +29,7 @@ create_coprocess() {
     mkfifo $tmpdir/io-$proc $tmpdir/oi-$proc
     "$@" > $tmpdir/io-$proc < $tmpdir/oi-$proc &
     exec {in}< $tmpdir/io-$proc {out}> $tmpdir/oi-$proc
-    eval "export ${proc}_PID=$!; ${proc}_IN=$in ${proc}_OUT=$out"
+    eval "export ${proc}_PID=$! ${proc}_IN=$in ${proc}_OUT=$out"
     rm -f $tmpdir/io-$proc $tmpdir/oi-$proc
 }
 
@@ -59,5 +59,25 @@ on() {
     for proc in "${procs[@]}"; do
 	eval "exxe -o <&\$${proc}_IN"
 	# FIXME: If this fails, report the node as well.
+    done
+}
+
+connect_to_nodes() {
+    local n=0
+
+    while [ $# -gt 0 ]; do
+	create_coprocess NODE$n ssh root@$1 exxe
+
+	on -n -Q NODE$n export PATH="$DRBD_TEST_DATA:\$PATH"
+	on -n NODE$n export DRBD_TEST_DATA="$DRBD_TEST_DATA"
+	on -n NODE$n export DRBD_TEST_JOB="$DRBD_TEST_JOB"
+
+	if ! on -n NODE$n test -d "$DRBD_TEST_DATA"; then
+	    echo "Node $1: Directory $DRBD_TEST_DATA does not exist" >&2
+	    exit 1
+	fi
+
+	((++n))
+	shift
     done
 }

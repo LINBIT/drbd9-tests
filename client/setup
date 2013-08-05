@@ -121,26 +121,9 @@ INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$opt_resource")
 jobdir=$opt_job
 export DRBD_TEST_JOB=$opt_job
 
+connect_to_nodes "${NODES[@]}"
+
 exec < /dev/null
-
-declare -a ALL_NODES=()
-for ((n = 0; n < ${#NODES[n]}; n++)); do
-    ALL_NODES=("${ALL_NODES[@]}" "NODE$n")
-done
-
-for ((n = 0; n < ${#NODES[n]}; n++)); do
-    node=${NODES[n]}
-
-    create_coprocess NODE$n ssh root@$node exxe
-
-    on -Q NODE$n export PATH="$DRBD_TEST_DATA:\$PATH"
-    on NODE$n export DRBD_TEST_DATA="$DRBD_TEST_DATA"
-    on NODE$n export DRBD_TEST_JOB="$DRBD_TEST_JOB"
-    if ! on NODE$n test -d "$DRBD_TEST_DATA"; then
-	echo "Node $node: Directory $DRBD_TEST_DATA does not exist" >&2
-	exit 1
-    fi
-done
 
 # Replace the node names we were passed with the names under which the nodes
 # know themselves: drbd depends on this in its config files.

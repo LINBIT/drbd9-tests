@@ -11,10 +11,11 @@ node=_
 declare -A param_count
 
 new_node() {
-    local global
+    local array
 
     node=$1
     shift
+    declare -g -a NODES
     NODES=("${NODES[@]}" "$node")
     declare -g -A param_count=()
 

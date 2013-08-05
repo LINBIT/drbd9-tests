@@ -24,6 +24,8 @@ data_libs := \
 
 data_scripts := \
 	create-disk \
+	drbdadm \
+	install-config \
 
 all: $(data_libs) $(data_scripts)
 
@@ -38,13 +40,15 @@ $(data_libs) $(data_scripts): %: %.in
 	@mv $@.tmp $@
 
 install:
+	$(INSTALL) -d $(DRBD_TEST_JOBS)
 	$(INSTALL) -d $(DESTDIR)$(DRBD_TEST_DATA)
 	$(INSTALL) -m 644 $(data_libs) $(DESTDIR)$(DRBD_TEST_DATA)
 	$(INSTALL) -m 755 $(data_scripts) $(DESTDIR)$(DRBD_TEST_DATA)
 
 uninstall:
 	rm -f $(patsubst %,$(DESTDIR)$(DRBD_TEST_DATA)/%,$(data_libs) $(data_scripts))
-	rmdir $(DESTDIR)$(DRBD_TEST_DATA) 2>&1 || :
+	rmdir $(DRBD_TEST_JOBS) $(localstatedir)/lib/$(PACKAGE) 2> /dev/null || :
+	rmdir $(DESTDIR)$(DRBD_TEST_DATA) 2> /dev/null || :
 
 clean:
 	rm -f $(data_libs) $(data_scripts)

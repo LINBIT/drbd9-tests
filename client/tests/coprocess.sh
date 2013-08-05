@@ -1,9 +1,11 @@
 #! /bin/bash
 
-. client.sh
+. ${0%/*}/../client.sh
 
 create_coprocess LOCAL exxe
 create_coprocess X ssh localhost exxe
+
+exec < /dev/null
 
 on LOCAL echo foo
 on X echo foo

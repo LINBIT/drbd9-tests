@@ -1,2 +1,4 @@
 /create-disk
 /drbd-test.sh
+/install-config
+/drbdadm

@@ -1,4 +1,8 @@
 #! /bin/sh
 
-# Get the job this is part of from the environment
-false
+#. @DRBD_TEST_LIB@
+set -e
+
+jobdir=@DRBD_TEST_JOBS@/$DRBD_TEST_JOB
+mkdir -p "$jobdir"
+cat > "$jobdir/drbd.conf"

@@ -37,7 +37,7 @@ instantiate_template() {
     shift
     local TMPL_DEFS="$(m4_define "$@")"
 
-    do_debug m4 -P -I ../m4 \
+    do_debug m4 -P -I ../m4 -I m4 \
 	-D TMPL_DEFS="$TMPL_DEFS" \
 	preamble.m4 "$TMPL"
 }

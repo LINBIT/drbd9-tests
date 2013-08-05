@@ -1,24 +1,26 @@
 #! /bin/sh
 
+# FIXME: Add verbose mode in which all commands are logged ...
+
 HERE=${0%/*}
 . $HERE/param.sh
 . $HERE/client.sh
 set -e
 
 instantiate_template() {
-    local I=("${INSTANTIATE[@]}") option
+    local I=("${INSTANTIATE[@]}") option n
 
-    I[${#I[@]}]=--resource=$opt_resource
-    for node in "${NODES[@]}"; do
-	I[${#I[@]}]=--node=$node
-	for param in DEVICE DISK META NODE_ID ADDRESS; do
+    for ((n = 0; n < ${#NODES[n]}; n++)); do
+	node=${NODES[n]}
+	I[${#I[@]}]=--node=${FULL_HOSTNAMES[n]}
+	for param in ${!DEVICE*} ${!DISK*} ${!META*} ${!NODE_ID*} ${!ADDRESS*}; do
 	    eval "[ -n "\${$param[\$node]+x}" ]" || continue
-	    option=${param//_/-}; option=--${option,,}
+	    option=${param//[0-9]}; option=${option//_/-}; option=${option,,}
 	    eval "I[\${#I[@]}]=--\$option=\${$param[\$node]}"
 	done
     done
     I[${#I[@]}]=$opt_template
-    $HERE/instantiate-template "${I[@]}"
+    do_debug $HERE/instantiate-template "${I[@]}"
 }
 
 # - which test nodes?
@@ -45,23 +47,18 @@ EOF
     exit $1
 }
 
-options=`getopt -o h --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,help -- "$@"` || usage 1
+options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,help,verbose -- "$@"` || usage 1
 eval set -- "$options"
 
-declare opt_debug= opt_resource= opt_job= opt_create_md=1
-declare opt_template=template.conf.m4
-declare -a INSTANTIATE CREATE_OPTS
+declare opt_debug= opt_verbose=
+declare opt_resource= opt_job= opt_create_md=1 opt_volume_group=scratch
+declare opt_template=m4/template.conf.m4
+declare -a INSTANTIATE
 
 while :; do
     case "$1" in
-    --debug)
-	INSTANTIATE=("${INSTANTIATE[@]}" "$1")
-	;;
     --port)
 	INSTANTIATE=("${INSTANTIATE[@]}" "$1=$2")
-	;;
-    --job|--volume-group)
-	CREATE_OPTS=("${CREATE_OPTS[@]}" "$1=$2")
 	;;
     esac
 
@@ -72,11 +69,15 @@ while :; do
     --debug)
         opt_debug=1
         ;;
+    -v|--verbose)
+	opt_verbose=1
+	;;
     --job)
 	opt_job=$2
 	shift
 	;;
     --volume-group)
+	opt_volume_group=$2
 	shift
 	;;
     --resource)
@@ -87,14 +88,14 @@ while :; do
 	opt_template=$2
 	;;
     --node)
-	new_node "$2"
+	new_node "$2" ${!DEVICE*} ${!DISK_SIZE*} ${!META_SIZE*}
 	shift
 	;;
-    --device|--disk|--meta)
+    --disk|--meta)
 	add_node_param "$1-size" "$node" "$2"
 	shift
 	;;
-    --node-id|--address)
+    --node-id|--address|--device|--volume-group)
 	add_node_param "$1" "$node" "$2"
 	shift
 	;;
@@ -103,6 +104,7 @@ while :; do
         ;;
     --no-create-md)
 	opt_create_md=
+	;;
     --)
 	shift
 	break
@@ -116,30 +118,74 @@ if [ -z "$opt_resource" ]; then
     opt_resource=$opt_job
 fi
 INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$opt_resource")
-jobdir=$(jobdir "$opt_job")
-
-for node in "${NODES[@]}"; do
-    for disk in ${!DISK_SIZE*} ${META_SIZE*}; do
-	eval "size=\${$disk[\$node]}"
-	device=$(on_node "$node" create-disk "${CREATE_OPTS}" --size=$size)
-	eval "${disk%_SIZE}[\$node]=\"$device\""
-    done
-done
-
-instantiate_template > $jobdir/drbd.conf
-
+jobdir=$opt_job
 export DRBD_TEST_JOB=$opt_job
+
+exec < /dev/null
+
+declare -a ALL_NODES=()
+for ((n = 0; n < ${#NODES[n]}; n++)); do
+    ALL_NODES=("${ALL_NODES[@]}" "NODE$n")
+done
 
 for ((n = 0; n < ${#NODES[n]}; n++)); do
     node=${NODES[n]}
 
     create_coprocess NODE$n ssh root@$node exxe
 
-    # FIXME: Use exxe environment variable substitution
-    P=$(on NODE$n echo "$PATH")
-    on NODE$n export DRBD_TEST_DATA="$DRBD_TEST_DATA:$P"
-    on NODE$n export DRBD_TEST_JOB="$opt_job"
-
-    on -i NODE$n install-config < $jobdir/drbd.conf
+    on -Q NODE$n export PATH="$DRBD_TEST_DATA:\$PATH"
+    on NODE$n export DRBD_TEST_DATA="$DRBD_TEST_DATA"
+    on NODE$n export DRBD_TEST_JOB="$DRBD_TEST_JOB"
+    if ! on NODE$n test -d "$DRBD_TEST_DATA"; then
+	echo "Node $node: Directory $DRBD_TEST_DATA does not exist" >&2
+	exit 1
+    fi
 done
-[ -z "$opt_create_md" ] || on_all_nodes drbdadm create-md "$opt_resource"
+
+# Replace the node names we were passed with the names under which the nodes
+# know themselves: drbd depends on this in its config files.
+FULL_HOSTNAMES=( "${NODES[@]}" )
+for ((n = 0; n < ${#NODES[n]}; n++)); do
+    node=${NODES[n]}
+    hostname=$(on NODE$n hostname -f)
+    if [ "$hostname" != "$node" ]; then
+	echo "Node $node: full hostname = $hostname"
+	FULL_HOSTNAMES[$n]=$hostname
+    fi
+done
+
+# FIXME: The disks could be created in parallel ...
+for ((n = 0; n < ${#NODES[n]}; n++)); do
+    node=${NODES[n]}
+
+    for disk_size in ${!DISK_SIZE*} ${!META_SIZE*}; do
+	eval "size=\${$disk_size[\$node]}"
+	[ -n "$size" ] || continue
+	disk=${disk_size/_SIZE}
+	device=$(on NODE$n create-disk \
+	    --job=$opt_job \
+	    --volume-group=$opt_volume_group \
+	    --size=$size $DRBD_TEST_JOB-${disk,,})
+	verbose "Node $node: disk $device created ($size)"
+	eval "$disk[\$node]=\"$device\""
+    done
+done
+unset ${!DISK_SIZE*} ${!META_SIZE*}
+
+mkdir -p "$jobdir"
+instantiate_template > $jobdir/drbd.conf
+
+for ((n = 0; n < ${#NODES[n]}; n++)); do
+    on NODE$n install-config < $jobdir/drbd.conf
+done
+
+if [ -n "$opt_create_md" ]; then
+    for ((n = 0; n < ${#NODES[n]}; n++)); do
+	msg=$(on NODE$n drbdadm -- --force create-md "$opt_resource" 2>&1)
+	status=$?
+	if [ $status -ne 0 ]; then
+	    echo "$msg" >&2
+	    exit $status
+	fi
+    done
+fi

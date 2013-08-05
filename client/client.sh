@@ -6,6 +6,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+verbose() {
+    [ -z "$opt_verbose" ] || echo "$@"
+}
+
 do_debug() {
     if [ -n "$opt_debug" ]; then
 	echo -n "#"
@@ -13,10 +17,6 @@ do_debug() {
 	echo
      fi >&2
     "$@"
-}
-
-jobdir() {
-    echo "$1"
 }
 
 # This is similar to bash's coproc command, except that the coproc command only
@@ -41,11 +41,11 @@ close_coprocess() {
 }
 
 on() {
-    local no_stdin=-n proc procs var
-    if [ "$1" = "-i" ]; then
-	no_stdin=
+    local options proc procs var
+    while [ "${1:0:1}" = "-" ]; do
+	options=("${options[@]}" "$1")
 	shift
-    fi
+    done
     while :; do
 	var=$1_PID
 	[ -n "${!var}" ] || break
@@ -54,9 +54,10 @@ on() {
     done
 
     for proc in "${procs[@]}"; do
-	eval "exxe $no_stdin -i \"\$@\" >&\$${proc}_OUT"
+	eval "exxe "${options[@]}" -i \"\$@\" >&\$${proc}_OUT"
     done
     for proc in "${procs[@]}"; do
 	eval "exxe -o <&\$${proc}_IN"
+	# FIXME: If this fails, report the node as well.
     done
 }

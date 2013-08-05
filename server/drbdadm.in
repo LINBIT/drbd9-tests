@@ -3,4 +3,4 @@
 # Get the job this is part of from the environment
 
 export PATH=${PATH#*:}
-drbdadm -c "@THE_RIGHT_PATH@/$DRBD_TEST_JOB/drbd.conf" "$@"
+drbdadm -c "@DRBD_TEST_JOBS@/$DRBD_TEST_JOB/drbd.conf" "$@"

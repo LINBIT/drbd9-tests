@@ -14,3 +14,6 @@
   - Persistent vs. transient cleanup (things that go away at reboot).
 
 * Template: support more than one volume.
+
+* Implement quiet option for drbdmeta so that it doesn't report various crap
+  on standard error.

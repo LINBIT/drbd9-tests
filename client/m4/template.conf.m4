@@ -3,9 +3,9 @@ global {
 }
 
 resource RESOURCE {
-m4_foreach(`NODE', `(NODES)',
+m4_foreachq(`NODE', m4_quote(NODES),
 `	on NODE {
-m4_foreach(`VOLUME', `(VOLUMES)',
+m4_foreachq(`VOLUME', m4_quote(VOLUMES),
 `		volume VOLUME {
 			device DEVICE(NODE);
 			disk DISK(NODE);

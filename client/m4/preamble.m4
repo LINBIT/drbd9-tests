@@ -1,5 +1,6 @@
 m4_include(`join.m4')m4_dnl
-m4_include(`foreach2.m4')m4_dnl
+m4_include(`foreachq4.m4')m4_dnl
+m4_include(`quote.m4')m4_dnl
 m4_include(`array.m4')m4_dnl
 m4_include(`default.m4')m4_dnl
 m4_divert(-1)dnl

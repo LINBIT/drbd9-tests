@@ -42,17 +42,18 @@ instantiate_template() {
 usage() {
     [ $1 -eq 0 ] || exec >&2
     cat <<EOF
-    USAGE: ${0##*/} [options] ...
+USAGE: ${0##*/} [options] ...
 EOF
     exit $1
 }
 
-options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,help,verbose -- "$@"` || usage 1
+options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,help,verbose -- "$@"` || usage 1
 eval set -- "$options"
 
 declare opt_debug= opt_verbose=
 declare opt_resource= opt_job= opt_create_md=1 opt_volume_group=scratch
 declare opt_template=m4/template.conf.m4
+declare opt_cleanup=always
 declare -a INSTANTIATE
 
 while :; do
@@ -105,6 +106,17 @@ while :; do
     --no-create-md)
 	opt_create_md=
 	;;
+    --cleanup)
+	case "$2" in
+	always|never|success)
+	    opt_cleanup=$2
+	    ;;
+	*)
+	    usage 1
+	    ;;
+	esac
+	shift
+	;;
     --)
 	shift
 	break
@@ -122,6 +134,11 @@ jobdir=$opt_job
 export DRBD_TEST_JOB=$opt_job
 
 connect_to_nodes "${NODES[@]}"
+ALL_NODES=( $(seq -f NODE%g 0 $((${#NODES[@]} - 1))) )
+
+if [ "$opt_cleanup" = "always" ]; then
+    on -n "${ALL_NODES[@]}" onexit cleanup
+fi
 
 exec < /dev/null
 
@@ -132,7 +149,7 @@ for ((n = 0; n < ${#NODES[n]}; n++)); do
     node=${NODES[n]}
     hostname=$(on NODE$n hostname -f)
     if [ "$hostname" != "$node" ]; then
-	echo "Node $node: full hostname = $hostname"
+	echo "$node: full hostname = $hostname"
 	FULL_HOSTNAMES[$n]=$hostname
     fi
 done
@@ -149,7 +166,7 @@ for ((n = 0; n < ${#NODES[n]}; n++)); do
 	    --job=$opt_job \
 	    --volume-group=$opt_volume_group \
 	    --size=$size $DRBD_TEST_JOB-${disk,,})
-	verbose "Node $node: disk $device created ($size)"
+	verbose "$node: disk $device created ($size)"
 	eval "$disk[\$node]=\"$device\""
     done
 done
@@ -164,11 +181,14 @@ done
 
 if [ -n "$opt_create_md" ]; then
     for ((n = 0; n < ${#NODES[n]}; n++)); do
-	msg=$(on NODE$n drbdadm -- --force create-md "$opt_resource" 2>&1)
-	status=$?
-	if [ $status -ne 0 ]; then
+	msg=$(on NODE$n drbdadm -- --force create-md "$opt_resource" 2>&1) || status=$?
+	if [ -n "$status" ]; then
 	    echo "$msg" >&2
 	    exit $status
 	fi
     done
+fi
+
+if [ "$opt_cleanup" = "success" ]; then
+    on "${ALL_NODES[@]}" cleanup
 fi

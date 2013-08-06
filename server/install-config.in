@@ -1,8 +1,7 @@
 #! /bin/sh
 
-#. @DRBD_TEST_LIB@
 set -e
 
-jobdir=@DRBD_TEST_JOBS@/$DRBD_TEST_JOB
+jobdir=@DRBD_TEST_VAR@/$DRBD_TEST_JOB
 mkdir -p "$jobdir"
 cat > "$jobdir/drbd.conf"

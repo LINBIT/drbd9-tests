@@ -57,8 +57,7 @@ on() {
 	eval "exxe "${options[@]}" -i \"\$@\" >&\$${proc}_OUT"
     done
     for proc in "${procs[@]}"; do
-	eval "exxe -o <&\$${proc}_IN"
-	# FIXME: If this fails, report the node as well.
+	eval "exxe -o --error-prefix=\"\$${proc}_NAME: \" <&\$${proc}_IN"
     done
 }
 
@@ -67,6 +66,7 @@ connect_to_nodes() {
 
     while [ $# -gt 0 ]; do
 	create_coprocess NODE$n ssh root@$1 exxe
+	eval "export NODE${n}_NAME=\"\$1\""
 
 	on -n -Q NODE$n export PATH="$DRBD_TEST_DATA:\$PATH"
 	on -n NODE$n export DRBD_TEST_DATA="$DRBD_TEST_DATA"

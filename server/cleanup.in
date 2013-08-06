@@ -1,0 +1,63 @@
+#! /bin/sh
+
+usage() {
+    [ $1 -eq 0 ] || exec >&2
+    cat <<EOF
+USAGE: ${0##*/} [-la] [job] ...
+EOF
+    exit $1
+}
+
+options=`getopt -o lah --long list,all,help -- "$@"` || usage 1
+eval set -- "$options"
+
+opt_all=
+
+while :; do
+    case "$1" in
+    -l|--list)
+	find "@DRBD_TEST_VAR@" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | sort
+	exit 0
+	;;
+    -a|--all)
+	opt_all=1
+	;;
+    -h|--help)
+	usage 0
+	;;
+    --)
+	shift
+	break
+	;;
+    esac
+    shift
+done
+
+if [ -n "$opt_all" ]; then
+    [ $# -eq 0 ] || usage 1
+    set -- $(find "@DRBD_TEST_VAR@" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | sort)
+    if [ $# -gt 0 ]; then
+	echo "Cleaning up jobs: $*"
+    else
+	echo "No jobs found to clean up"
+    fi
+elif [ $# -eq 0 ]; then
+    [ -n "$DRBD_TEST_JOB" ] || usage 1
+    set -- "$DRBD_TEST_JOB"
+fi
+
+shopt -s nullglob
+
+status=
+for job in "$@"; do
+    job_status=
+    for cleanup in $(echo @DRBD_TEST_VAR@/$job/cleanup-* | sort -r); do
+	"$cleanup" || job_status=1
+    done
+    if [ -z "$job_status" ]; then
+	rm -rf @DRBD_TEST_VAR@/$job || status=$?
+    else
+	status=$job_status
+    fi
+done
+exit $status

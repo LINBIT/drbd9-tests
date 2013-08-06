@@ -20,3 +20,4 @@
     --node=f18-left.gurkel.linbit \
     --node=f18-right.gurkel.linbit \
     template.conf.m4
+  -> m4_foreach doesn't seem to work for empty lists.

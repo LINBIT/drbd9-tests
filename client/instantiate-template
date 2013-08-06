@@ -20,8 +20,8 @@ m4_define() {
 	    ;;
 	-a)
 	    # Array
-	    set -- "$(printf "\`%s', " "${NODES[@]}")"
-	    set -- "$(eval "printf \"\\\`%s', \" \"\${$name[@]}\"")"
+	    eval "set -- \"\${$name[@]}\""
+	    [ $# -eq 0 ] || set -- "$(printf "\`%s', " "$@")"
 	    echo "m4_define(\`$name', \`${1%??}')"
 	    ;;
 	--)

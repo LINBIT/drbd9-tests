@@ -145,9 +145,6 @@ declare -- RESOURCE
 declare -A NODE_ID ADDRESS
 opt_port=7789
 
-declare -A DISK1
-DISK1[_]="/dev/scratch/$RESOURCE"
-
 while :; do
     case "$1" in
     -h|--help)

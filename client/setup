@@ -1,6 +1,7 @@
-#! /bin/sh
+#! /bin/bash
 
 # FIXME: Add verbose mode in which all commands are logged ...
+# FIXME: Check for ntp on the test nodes and the client
 
 HERE=${0%/*}
 . $HERE/param.sh
@@ -21,6 +22,27 @@ instantiate_template() {
     done
     I[${#I[@]}]=$opt_template
     do_debug $HERE/instantiate-template "${I[@]}"
+}
+
+listen_to_events() {
+    for node in "$@"; do
+	ssh -q root@$node drbdsetup events all > $DRBD_TEST_JOB/events-$node &
+	echo $! > run/events-$node.pid
+    done
+
+    cleanup_events() {
+	local pids
+
+	shopt -s nullglob
+	set -- run/events-*.pid
+	if [ $# -gt 0 ]; then
+	    pids=( $(cat "$@") )
+	    kill "${pids[@]}"
+	    wait "${pids[@]}"
+	    rm -f "$@""$@"
+	fi
+    }
+    register_cleanup cleanup_events
 }
 
 # - which test nodes?
@@ -139,6 +161,21 @@ ALL_NODES=( $(seq -f NODE%g 0 $((${#NODES[@]} - 1))) )
 if [ "$opt_cleanup" = "always" ]; then
     on -n "${ALL_NODES[@]}" onexit cleanup
 fi
+
+mkdir -p run
+
+listen_to_events "${NODES[@]}"
+
+rsyslogd -i $PWD/run/rsyslogd.pid -f <(
+    sed -e "s:@PORT@:$RSYSLOGD_PORT:g" \
+	-e "s:@DRBD_TEST_DIR@:$PWD:g" \
+	-e "s:@DRBD_TEST_JOB@:$DRBD_TEST_JOB:g" rsyslog.conf.in)
+register_cleanup kill $(cat run/rsyslogd.pid)
+
+hostname=$(hostname -f)
+for ((n = 0; n < ${#NODES[n]}; n++)); do
+    on -n NODE$n rsyslogd $hostname $RSYSLOGD_PORT
+done
 
 exec < /dev/null
 

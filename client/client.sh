@@ -1,10 +1,22 @@
 export DRBD_TEST_DATA=/usr/share/drbd-test
 
-tmpdir=$(mktemp -dt)
+RSYSLOGD_PORT=5140
+
+declare -a CLEANUP
+register_cleanup() {
+    CLEANUP[${#CLEANUP[@]}]="$*"
+}
 cleanup() {
-    rm -rf "$tmpdir"
+    local cleanup
+
+    for cleanup in "${CLEANUP[@]}"; do
+	$cleanup || :
+    done
 }
 trap cleanup EXIT
+
+tmpdir=$(mktemp -dt)
+register_cleanup 'rm -rf "$tmpdir"'
 
 verbose() {
     [ -z "$opt_verbose" ] || echo "$@"

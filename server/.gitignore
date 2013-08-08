@@ -3,3 +3,4 @@
 /drbd-test.sh
 /install-config
 /drbdadm
+/rsyslogd

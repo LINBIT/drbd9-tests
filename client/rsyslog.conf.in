@@ -1,0 +1,12 @@
+$ModLoad imtcp
+$InputTCPServerRun @PORT@
+
+$ModLoad imudp
+$UDPServerRun @PORT@
+
+$PreserveFQDN off
+
+$template DynFile,"@DRBD_TEST_DIR@/@DRBD_TEST_JOB@/%HOSTNAME%.log"
+$template PMfmt,"%TIMESTAMP:::date-rfc3339% %HOSTNAME% <%PRI%> %syslogtag%%msg%\n"
+
+*.*	-?DynFile;PMfmt

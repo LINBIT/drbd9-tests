@@ -168,8 +168,7 @@ listen_to_events "${NODES[@]}"
 
 rsyslogd -i $PWD/run/rsyslogd.pid -f <(
     sed -e "s:@PORT@:$RSYSLOGD_PORT:g" \
-	-e "s:@DRBD_TEST_DIR@:$PWD:g" \
-	-e "s:@DRBD_TEST_JOB@:$DRBD_TEST_JOB:g" rsyslog.conf.in)
+	-e "s:@SYSLOG_DIR@:$PWD/$DRBD_TEST_JOB:g" rsyslog.conf.in)
 register_cleanup kill $(cat run/rsyslogd.pid)
 
 hostname=$(hostname -f)

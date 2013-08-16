@@ -30,7 +30,7 @@ data_scripts := \
 	rsyslogd
 
 extra_files := \
-	rsyslog.conf.in
+	rsyslog-forward.conf.in
 
 all: $(data_libs) $(data_scripts)
 

@@ -77,12 +77,13 @@ connect_to_nodes() {
     local n=0
 
     while [ $# -gt 0 ]; do
-	create_coprocess NODE$n ssh root@$1 exxe
+	create_coprocess NODE$n ssh root@$1 exxe --syslog
 	eval "export NODE${n}_NAME=\"\$1\""
 
 	on -n -Q NODE$n export PATH="$DRBD_TEST_DATA:\$PATH"
 	on -n NODE$n export DRBD_TEST_DATA="$DRBD_TEST_DATA"
 	on -n NODE$n export DRBD_TEST_JOB="$DRBD_TEST_JOB"
+	on -n NODE$n export EXXE_IDENT="exxe/$DRBD_TEST_JOB"
 
 	if ! on -n NODE$n test -d "$DRBD_TEST_DATA"; then
 	    echo "Node $1: Directory $DRBD_TEST_DATA does not exist" >&2

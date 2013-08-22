@@ -1,0 +1,37 @@
+7 create resource name:drbd0 role:Secondary suspended:no
+8 create device name:drbd0 volume:0 minor:0 disk:Diskless
+9 create device name:drbd0 volume:1 minor:1 disk:Diskless
+10 create device name:drbd0 volume:2 minor:2 disk:Diskless
+11 change device name:drbd0 volume:0 minor:0 disk:Attaching
+18 change device name:drbd0 volume:0 minor:0 disk:UpToDate
+19 change device name:drbd0 volume:1 minor:1 disk:Attaching
+26 change device name:drbd0 volume:1 minor:1 disk:UpToDate
+27 change device name:drbd0 volume:2 minor:2 disk:Attaching
+34 change device name:drbd0 volume:2 minor:2 disk:UpToDate
+35* create connection name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 connection:StandAlone role:Unknown
+35* create peer-device name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 volume:0 replication:Off disk:DUnknown resync-suspended:no
+35* create peer-device name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 volume:1 replication:Off disk:DUnknown resync-suspended:no
+35 create peer-device name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 volume:2 replication:Off disk:DUnknown resync-suspended:no
+36 change connection name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 connection:Unconnected role:Unknown
+37* create connection name:drbd0 conn-name:f18-top.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.27:7788 connection:StandAlone role:Unknown
+37* create peer-device name:drbd0 conn-name:f18-top.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.27:7788 volume:0 replication:Off disk:DUnknown resync-suspended:no
+37* create peer-device name:drbd0 conn-name:f18-top.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.27:7788 volume:1 replication:Off disk:DUnknown resync-suspended:no
+37 create peer-device name:drbd0 conn-name:f18-top.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.27:7788 volume:2 replication:Off disk:DUnknown resync-suspended:no
+39* create connection name:drbd0 conn-name:f18-bottom.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.28:7788 connection:StandAlone role:Unknown
+39* create peer-device name:drbd0 conn-name:f18-bottom.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.28:7788 volume:0 replication:Off disk:DUnknown resync-suspended:no
+39* create peer-device name:drbd0 conn-name:f18-bottom.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.28:7788 volume:1 replication:Off disk:DUnknown resync-suspended:no
+- skipped 1
+38 change connection name:drbd0 conn-name:f18-top.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.27:7788 connection:Unconnected role:Unknown
+- skipped 4294967294
+39 create peer-device name:drbd0 conn-name:f18-bottom.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.28:7788 volume:2 replication:Off disk:DUnknown resync-suspended:no
+- skipped 1
+40 change connection name:drbd0 conn-name:f18-bottom.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.28:7788 connection:Unconnected role:Unknown
+41 change connection name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 connection:Connecting role:Unknown
+42 change connection name:drbd0 conn-name:f18-top.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.27:7788 connection:Connecting role:Unknown
+43 change connection name:drbd0 conn-name:f18-bottom.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.28:7788 connection:Connecting role:Unknown
+44 change connection name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 connection:Connected role:Unknown
+45* change connection name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 connection:Connected role:Secondary
+45 change peer-device name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 volume:0 replication:Established disk:Diskless resync-suspended:no
+46 change peer-device name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 volume:1 replication:Established disk:Diskless resync-suspended:no
+47 change peer-device name:drbd0 conn-name:f18-right.gurkel.linbit local:ipv4:192.168.123.25:7788 peer:ipv4:192.168.123.26:7788 volume:2 replication:Established disk:Diskless resync-suspended:no
+

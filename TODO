@@ -17,3 +17,7 @@
 
 * Implement quiet option for drbdmeta so that it doesn't report various crap
   on standard error.
+
+* Human readable desctription of an entire test case
+* setup - cleanup: as soon as setup runs in a separate process, we cannot wait
+  for setup's children with wait(2) anymore.

@@ -1,3 +1,10 @@
+# rsyslogd always seems to load imuxsock and try to read from
+# a socket; the options to suppodedly turn this off don't
+# work in some versions at least.  Use a dummy socket to avoid
+# clashing with the system default.
+$ModLoad imuxsock
+$SystemLogSocketName @SYSLOG_DIR@/unused
+
 $ModLoad imtcp
 $InputTCPServerRun @PORT@
 

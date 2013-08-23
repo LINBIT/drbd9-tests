@@ -166,7 +166,7 @@ mkdir -p run
 
 listen_to_events "${NODES[@]}"
 
-rsyslogd -i $PWD/run/rsyslogd.pid -f <(
+rsyslogd -c5 -i $PWD/run/rsyslogd.pid -f <(
     sed -e "s:@PORT@:$RSYSLOGD_PORT:g" \
 	-e "s:@SYSLOG_DIR@:$PWD/$DRBD_TEST_JOB:g" rsyslog.conf.in)
 register_cleanup kill $(cat run/rsyslogd.pid)

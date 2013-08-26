@@ -23,3 +23,7 @@
   for setup's children with wait(2) anymore.
 
 * Firewalling for tcp/udp syslog on the test node?!
+
+* events:
+  -> Split off
+  -> Allow logfiles to be missing => fall back to polling ...

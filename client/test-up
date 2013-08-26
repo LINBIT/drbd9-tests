@@ -1,0 +1,6 @@
+#! /bin/bash
+
+. ${0%/*}/setup.sh
+
+setup --job=${0#*test-} --disk=10M "$@"
+on -n "${ALL_NODES[@]}" drbdadm up all

@@ -6,11 +6,15 @@ set -e
 CONF=/etc/rsyslog.d/forward.conf
 SERVER=$1
 PORT=$2
+HOSTNAME=$3
 
 rm -f $CONF
 sed -e "s:@PORT@:$PORT:g" \
-    -e "s:@SERVER@:$SERVER:g" @DRBD_TEST_DATA@/rsyslog-forward.conf.in \
+    -e "s:@SERVER@:$SERVER:g" \
+    -e "s:@HOSTNAME@:$HOSTNAME:g" \
+    @DRBD_TEST_DATA@/rsyslog-forward.conf.in \
     > $CONF
 register_cleanup --job="$DRBD_TEST_JOB" -- rm -f $CONF
+# FIXME: Restart in cleanup as well.
 
 systemctl restart rsyslog || kill -HUP $(cat /var/run/syslogd.pid)

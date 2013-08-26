@@ -1,1 +1,3 @@
+# FIXME: Nicht alle Versionen von rsyslogd verstehen das Format date-rfc3339.
+# *.*	@@@SERVER@.:@PORT@;"%TIMESTAMP:::date-rfc3339% @HOSTNAME@ <%PRI%> %syslogtag%%msg%\n"
 *.*	@@@SERVER@.:@PORT@;RSYSLOG_ForwardFormat

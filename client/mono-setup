@@ -52,15 +52,6 @@ listen_to_events() {
 # - check for state changes (very next state change that matches a pattern,
 #   either no in-between state change or forbidden patterns)
 
-#
-# setup --job=... --resource=... --disk=10M --meta=1M --node=node1 [--address=...] --node=node2 [--address=...]
-# setup --job=... --resource=... --node=node1 --disk=10M --node=node2 --disk=20M
-#
-
-# Die if we cannot access a node ...
-
-# Save current configuration so that standalone scripts can access it
-
 usage() {
     [ $1 -eq 0 ] || exec >&2
     cat <<EOF
@@ -166,14 +157,41 @@ mkdir -p run
 
 listen_to_events "${NODES[@]}"
 
-rsyslogd -c5 -i $PWD/run/rsyslogd.pid -f <(
-    sed -e "s:@PORT@:$RSYSLOGD_PORT:g" \
-	-e "s:@SYSLOG_DIR@:$PWD/$DRBD_TEST_JOB:g" rsyslog.conf.in)
-register_cleanup kill $(cat run/rsyslogd.pid)
+for ((n = 0; n < ${#NODES[n]}; n++)); do
+    node=${NODES[n]}
+    logfile=$DRBD_TEST_JOB/$node.log
+    rm -f $logfile
+done
 
 hostname=$(hostname -f)
+
+sed -e "s:@PORT@:$RSYSLOGD_PORT:g" \
+    -e "s:@SYSLOG_DIR@:$PWD/$DRBD_TEST_JOB:g" \
+    -e "s:@SERVER@:${hostname%%.*}:g" \
+    rsyslog.conf.in \
+    > run/rsyslog.conf
+rsyslogd -c5 -i $PWD/run/rsyslogd.pid -f $PWD/run/rsyslog.conf
+register_cleanup kill $(cat run/rsyslogd.pid)
+
 for ((n = 0; n < ${#NODES[n]}; n++)); do
-    on -n NODE$n rsyslogd $hostname $RSYSLOGD_PORT
+    node=${NODES[n]}
+
+    on -n NODE$n rsyslogd $hostname $RSYSLOGD_PORT $node
+    on -n NODE$n logger "Setting up test job $DRBD_TEST_JOB"
+done
+
+for ((n = 0; n < ${#NODES[n]}; n++)); do
+    node=${NODES[n]}
+    # FIXME: If the hostname on the remote host does not match
+    # the name used here, we will loop here forever.  Fix this
+    # by configuring rsyslog on the node to use the right name?
+    logfile=$DRBD_TEST_JOB/$node.log
+    i=0
+    while :; do
+	(( ++i != 10 )) || echo "Waiting for $logfile to appear ..."
+	[ -e $logfile ] && break
+	sleep 0.2
+    done
 done
 
 exec < /dev/null

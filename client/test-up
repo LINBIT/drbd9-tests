@@ -6,7 +6,7 @@
 
 exec < /dev/null
 
-setup --job=${0#*test-} "$@"
+setup "$@"
 on "${NODES[@]}" drbdadm up all
 event "${NODES[@]}" -y connection:Connected
 on "${NODES[@]}" drbdadm down all

@@ -36,8 +36,7 @@
   -> Split off
   -> Allow logfiles to be missing => fall back to polling ...
 
-* When a test script fails, report where it failed (see the "test suite" in
-  exxe and logscan).
+* When a test script fails, report where it failed (BASH_LINENO[]) ...
 
 * When logscan times out, report which patterns it was trying to match?
 
@@ -84,5 +83,7 @@
 
   This could be implemented in drbdsetup or in a post-processing script.
 
-* The test scripts should probably create unique directories for each test run,
-  with a timestamp or similar.
+* Write some kind of end event into the syslog and events log and wait
+  for these end markers to arrive?
+
+* Write the test result into the log directory

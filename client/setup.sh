@@ -139,7 +139,10 @@ setup() {
 	shift
     done
 
-    [ -n "$opt_job" -a ${#NODES} -gt 0 ] || setup_usage 1
+    if [ -z "$opt_job" ]; then
+	opt_job=${0##*test-}-$(date '+%Y%m%d-%H%M%S')
+    fi
+    [ ${#NODES} -gt 0 ] || setup_usage 1
     if [ -z "$opt_resource" ]; then
 	opt_resource=$opt_job
     fi

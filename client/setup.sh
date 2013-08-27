@@ -26,7 +26,8 @@ instantiate_template() {
 
 listen_to_events() {
     for node in "$@"; do
-	ssh -q root@$node drbdsetup events all > $DRBD_TEST_JOB/events-$node &
+	mkdir -p $DRBD_TEST_JOB
+	ssh -q root@$node drbdsetup events all --statistics > $DRBD_TEST_JOB/events-$node &
 	echo $! > run/events-$node.pid
     done
 
@@ -231,6 +232,8 @@ setup() {
 
     for ((n = 0; n < ${#NODES[n]}; n++)); do
 	on NODE$n install-config < $DRBD_TEST_JOB/drbd.conf
+	# FIXME: To clean up, shut the resource down if it is up:
+	# on NODE$n register-cleanup ...
     done
 
     if [ -n "$opt_create_md" ]; then

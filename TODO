@@ -24,6 +24,10 @@
 
 * Firewalling for tcp/udp syslog on the test node?!
 
+* Implement a register-cleanup script on the server (call register_cleanup).
+
+* Implement a client-side cleanup script that cleans up a number of nodes
+
 * events:
   -> Split off
   -> Allow logfiles to be missing => fall back to polling ...

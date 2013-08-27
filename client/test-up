@@ -2,5 +2,9 @@
 
 . ${0%/*}/setup.sh
 
-setup --job=${0#*test-} --disk=10M "$@"
+setup --job=${0#*test-} "$@"
 on -n "${ALL_NODES[@]}" drbdadm up all
+#logscan -p $DRBD_TEST_JOB/pos --timeout=5 \
+#	-y connection:Connected $DRBD_TEST_JOB/events-*
+# Wait until all nodes are connected ...
+on -n "${ALL_NODES[@]}" drbdadm down all

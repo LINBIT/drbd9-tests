@@ -87,3 +87,7 @@
   for these end markers to arrive?
 
 * Write the test result into the log directory
+
+* Change the sematics of exxe to *not* read from stdin by default,
+  only when the -p option is used => no more closing of stdin needed
+  in test suite anymore ...

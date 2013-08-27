@@ -34,6 +34,7 @@ do_debug() {
 # This is similar to bash's coproc command, except that the coproc command only
 # allows one coprocess at a time, and even then doesn't really seem to work as
 # described.
+declare -A COPROC_PID COPROC_IN COPROC_OUT
 create_coprocess() {
     local proc=$1 in out
     shift
@@ -41,56 +42,66 @@ create_coprocess() {
     mkfifo $tmpdir/io-$proc $tmpdir/oi-$proc
     "$@" > $tmpdir/io-$proc < $tmpdir/oi-$proc &
     exec {in}< $tmpdir/io-$proc {out}> $tmpdir/oi-$proc
-    eval "export ${proc}_PID=$! ${proc}_IN=$in ${proc}_OUT=$out"
+    COPROC_PID[$proc]=$!
+    COPROC_IN[$proc]=$in
+    COPROC_OUT[$proc]=$out
     rm -f $tmpdir/io-$proc $tmpdir/oi-$proc
 }
 
 close_coprocess() {
-    local proc=$1 out
-    eval "out=${proc}_OUT"
+    local pid=${COPROC_PID[$1]} out=${COPROC_OUT[$1]}
     eval "exec ${!out}>&-"
-    eval "wait \$${proc}_PID"
+    wait $pid
 }
 
 on() {
-    local options proc procs var
+    local options proc procs
+
     while [ "${1:0:1}" = "-" ]; do
 	options=("${options[@]}" "$1")
 	shift
     done
     while :; do
-	var=$1_PID
-	[ -n "${!var}" ] || break
+	[ -n "${COPROC_PID[$1]}" ] || break
 	procs[${#procs[@]}]=$1
 	shift
     done
 
     for proc in "${procs[@]}"; do
-	eval "exxe "${options[@]}" -i \"\$@\" >&\$${proc}_OUT"
+	eval "exxe \"\${options[@]}\" -i \"\$@\" >&${COPROC_OUT[$proc]}"
     done
     for proc in "${procs[@]}"; do
-	eval "exxe -o --error-prefix=\"\$${proc}_NAME: \" <&\$${proc}_IN"
+	eval "exxe -o --error-prefix=\"\$proc: \" <&${COPROC_IN[$proc]}"
     done
 }
 
+event() {
+    local node nodes logfiles
+
+    while :; do
+	[ -n "${COPROC_PID[$1]}" ] || break
+	nodes[${#nodes[@]}]=$1
+	shift
+    done
+    for node in "${nodes[@]}"; do
+	logfiles[${#logfiles[@]}]=$node:$DRBD_TEST_JOB/events-$node
+    done
+    logscan -p $DRBD_TEST_JOB/pos "$@" "${logfiles[@]}"
+}
+
 connect_to_nodes() {
-    local n=0
+    local node
 
-    while [ $# -gt 0 ]; do
-	create_coprocess NODE$n ssh root@$1 exxe --syslog
-	eval "export NODE${n}_NAME=\"\$1\""
+    for node in "$@"; do
+	create_coprocess $node ssh root@$node exxe --syslog
+	on -n -Q $node export PATH="$DRBD_TEST_DATA:\$PATH"
+	on -n $node export DRBD_TEST_DATA="$DRBD_TEST_DATA"
+	on -n $node export DRBD_TEST_JOB="$DRBD_TEST_JOB"
+	on -n $node export EXXE_IDENT="exxe/$DRBD_TEST_JOB"
 
-	on -n -Q NODE$n export PATH="$DRBD_TEST_DATA:\$PATH"
-	on -n NODE$n export DRBD_TEST_DATA="$DRBD_TEST_DATA"
-	on -n NODE$n export DRBD_TEST_JOB="$DRBD_TEST_JOB"
-	on -n NODE$n export EXXE_IDENT="exxe/$DRBD_TEST_JOB"
-
-	if ! on -n NODE$n test -d "$DRBD_TEST_DATA"; then
-	    echo "Node $1: Directory $DRBD_TEST_DATA does not exist" >&2
+	if ! on -n $node test -d "$DRBD_TEST_DATA"; then
+	    echo "Node $node: Directory $DRBD_TEST_DATA does not exist" >&2
 	    exit 1
 	fi
-
-	((++n))
-	shift
     done
 }

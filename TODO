@@ -1,3 +1,5 @@
+* Client: normal user, no system paths
+
 * If the IP address is not specified, use `gethostip -d "$host"'.
 * Default port: 7789.
 * Default volume group: "scratch".
@@ -28,6 +30,56 @@
 
 * Implement a client-side cleanup script that cleans up a number of nodes
 
+* Implement a standalone setup script
+
 * events:
   -> Split off
   -> Allow logfiles to be missing => fall back to polling ...
+
+* When a test script fails, report where it failed (see the "test suite" in
+  exxe and logscan).
+
+* When logscan times out, report which patterns it was trying to match?
+
+* Right now, "drbdsetup events" always reports all properties even if they
+  have not changed.  Is it useful to implement a "minimized" version that
+  filters out properties which have not changed?  For example, the following
+  log:
+
+  87 create resource name:up role:Secondary suspended:no write-ordering:none
+  88 create connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:StandAlone role:Unknown congested:no
+  89 change connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:Unconnected role:Unknown congested:no
+  90 change connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:Connecting role:Unknown congested:no
+  91 change connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:Connected role:Unknown congested:no
+  92 change connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:Connected role:Secondary congested:no
+
+  would turn into:
+
+  87 create resource name:up role:Secondary suspended:no write-ordering:none
+  88 create connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:StandAlone role:Unknown congested:no
+  89 change connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:Unconnected
+  90 change connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:Connecting
+  91 change connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    connection:Connected
+  92 change connection name:up conn-name:f18-right.gurkel.linbit \
+    local:ipv4:192.168.122.25:7789 peer:ipv4:192.168.122.26:7789 \
+    role:Secondary
+
+  This could be implemented in drbdsetup or in a post-processing script.

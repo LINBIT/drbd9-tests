@@ -1,10 +1,20 @@
 #! /bin/bash
 
+# Pass this script a list of host names to use as the test nodes.
+
 . ${0%/*}/setup.sh
 
+exec < /dev/null
+
 setup --job=${0#*test-} "$@"
-on -n "${ALL_NODES[@]}" drbdadm up all
-#logscan -p $DRBD_TEST_JOB/pos --timeout=5 \
-#	-y connection:Connected $DRBD_TEST_JOB/events-*
-# Wait until all nodes are connected ...
-on -n "${ALL_NODES[@]}" drbdadm down all
+on "${NODES[@]}" drbdadm up all
+event "${NODES[@]}" -y connection:Connected
+on "${NODES[@]}" drbdadm down all
+
+# FIXME: This test case currently fails to wait until all connections
+# are established with more than two nodes (that is, it would have to
+# wait for each connection to change into state connection:Connected).
+#
+# (Also see the TODO file; the event log will contain the sought-for
+# string multiple times if a property other than the connection state
+# changes!)

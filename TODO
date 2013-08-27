@@ -83,3 +83,6 @@
     role:Secondary
 
   This could be implemented in drbdsetup or in a post-processing script.
+
+* The test scripts should probably create unique directories for each test run,
+  with a timestamp or similar.

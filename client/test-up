@@ -7,14 +7,13 @@
 exec < /dev/null
 
 setup "$@"
+
 on "${NODES[@]}" drbdadm up all
-event "${NODES[@]}" -y connection:Connected
+for ((n=1; n<${#NODES[@]}; n++)); do
+    event "${NODES[@]}" -y 'change connection .* role:Secondary'
+done
 on "${NODES[@]}" drbdadm down all
 
-# FIXME: This test case currently fails to wait until all connections
-# are established with more than two nodes (that is, it would have to
-# wait for each connection to change into state connection:Connected).
-#
-# (Also see the TODO file; the event log will contain the sought-for
-# string multiple times if a property other than the connection state
-# changes!)
+# DRBD bug: this test case works when a disk is created on one of the nodes as
+# well (for example, "test-up --disk=1M node1 node2"); otherwise, some nodes
+# do not realize that their peers are all in role Secondary.

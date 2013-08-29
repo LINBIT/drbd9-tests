@@ -55,11 +55,14 @@ EOF
 }
 
 setup() {
-    local options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,help,verbose -- "$@"` || setup_usage 1
+    local options
+
+    options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare -g opt_debug= opt_verbose= opt_cleanup=always
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
+    declare opt_min_nodes=2
     declare opt_template=m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -125,6 +128,10 @@ setup() {
 	    esac
 	    shift
 	    ;;
+	--min-nodes)
+	    opt_min_nodes=$2
+	    shift
+	    ;;
 	--)
 	    shift
 	    break
@@ -138,6 +145,11 @@ setup() {
 	new_node "$1" ${!DEVICE*} ${!DISK_SIZE*} ${!META_SIZE*}
 	shift
     done
+
+    if [ -n "$opt_min_nodes" ]; then
+	[ ${#NODES[@]} -ge $opt_min_nodes ] ||
+	    skip_test "Test case requires $opt_min_nodes or more nodes"
+    fi
 
     if [ -z "$opt_job" ]; then
 	opt_job=${0##*test-}-$(date '+%Y%m%d-%H%M%S')
@@ -199,7 +211,7 @@ setup() {
     local FULL_HOSTNAMES=( "${NODES[@]}" ) 
     for ((n = 0; n < ${#NODES[n]}; n++)); do
 	node=${NODES[n]}
-	hostname=$(on $node hostname -f)
+	hostname=$(on -n $node hostname -f)
 	if [ "$hostname" != "$node" ]; then
 	    echo "$node: full hostname = $hostname"
 	    FULL_HOSTNAMES[$n]=$hostname
@@ -213,7 +225,7 @@ setup() {
 	    eval "size=\${$disk_size[\$node]}"
 	    [ -n "$size" ] || continue
 	    disk=${disk_size/_SIZE}
-	    device=$(on $node create-disk \
+	    device=$(on -n $node create-disk \
 		--job=$opt_job \
 		--volume-group=$opt_volume_group \
 		--size=$size $DRBD_TEST_JOB-${disk,,})
@@ -234,7 +246,7 @@ setup() {
 
     if [ -n "$opt_create_md" ]; then
 	for node in "${NODES[@]}"; do
-	    msg=$(on $node drbdadm -- --force create-md "$opt_resource" 2>&1) || status=$?
+	    msg=$(on -n $node drbdadm -- --force create-md "$opt_resource" 2>&1) || status=$?
 	    if [ -n "$status" ]; then
 		echo "$msg" >&2
 		exit $status
@@ -242,7 +254,7 @@ setup() {
 	done
     fi
 
-    if [ "$opt_cleanup" = "success" ]; then
-	on "${NODES[@]}" cleanup
-    fi
+    #if [ "$opt_cleanup" = "success" ]; then
+    #	on -n "${NODES[@]}" cleanup
+    #fi
 }

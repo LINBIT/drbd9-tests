@@ -105,3 +105,8 @@ connect_to_nodes() {
 	fi
     done
 }
+
+skip_test() {
+    echo "${0##*/}:" "$@" >&2
+    exit 100
+}

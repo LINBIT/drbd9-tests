@@ -4,8 +4,6 @@
 
 . ${0%/*}/setup.sh
 
-exec < /dev/null
-
 setup "$@"
 
 on "${NODES[@]}" drbdadm up all

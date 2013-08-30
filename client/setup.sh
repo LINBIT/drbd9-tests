@@ -160,13 +160,13 @@ setup() {
     fi
     INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$opt_resource")
     export DRBD_TEST_JOB=$opt_job
-    export LOGSCAN_TIMEOUT=10
+    export LOGSCAN_TIMEOUT=30
     rm -f $DRBD_TEST_JOB/pos
 
     connect_to_nodes "${NODES[@]}"
 
     if [ "$opt_cleanup" = "always" ]; then
-	on -n "${NODES[@]}" onexit cleanup
+	on "${NODES[@]}" onexit cleanup
     fi
 
     mkdir -p run
@@ -189,8 +189,8 @@ setup() {
     register_cleanup kill $(cat run/rsyslogd.pid)
 
     for node in "${NODES[@]}"; do
-	on -n $node rsyslogd $hostname $RSYSLOGD_PORT $node
-	on -n $node logger "Setting up test job $DRBD_TEST_JOB"
+	on $node rsyslogd $hostname $RSYSLOGD_PORT $node
+	on $node logger "Setting up test job $DRBD_TEST_JOB"
     done
 
     for node in "${NODES[@]}"; do
@@ -211,7 +211,7 @@ setup() {
     local FULL_HOSTNAMES=( "${NODES[@]}" ) 
     for ((n = 0; n < ${#NODES[n]}; n++)); do
 	node=${NODES[n]}
-	hostname=$(on -n $node hostname -f)
+	hostname=$(on $node hostname -f)
 	if [ "$hostname" != "$node" ]; then
 	    echo "$node: full hostname = $hostname"
 	    FULL_HOSTNAMES[$n]=$hostname
@@ -225,7 +225,7 @@ setup() {
 	    eval "size=\${$disk_size[\$node]}"
 	    [ -n "$size" ] || continue
 	    disk=${disk_size/_SIZE}
-	    device=$(on -n $node create-disk \
+	    device=$(on $node create-disk \
 		--job=$opt_job \
 		--volume-group=$opt_volume_group \
 		--size=$size $DRBD_TEST_JOB-${disk,,})
@@ -239,14 +239,14 @@ setup() {
     instantiate_template > $DRBD_TEST_JOB/drbd.conf
 
     for node in "${NODES[@]}"; do
-	on $node install-config < $DRBD_TEST_JOB/drbd.conf
+	on -p $node install-config < $DRBD_TEST_JOB/drbd.conf
 	# FIXME: To clean up, shut the resource down if it is up:
 	# on $node register-cleanup ...
     done
 
     if [ -n "$opt_create_md" ]; then
 	for node in "${NODES[@]}"; do
-	    msg=$(on -n $node drbdadm -- --force create-md "$opt_resource" 2>&1) || status=$?
+	    msg=$(on $node drbdadm -- --force create-md "$opt_resource" 2>&1) || status=$?
 	    if [ -n "$status" ]; then
 		echo "$msg" >&2
 		exit $status
@@ -255,6 +255,6 @@ setup() {
     fi
 
     #if [ "$opt_cleanup" = "success" ]; then
-    #	on -n "${NODES[@]}" cleanup
+    #	on "${NODES[@]}" cleanup
     #fi
 }

@@ -86,7 +86,7 @@ event() {
     for node in "${nodes[@]}"; do
 	logfiles[${#logfiles[@]}]=$node:$DRBD_TEST_JOB/events-$node
     done
-    logscan -p $DRBD_TEST_JOB/pos "$@" "${logfiles[@]}"
+    logscan ${opt_verbose+--verbose} -p $DRBD_TEST_JOB/pos "$@" "${logfiles[@]}"
 }
 
 connect_to_nodes() {

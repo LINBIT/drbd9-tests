@@ -1,21 +1,6 @@
-* Client: normal user, no system paths
-
-* If the IP address is not specified, use `gethostip -d "$host"'.
-* Default port: 7789.
-* Default volume group: "scratch".
-* Default first minor number for the drbd device: 0
-
-* Create the required number of test disks on each node, in the required size.
-  Remember the device names (the devices can be for either data or metadata).
-* Other options to set in the configuration file template?
-* Instantiate the configuration file.
-* Copy the configuration file to each node (with cleanup hook).
-
 * register_cleanup():
   - Allow to specify a cleanup group.
   - Persistent vs. transient cleanup (things that go away at reboot).
-
-* Template: support more than one volume.
 
 * Implement quiet option for drbdmeta so that it doesn't report various crap
   on standard error.
@@ -30,21 +15,9 @@
 
 * Implement a client-side cleanup script that cleans up a number of nodes
 
-* Implement a standalone setup script
-
-* events:
-  -> Split off
-  -> Allow logfiles to be missing => fall back to polling ...
-
 * When a test script fails, report where it failed (BASH_LINENO[]) ...
-
-* When logscan times out, report which patterns it was trying to match?
 
 * Write some kind of end event into the syslog and events log and wait
   for these end markers to arrive?
 
 * Write the test result into the log directory
-
-* Change the sematics of exxe to *not* read from stdin by default,
-  only when the -p option is used => no more closing of stdin needed
-  in test suite anymore ...

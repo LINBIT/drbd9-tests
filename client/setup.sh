@@ -27,7 +27,10 @@ instantiate_template() {
 listen_to_events() {
     for node in "$@"; do
 	mkdir -p $DRBD_TEST_JOB
-	ssh -q root@$node drbdsetup events all --statistics > $DRBD_TEST_JOB/events-$node &
+	ssh -q root@$node drbdsetup events all \
+		--statistics \
+		--timestamps \
+		> $DRBD_TEST_JOB/events-$node &
 	echo $! > run/events-$node.pid
     done
 

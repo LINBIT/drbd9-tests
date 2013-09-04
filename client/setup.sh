@@ -60,12 +60,12 @@ EOF
 setup() {
     local options
 
-    options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,help,verbose -- "$@"` || setup_usage 1
+    options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,only-setup,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare -g opt_debug= opt_verbose= opt_cleanup=always
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
-    declare opt_min_nodes=2
+    declare opt_min_nodes=2 opt_only_setup=
     declare opt_template=m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -134,6 +134,10 @@ setup() {
 	--min-nodes)
 	    opt_min_nodes=$2
 	    shift
+	    ;;
+	--only-setup)
+	    opt_only_setup=1
+	    opt_cleanup=never
 	    ;;
 	--)
 	    shift
@@ -257,6 +261,7 @@ setup() {
 	done
     fi
 
+    [ -z "$opt_only_setup" ] || exit 0
     #if [ "$opt_cleanup" = "success" ]; then
     #	on "${NODES[@]}" cleanup
     #fi

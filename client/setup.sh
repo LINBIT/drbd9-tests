@@ -27,7 +27,10 @@ instantiate_template() {
 listen_to_events() {
     for node in "$@"; do
 	mkdir -p $DRBD_TEST_JOB
-	ssh -q root@$node drbdsetup events all --statistics > $DRBD_TEST_JOB/events-$node &
+	ssh -q root@$node drbdsetup events all \
+		--statistics \
+		--timestamps \
+		> $DRBD_TEST_JOB/events-$node &
 	echo $! > run/events-$node.pid
     done
 
@@ -55,11 +58,14 @@ EOF
 }
 
 setup() {
-    local options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,help,verbose -- "$@"` || setup_usage 1
+    local options
+
+    options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare -g opt_debug= opt_verbose= opt_cleanup=always
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
+    declare opt_min_nodes=2
     declare opt_template=m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -125,6 +131,10 @@ setup() {
 	    esac
 	    shift
 	    ;;
+	--min-nodes)
+	    opt_min_nodes=$2
+	    shift
+	    ;;
 	--)
 	    shift
 	    break
@@ -139,6 +149,11 @@ setup() {
 	shift
     done
 
+    if [ -n "$opt_min_nodes" ]; then
+	[ ${#NODES[@]} -ge $opt_min_nodes ] ||
+	    skip_test "Test case requires $opt_min_nodes or more nodes"
+    fi
+
     if [ -z "$opt_job" ]; then
 	opt_job=${0##*test-}-$(date '+%Y%m%d-%H%M%S')
     fi
@@ -148,13 +163,13 @@ setup() {
     fi
     INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$opt_resource")
     export DRBD_TEST_JOB=$opt_job
-    export LOGSCAN_TIMEOUT=10
+    export LOGSCAN_TIMEOUT=30
     rm -f $DRBD_TEST_JOB/pos
 
     connect_to_nodes "${NODES[@]}"
 
     if [ "$opt_cleanup" = "always" ]; then
-	on -n "${NODES[@]}" onexit cleanup
+	on "${NODES[@]}" onexit cleanup
     fi
 
     mkdir -p run
@@ -177,8 +192,8 @@ setup() {
     register_cleanup kill $(cat run/rsyslogd.pid)
 
     for node in "${NODES[@]}"; do
-	on -n $node rsyslogd $hostname $RSYSLOGD_PORT $node
-	on -n $node logger "Setting up test job $DRBD_TEST_JOB"
+	on $node rsyslogd $hostname $RSYSLOGD_PORT $node
+	on $node logger "Setting up test job $DRBD_TEST_JOB"
     done
 
     for node in "${NODES[@]}"; do
@@ -227,7 +242,7 @@ setup() {
     instantiate_template > $DRBD_TEST_JOB/drbd.conf
 
     for node in "${NODES[@]}"; do
-	on $node install-config < $DRBD_TEST_JOB/drbd.conf
+	on -p $node install-config < $DRBD_TEST_JOB/drbd.conf
 	# FIXME: To clean up, shut the resource down if it is up:
 	# on $node register-cleanup ...
     done
@@ -242,7 +257,7 @@ setup() {
 	done
     fi
 
-    if [ "$opt_cleanup" = "success" ]; then
-	on "${NODES[@]}" cleanup
-    fi
+    #if [ "$opt_cleanup" = "success" ]; then
+    #	on "${NODES[@]}" cleanup
+    #fi
 }

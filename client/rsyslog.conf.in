@@ -14,9 +14,8 @@ $UDPServerRun @PORT@
 $PreserveFQDN off
 
 $template DynFile,"@SYSLOG_DIR@/%HOSTNAME%.log"
-$template PMfmt,"%TIMESTAMP:::date-rfc3339% %HOSTNAME% <%PRI%> %syslogtag%%msg%\n"
 
 # FIXME: Nicht alle Versionen von rsyslog verstehen if ?!
 # if $hostname != '@SERVER@' then {
-	*.*	-?DynFile;PMfmt
+	*.*	-?DynFile
 # }

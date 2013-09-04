@@ -1,0 +1,19 @@
+#! /bin/bash
+
+# Pass this script a list of host names to use as the test nodes.
+
+. ${0%/*}/setup.sh
+
+setup "$@"
+
+on "${NODES[@]}" drbdadm up all
+# In an n-node cluster where each node is connected with each other, each node
+# has (n-1) neighbors, each of which should be in secondary role initially.
+for ((n=1; n<${#NODES[@]}; n++)); do
+    event "${NODES[@]}" -y ' connection .* role:Secondary'
+done
+on "${NODES[@]}" drbdadm down all
+
+# DRBD bug: this test case works when a disk is created on one of the nodes as
+# well (for example, "test-up --disk=1M node1 node2"); otherwise, some nodes
+# do not realize that their peers are all in role Secondary.

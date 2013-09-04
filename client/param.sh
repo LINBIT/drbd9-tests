@@ -10,6 +10,7 @@ node=_
 # for each new node so that the global settings can be overridden.
 
 declare -A param_count
+declare -A params
 
 new_node() {
     local array
@@ -27,9 +28,8 @@ new_node() {
 
 set_node_param() {
     local name=$1 node=$2 value=$3
-
-    declare -g -A "$name"
-    eval "$name[\$node]=$value"
+    local key="$name-$node"
+    eval "params[$key]=$value"
 }
 
 add_node_param() {

@@ -8,16 +8,15 @@ node=_
 # defined in param_count[array] (e.g., param_count[DISK] is 2
 # if DISK1 and DISK2 have been defined).  We reset param_count
 # for each new node so that the global settings can be overridden.
-declare -g -A param_count
+
+declare -A param_count
 
 new_node() {
     local array
 
     node=$1
     shift
-    declare -g -a NODES
     NODES=("${NODES[@]}" "$node")
-    declare -g -A param_count
     param_count=()
 
     # Copy the global settings from array[_] to array[$node]

@@ -13,7 +13,3 @@ for ((n=1; n<${#NODES[@]}; n++)); do
     event "${NODES[@]}" -y ' connection .* role:Secondary'
 done
 on "${NODES[@]}" drbdadm down all
-
-# DRBD bug: this test case works when a disk is created on one of the nodes as
-# well (for example, "test-up --disk=1M node1 node2"); otherwise, some nodes
-# do not realize that their peers are all in role Secondary.

@@ -5,9 +5,9 @@ log() {
 doit() {
     local status
 
-    log --tag "${0##*/}" -- "$@"
+    log -t "${0##*/}" -- "$@"
     "$@" || status=$?
-    [ -z "$status" ] || log --tag "${0##*/}" -- "(failed with status $status)"
+    [ -z "$status" ] || log -t "${0##*/}" -- "(failed with status $status)"
     return $status
 }
 
@@ -35,7 +35,7 @@ register_cleanup() {
     done
     [ -n "$job" ] || return 0
 
-    log --tag register-cleanup -- "$@"
+    log -t register-cleanup -- "$@"
 
     set -- "$(quote_command "$@")"
 

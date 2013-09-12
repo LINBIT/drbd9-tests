@@ -25,4 +25,4 @@ sed -e "s:@PORT@:$PORT:g" \
 register_cleanup --job="$DRBD_TEST_JOB" -- rm -f $CONF
 # FIXME: Restart in cleanup as well.
 
-systemctl restart rsyslog || kill -HUP $(cat /var/run/syslogd.pid)
+service rsyslog restart

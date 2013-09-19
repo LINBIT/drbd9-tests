@@ -68,7 +68,7 @@ on() {
     done
 
     for proc in "${procs[@]}"; do
-	eval "exxe \"\${options[@]}\" -n -i \"\$@\" >&${COPROC_OUT[$proc]}"
+	eval "exxe \"\${options[@]}\" -i \"\$@\" >&${COPROC_OUT[$proc]}"
     done
     for proc in "${procs[@]}"; do
 	eval "exxe -o --error-prefix=\"\$proc: \" <&${COPROC_IN[$proc]}"

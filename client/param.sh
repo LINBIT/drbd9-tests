@@ -9,27 +9,32 @@ node=_
 # if DISK1 and DISK2 have been defined).  We reset param_count
 # for each new node so that the global settings can be overridden.
 
-declare -A param_count
 declare -A params
+declare -A param_count
 
 new_node() {
-    local array
+    local name
 
     node=$1
-    shift
     NODES=("${NODES[@]}" "$node")
     param_count=()
 
-    # Copy the global settings from array[_] to array[$node]
-    for array in "$@"; do
-	eval "[ -z \"\${$array[_]+x}\" ] || $array[\$node]=\"\${$array[_]}\""
+    # Copy the global settings from params[_:*] to params[$node:*]
+    for name in "${!params[@]}"; do
+	case "$name" in
+	_:*)
+	    params["$node:${name#_:}"]="${params["$name"]}"
+	    ;;
+	esac
     done
 }
 
 set_node_param() {
-    local name=$1 node=$2 value=$3
-    local key="$name-$node"
-    eval "params[$key]=$value"
+    # Strip leading two dashes, replace dashes with underscores, and convert to
+    # uppercase
+    local name=${1#--}; name=${name//-/_}; name=${name^^}
+    local node=$2 value=$3
+    params["$node:$name"]="$value"
 }
 
 add_node_param() {
@@ -38,6 +43,5 @@ add_node_param() {
     local name=${1#--}; name=${name//-/_}; name=${name^^}
     local node=$2 value=$3
     local count=$((++param_count[$name]))
-
-    set_node_param "$name$count" "$node" "$value"
+    params["$node:$name$count"]="$value"
 }

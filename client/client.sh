@@ -50,7 +50,7 @@ create_coprocess() {
 
 close_coprocess() {
     local pid=${COPROC_PID[$1]} out=${COPROC_OUT[$1]}
-    eval "exec ${out}>&-"
+    eval "exec $out>&-"
     wait $pid
 }
 

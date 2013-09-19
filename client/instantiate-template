@@ -46,11 +46,11 @@ assign_addresses() {
     local node address
 
     for node in "${NODES[@]}"; do
-	if [ -z "${ADDRESS[$node]}" ]; then
+	if [ -z "${params[$node:ADDRESS]}" ]; then
 	    if address=$(gethostip -d "$node"); then
-		ADDRESS[$node]="$address:$opt_port"
+		params[$node:ADDRESS]="$address:$opt_port"
 	    else
-		ADDRESS[$node]="$node:$opt_port"
+		params[$node:ADDRESS]="$node:$opt_port"
 		status=1
 	    fi
 	fi
@@ -59,34 +59,44 @@ assign_addresses() {
 
 declare -a node_ids_used
 assign_node_ids() {
-    local node expr n
+    local node id n
 
     for node in "${NODES[@]}"; do
-	if [ -z "${NODE_ID[$node]}" ]; then
+	id=${params["$node:NODE_ID"]}
+	if [ -n "$id" ]; then
+	    node_ids_used[$id]=1
+	fi
+    done
+
+    for node in "${NODES[@]}"; do
+	if [ -z "${params["$node:NODE_ID"]}" ]; then
 	    for ((n = 0; ; n++)); do
 		if [ -z "${node_ids_used[$n]}" ]; then
 		    node_ids_used[$n]=1
 		    break
 		fi
 	    done
-	    NODE_ID[$node]=$n
+	    params["$node:NODE_ID"]=$n
 	fi
     done
 }
 
 declare -A max_minor
 assign_devices() {
-    local node disk minor device device_node
+    local node_name node name disk minor device device_node
 
-    for node in "${NODES[@]}"; do
-	for disk in ${!DISK*}; do
-	    device=${disk/#DISK/DEVICE}
-	    device_node="$device[\$node]"
-	    if ! defined "$device" || [ -z "${!device_node}" ]; then
+    for node_name in "${!params[@]}"; do
+	node=${node_name%%:*}
+	name=${node_name#*:}
+	[ "$node" != "_" ] || continue
+	case "$name" in
+	DISK*)
+	    device=${name/#DISK/DEVICE}
+	    if [ -z "${params[$device]}" ]; then
 		minor=$(( max_minor[$node]++ ))
 		set_node_param "$device" "$node" "/dev/drbd$minor"
 	    fi
-	done
+	esac
     done
 }
 
@@ -162,7 +172,7 @@ while :; do
 	shift
 	;;
     --node)
-	new_node "$2" ${!DEVICE*} ${!DISK*} ${!META*}
+	new_node "$2"
 	shift
 	;;
     --device|--disk|--meta)
@@ -174,7 +184,7 @@ while :; do
 	    echo "Option $1 is not allowed before the first --node option" >&2
 	    exit 1
 	fi
-	add_node_param "$1" "$node" "$2"
+	set_node_param "$1" "$node" "$2"
 	shift
 	;;
     --)
@@ -188,12 +198,20 @@ done
 [ -n "$RESOURCE" -a ${#NODES[@]} -ge 1 -a $# -ge 1 ] || usage 1
 
 assign_addresses
-assign_node_ids
 assign_devices
+assign_node_ids
 
-for array in ${!DEVICE*} ${!DISK*} ${!META*}; do
-    eval "unset $array[_]"
+# Convert param[node:NAME]=value into NAME[node]=value representation
+for node_name in "${!params[@]}"; do
+    node=${node_name%%:*}
+    name=${node_name#*:}
+    [ "$node" != "_" ] || continue
+    eval "
+	declare -A $name
+	$name[\$node]=\"\${params[\"\$node:\$name\"]}\"
+    "
 done
+
 VOLUMES=(${!DISK*})
 VOLUMES=("${VOLUMES[@]/#DISK}")
 for template in "$@"; do

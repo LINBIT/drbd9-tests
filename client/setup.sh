@@ -10,14 +10,17 @@ set -e
 
 instantiate_template() {
     local I=("${INSTANTIATE[@]}") option n
+    local node_name node name
 
     for ((n = 0; n < ${#NODES[n]}; n++)); do
 	node=${NODES[n]}
 	I[${#I[@]}]=--node=${FULL_HOSTNAMES[n]}
-	for param in ${!DEVICE*} ${!DISK*} ${!META*} ${!NODE_ID*} ${!ADDRESS*}; do
-	    eval "[ -n "\${$param[\$node]+x}" ]" || continue
-	    option=${param//[0-9]}; option=${option//_/-}; option=${option,,}
-	    eval "I[\${#I[@]}]=--\$option=\${$param[\$node]}"
+	for node_name in "${!params[@]}"; do
+	    node2=${node_name%%:*}
+	    name=${node_name#*:}
+	    [ "$node2" = "$node" ] || continue
+	    option=${name//[0-9]}; option=${option//_/-}; option=${option,,}
+	    I[${#I[@]}]="--$option=${params[$node_name]}"
 	done
     done
     I[${#I[@]}]=$opt_template
@@ -104,15 +107,19 @@ setup() {
 	    opt_template=$2
 	    ;;
 	--node)
-	    new_node "$2" ${!DEVICE*} ${!DISK_SIZE*} ${!META_SIZE*}
+	    new_node "$2"
 	    shift
 	    ;;
 	--disk|--meta)
 	    add_node_param "$1-size" "$node" "$2"
 	    shift
 	    ;;
-	--node-id|--address|--device|--volume-group)
+	--device)
 	    add_node_param "$1" "$node" "$2"
+	    shift
+	    ;;
+	--node-id|--address|--volume-group)
+	    set_node_param "$1" "$node" "$2"
 	    shift
 	    ;;
 	--port)
@@ -150,7 +157,7 @@ setup() {
 
     # Treat the remaining arguments as node names
     while [ $# -gt 0 ]; do
-	new_node "$1" ${!DEVICE*} ${!DISK_SIZE*} ${!META_SIZE*}
+	new_node "$1"
 	shift
     done
 
@@ -216,7 +223,7 @@ setup() {
 
     # Replace the node names we were passed with the names under which the nodes
     # know themselves: drbd depends on this in its config files.
-    local FULL_HOSTNAMES=( "${NODES[@]}" ) 
+    local FULL_HOSTNAMES=( "${NODES[@]}" )
     for ((n = 0; n < ${#NODES[n]}; n++)); do
 	node=${NODES[n]}
 	hostname=$(on $node hostname -f)
@@ -228,20 +235,24 @@ setup() {
 
     # FIXME: The disks could be created in parallel ...
     local disk device
-    for node in "${NODES[@]}"; do
-	for disk_size in ${!DISK_SIZE*} ${!META_SIZE*}; do
-	    eval "size=\${$disk_size[\$node]}"
-	    [ -n "$size" ] || continue
-	    disk=${disk_size/_SIZE}
+    for node_name in "${!params[@]}"; do
+	node=${node_name%%:*}
+	name=${node_name#*:}
+	[ "$node" != "_" ] || continue;
+	case "$name" in
+	DISK_SIZE*|META_SIZE*)
+	    size=${params["$node_name"]}
+	    disk=${name/_SIZE}
 	    device=$(on $node create-disk \
 		--job=$opt_job \
 		--volume-group=$opt_volume_group \
 		--size=$size $DRBD_TEST_JOB-${disk,,})
 	    verbose "$node: disk $device created ($size)"
-	    eval "$disk[\$node]=\"$device\""
-	done
+	    params["$node:$disk"]="$device"
+	    ;;
+	esac
+	unset params["$node_name"]
     done
-    unset ${!DISK_SIZE*} ${!META_SIZE*}
 
     mkdir -p "$DRBD_TEST_JOB"
     instantiate_template > $DRBD_TEST_JOB/drbd.conf

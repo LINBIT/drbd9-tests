@@ -176,6 +176,8 @@ setup() {
     INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$opt_resource")
     export DRBD_TEST_JOB=$opt_job
     export LOGSCAN_TIMEOUT=30
+
+    echo "Logging to directory $DRBD_TEST_JOB"
     rm -f $DRBD_TEST_JOB/pos
 
     connect_to_nodes "${NODES[@]}"

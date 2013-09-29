@@ -69,6 +69,7 @@ on() {
     done
 
     for proc in "${procs[@]}"; do
+	verbose "$proc: calling $@" >&$stdout_dup
 	eval "exxe \"\${options[@]}\" -i \"\$@\" >&${COPROC_OUT[$proc]}"
     done
     for proc in "${procs[@]}"; do

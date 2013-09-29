@@ -62,7 +62,7 @@ EOF
     exit $1
 }
 
-declare opt_debug= opt_verbose= opt_cleanup=always
+declare opt_debug= opt_verbose= opt_cleanup=always stdout_dup
 
 setup() {
     local options
@@ -181,6 +181,10 @@ setup() {
 
     echo "Logging to directory $DRBD_TEST_JOB"
     rm -f $DRBD_TEST_JOB/pos
+
+    # Duplicate stdout so that we can write to it even when file descriptor
+    # one has been redirected
+    exec {stdout_dup}>&1
 
     connect_to_nodes "${NODES[@]}"
 

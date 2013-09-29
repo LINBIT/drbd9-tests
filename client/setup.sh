@@ -28,9 +28,11 @@ instantiate_template() {
 }
 
 listen_to_events() {
+    local resource=$1
+    shift
     for node in "$@"; do
 	mkdir -p $DRBD_TEST_JOB
-	ssh -q root@$node drbdsetup events all \
+	ssh -q root@$node drbdsetup events "$resource" \
 		--statistics \
 		--timestamps \
 		> $DRBD_TEST_JOB/events-$node &
@@ -188,7 +190,7 @@ setup() {
 
     mkdir -p run
 
-    listen_to_events "${NODES[@]}"
+    listen_to_events "$opt_resource" "${NODES[@]}"
 
     for node in "${NODES[@]}"; do
 	logfile=$DRBD_TEST_JOB/$node.log

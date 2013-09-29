@@ -40,7 +40,7 @@ listen_to_events() {
     done
 
     cleanup_events() {
-	local pids
+	local -a pids
 
 	shopt -s nullglob
 	set -- run/events-*.pid
@@ -227,7 +227,7 @@ setup() {
 
     # Replace the node names we were passed with the names under which the nodes
     # know themselves: drbd depends on this in its config files.
-    local FULL_HOSTNAMES=( "${NODES[@]}" )
+    local -a FULL_HOSTNAMES=( "${NODES[@]}" )
     for ((n = 0; n < ${#NODES[n]}; n++)); do
 	node=${NODES[n]}
 	hostname=$(on $node hostname -f)

@@ -55,7 +55,8 @@ close_coprocess() {
 }
 
 on() {
-    local options proc procs
+    local -a options procs
+    local proc
 
     while [ "${1:0:1}" = "-" ]; do
 	options=("${options[@]}" "$1")
@@ -76,7 +77,8 @@ on() {
 }
 
 event() {
-    local node nodes logfiles
+    local -a nodes logfiles
+    local node
 
     while :; do
 	[ -n "${COPROC_PID[$1]}" ] || break

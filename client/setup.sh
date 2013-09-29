@@ -273,6 +273,7 @@ setup() {
 
     if [ -n "$opt_create_md" ]; then
 	for node in "${NODES[@]}"; do
+	    # FIXME: This is called even when we didn't create any disks.
 	    msg=$(on $node drbdadm -- --force create-md "$opt_resource" 2>&1) || status=$?
 	    if [ -n "$status" ]; then
 		echo "$msg" >&2

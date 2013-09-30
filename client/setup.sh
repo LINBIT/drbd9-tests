@@ -1,6 +1,5 @@
 #! /bin/bash
 
-# FIXME: Add verbose mode in which all commands are logged ...
 # FIXME: Check for ntp on the test nodes and the client
 
 HERE=${0%/*}
@@ -47,6 +46,8 @@ listen_to_events() {
 	if [ $# -gt 0 ]; then
 	    pids=( $(cat "$@") )
 	    kill "${pids[@]}"
+	    # FIXME: got "kill: (27979) - No such process" here once --
+	    # how did this happen?
 	    wait "${pids[@]}"
 	    rm -f "$@""$@"
 	fi

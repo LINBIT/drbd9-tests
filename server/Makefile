@@ -15,7 +15,7 @@ localstatedir := /var
 
 INSTALL := install
 
-DRBD_TEST_DATA := $(DESTDIR)$(datadir)/$(PACKAGE)
+DRBD_TEST_DATA := $(datadir)/$(PACKAGE)
 DRBD_TEST_LIB := $(DRBD_TEST_DATA)/$(PACKAGE).sh
 DRBD_TEST_VAR := $(localstatedir)/lib/$(PACKAGE)
 
@@ -45,14 +45,14 @@ $(data_libs) $(data_scripts): %: %.in
 	@mv $@.tmp $@
 
 install:
-	$(INSTALL) -d $(DRBD_TEST_VAR)
+	$(INSTALL) -d $(DESTDIR)$(DRBD_TEST_VAR)
 	$(INSTALL) -d $(DESTDIR)$(DRBD_TEST_DATA)
 	$(INSTALL) -m 644 $(data_libs) $(extra_files) $(DESTDIR)$(DRBD_TEST_DATA)
 	$(INSTALL) -m 755 $(data_scripts) $(DESTDIR)$(DRBD_TEST_DATA)
 
 uninstall:
 	rm -f $(patsubst %,$(DESTDIR)$(DRBD_TEST_DATA)/%,$(data_libs) $(extra_files) $(data_scripts))
-	rmdir $(DRBD_TEST_VAR) 2> /dev/null || :
+	rmdir $(DESTDIR)$(DRBD_TEST_VAR) 2> /dev/null || :
 	rmdir $(DESTDIR)$(DRBD_TEST_DATA) 2> /dev/null || :
 
 clean:

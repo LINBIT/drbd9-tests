@@ -177,6 +177,7 @@ setup() {
     fi
     INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$opt_resource")
     export DRBD_TEST_JOB=$opt_job
+    export EXXE_TIMEOUT=30
     export LOGSCAN_TIMEOUT=30
 
     echo "Logging to directory $DRBD_TEST_JOB"
@@ -188,6 +189,9 @@ setup() {
 
     connect_to_nodes "${NODES[@]}"
 
+    if [ -n "$EXXE_TIMEOUT" ]; then
+	on "${NODES[@]}" timeout $EXXE_TIMEOUT
+    fi
     if [ "$opt_cleanup" = "always" ]; then
 	on "${NODES[@]}" onexit cleanup
     fi

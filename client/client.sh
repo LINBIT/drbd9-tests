@@ -19,7 +19,7 @@ tmpdir=$(mktemp -dt)
 register_cleanup 'rm -rf "$tmpdir"'
 
 verbose() {
-    [ -z "$opt_verbose" ] || echo "$@"
+    [ -z "$opt_verbose" ] || echo "$@" >&$stdout_dup
 }
 
 do_debug() {
@@ -69,14 +69,14 @@ on() {
     done
 
     for proc in "${procs[@]}"; do
-	verbose "$proc: calling $@" >&$stdout_dup
+	verbose "$proc: calling $@"
 	eval "exxe \"\${options[@]}\" -i \"\$@\" >&${COPROC_OUT[$proc]}"
     done
     for proc in "${procs[@]}"; do
 	eval "exxe -o --error-prefix=\"\$proc: \" <&${COPROC_IN[$proc]}"
 	status=$?
 	if [ $status != 0 ]; then
-	    verbose "$proc: $1 failed with status code $status" >&$stdout_dup
+	    verbose "$proc: $1 failed with status code $status"
 	    return $status
 	fi
     done

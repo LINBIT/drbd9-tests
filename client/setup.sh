@@ -182,6 +182,7 @@ setup() {
     export LOGSCAN_TIMEOUT=30
 
     echo "Logging to directory $DRBD_TEST_JOB"
+    mkdir -p "$DRBD_TEST_JOB"
     rm -f $DRBD_TEST_JOB/*.pos
 
     # Duplicate stdout so that we can write to it even when file descriptor
@@ -267,7 +268,6 @@ setup() {
 	unset params["$node_name"]
     done
 
-    mkdir -p "$DRBD_TEST_JOB"
     instantiate_template > $DRBD_TEST_JOB/drbd.conf
 
     for node in "${NODES[@]}"; do

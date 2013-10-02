@@ -27,6 +27,7 @@ data_scripts := \
 	create-disk \
 	drbdadm \
 	install-config \
+	reset-rsyslogd \
 	rsyslogd
 
 extra_files := \

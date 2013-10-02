@@ -26,6 +26,21 @@ instantiate_template() {
     do_debug $HERE/instantiate-template "${I[@]}"
 }
 
+cleanup_events() {
+    local -a pids
+
+    shopt -s nullglob
+    set -- run/events-*.pid
+    if [ $# -gt 0 ]; then
+	pids=( $(cat "$@") )
+	kill "${pids[@]}"
+	# FIXME: got "kill: (27979) - No such process" here once --
+	# how did this happen?
+	wait "${pids[@]}"
+	rm -f "$@""$@"
+    fi
+}
+
 listen_to_events() {
     local resource=$1
     shift
@@ -38,20 +53,6 @@ listen_to_events() {
 	echo $! > run/events-$node.pid
     done
 
-    cleanup_events() {
-	local -a pids
-
-	shopt -s nullglob
-	set -- run/events-*.pid
-	if [ $# -gt 0 ]; then
-	    pids=( $(cat "$@") )
-	    kill "${pids[@]}"
-	    # FIXME: got "kill: (27979) - No such process" here once --
-	    # how did this happen?
-	    wait "${pids[@]}"
-	    rm -f "$@""$@"
-	fi
-    }
     register_cleanup cleanup_events
 }
 

@@ -248,7 +248,7 @@ setup() {
     done
 
     # FIXME: The disks could be created in parallel ...
-    local disk device
+    local disk device have_disks
     for node_name in "${!params[@]}"; do
 	node=${node_name%%:*}
 	name=${node_name#*:}
@@ -263,6 +263,7 @@ setup() {
 		--size=$size $DRBD_TEST_JOB-${disk,,})
 	    verbose "$node: disk $device created ($size)"
 	    params["$node:$disk"]="$device"
+	    have_disks=1
 	    ;;
 	esac
 	unset params["$node_name"]
@@ -276,9 +277,8 @@ setup() {
 	# on $node register-cleanup ...
     done
 
-    if [ -n "$opt_create_md" ]; then
+    if [ -n "$opt_create_md" -a -n "$have_disks" ]; then
 	for node in "${NODES[@]}"; do
-	    # FIXME: This is called even when we didn't create any disks.
 	    msg=$(on $node drbdadm -- --force create-md "$opt_resource" 2>&1) || status=$?
 	    if [ -n "$status" ]; then
 		echo "$msg" >&2

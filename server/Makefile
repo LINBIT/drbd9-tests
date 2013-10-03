@@ -27,6 +27,7 @@ data_scripts := \
 	create-disk \
 	drbdadm \
 	install-config \
+	register-cleanup \
 	reset-rsyslogd \
 	rsyslogd
 

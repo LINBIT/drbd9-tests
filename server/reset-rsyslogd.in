@@ -5,4 +5,4 @@ set -e
 CONF=$1
 
 rm -f "$CONF"
-service rsyslog restart
+service rsyslog restart 2> >(grep -v '^Redirecting to')

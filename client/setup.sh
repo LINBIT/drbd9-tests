@@ -274,9 +274,8 @@ setup() {
 
     for node in "${NODES[@]}"; do
 	on -p $node install-config < $DRBD_TEST_JOB/drbd.conf
-	# FIXME: To clean up, shut the resource down if it is up:
-	# on $node register-cleanup ...
     done
+    on "${NODES[@]}" register-cleanup -t drbdsetup down "$DRBD_TEST_JOB"
 
     if [ -n "$opt_create_md" -a -n "$have_disks" ]; then
 	for node in "${NODES[@]}"; do

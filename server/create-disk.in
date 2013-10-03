@@ -46,5 +46,5 @@ done
 opt_name=$1
 
 doit lvcreate --size "$opt_size" --name "$opt_name" "$opt_volume_group" > /dev/null
-register_cleanup --job="$opt_job" -- lvremove -f "$opt_volume_group/$opt_name"
+register_cleanup -- lvremove -f "$opt_volume_group/$opt_name"
 echo "/dev/$opt_volume_group/$opt_name"

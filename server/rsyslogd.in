@@ -22,6 +22,10 @@ sed -e "s:@PORT@:$PORT:g" \
     -e "s:@HOSTNAME@:$HOSTNAME:g" \
     @DRBD_TEST_DATA@/rsyslog-forward.conf.in \
     > "$CONF"
-register_cleanup --job="$DRBD_TEST_JOB" -- reset-rsyslogd "$CONF"
+register_cleanup -t -- reset-rsyslogd "$CONF"
+service rsyslog restart 2> >(grep -v '^Redirecting to')
 
-service rsyslog restart
+# Make sure all kernel messages end up in the syslog
+set -- $(cat /proc/sys/kernel/printk)
+register_cleanup -t -- bash -c "echo $1 > /proc/sys/kernel/printk"
+echo 8 > /proc/sys/kernel/printk

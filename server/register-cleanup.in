@@ -1,0 +1,6 @@
+#! /bin/sh
+
+. @DRBD_TEST_LIB@
+set -e
+
+register_cleanup "$@"

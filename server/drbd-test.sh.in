@@ -18,14 +18,18 @@ quote_command() {
 }
 
 register_cleanup() {
-    local options=`getopt -o +j: --long job: -- "$@"` || return
+    local options=`getopt -o +j:t --long job: -- "$@"` || return
     eval set -- "$options"
-    local job
+    local job type=persistent opt_t
     while :; do
 	case "$1" in
 	-j|--job)
 	    job=$2
 	    shift
+	    ;;
+	-t)
+	    opt_t=$1
+	    type=transient
 	    ;;
 	--)
 	    shift
@@ -35,25 +39,31 @@ register_cleanup() {
     done
     [ -n "$job" ] || return 0
 
-    log -t register-cleanup -- "$@"
+    log -t register-cleanup -- $opt_t "$@"
 
     set -- "$(quote_command "$@")"
 
-    (
-	set -o noclobber
+    if [ "$type" = transient ]; then
+	if ! mountpoint "@DRBD_TEST_VAR@/$type"; then
+	    mount -t tmpfs tmpfs "@DRBD_TEST_VAR@/$type"
+	fi
+    fi
 
-	mkdir -p "@DRBD_TEST_VAR@/$job"
+    (
+	mkdir -p "@DRBD_TEST_VAR@/$type/$job"
+	cd "@DRBD_TEST_VAR@"
 	for ((n = 1; ; n++)); do
-	    jobfile="@DRBD_TEST_VAR@/$job/cleanup-0.$n"
-	    if cat 2> /dev/null > "$jobfile"; then
-		chmod +x "$jobfile"
-		break
-	    fi <<-EOF
-		#! /bin/sh
-		set -e
-		$1
-		rm -f "$jobfile"
-		EOF
+	    jobfile=$type/$job/cleanup-0.$n
+	    if ! [ -e "transient/$job/cleanup-0.$n" -o \
+		   -e "persistent/$job/cleanup-0.$n" ]; then
+		cat > "$jobfile" <<-EOF
+			#! /bin/sh
+			set -e
+			$1
+			rm -f "$jobfile"
+			EOF
+	    chmod +x "$jobfile"
+	    break
 	done
     )
 }

@@ -1,5 +1,7 @@
 #! /bin/sh
 
+set -e
+
 usage() {
     [ $1 -eq 0 ] || exec >&2
     cat <<EOF
@@ -12,12 +14,12 @@ options=`getopt -o lah --long list,all,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_all=
+opt_list=
 
 while :; do
     case "$1" in
     -l|--list)
-	find "@DRBD_TEST_VAR@" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | sort
-	exit 0
+	opt_list=1
 	;;
     -a|--all)
 	opt_all=1
@@ -33,10 +35,15 @@ while :; do
     shift
 done
 
-if [ -n "$opt_all" ]; then
+cd "@DRBD_TEST_VAR@"
+
+if [ -n "$opt_all" -o -n "$opt_list" ]; then
     [ $# -eq 0 ] || usage 1
-    set -- $(find "@DRBD_TEST_VAR@" -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | sort)
-    if [ $# -gt 0 ]; then
+    set -- $(find {transient,persistent} -mindepth 1 -maxdepth 1 -type d -printf '%P\n' | sort -u)
+    if [ -n "$opt_list" ]; then
+	printf "%s\n" "$@"
+	exit
+    elif [ $# -gt 0 ]; then
 	echo "Cleaning up jobs: $*"
     else
 	echo "No jobs found to clean up"
@@ -51,11 +58,16 @@ shopt -s nullglob
 status=
 for job in "$@"; do
     job_status=
-    for cleanup in $(echo @DRBD_TEST_VAR@/$job/cleanup-* | sort -r); do
-	"$cleanup" || job_status=1
+    for cleanup in $(printf '%s\n' {transient,persistent}/$job/cleanup-* \
+		     | sort -u -t/ -k3 --version-sort -r); do
+	if "$cleanup"; then
+	    rm -f "$cleanup"
+        else
+	    job_status=1
+	fi
     done
     if [ -z "$job_status" ]; then
-	rm -rf @DRBD_TEST_VAR@/$job || status=$?
+	rm -rf {transient,persistent}/$job || status=$?
     else
 	status=$job_status
     fi

@@ -1,6 +1,5 @@
 * register_cleanup():
   - Allow to specify a cleanup group.
-  - Persistent vs. transient cleanup (things that go away at reboot).
 
 * Implement quiet option for drbdmeta so that it doesn't report various crap
   on standard error.
@@ -21,3 +20,6 @@
   for these end markers to arrive?
 
 * Write the test result into the log directory
+
+* Removing the kernel module after a test sometimes reveals additional bugs;
+  maybe we should do this by default.

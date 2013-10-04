@@ -45,6 +45,7 @@ register_cleanup() {
 
     if [ "$type" = transient ]; then
 	if ! mountpoint -q "@DRBD_TEST_VAR@/$type"; then
+	    mkdir -p "@DRBD_TEST_VAR@/$type"
 	    mount -t tmpfs tmpfs "@DRBD_TEST_VAR@/$type"
 	fi
     fi

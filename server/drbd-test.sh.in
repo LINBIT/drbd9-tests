@@ -60,6 +60,7 @@ register_cleanup() {
 		cat > "$jobfile" <<EOF
 #! /bin/sh
 set -e
+export PATH=@DRBD_TEST_DATA@:$PATH
 $1
 rm -f "$jobfile"
 EOF

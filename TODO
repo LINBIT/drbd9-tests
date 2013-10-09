@@ -1,3 +1,6 @@
+* When cleaning up at the end of a test, report that we are cleaning up and
+  report when cleaning up fails.
+
 * register_cleanup():
   - Allow to specify a cleanup group.
 
@@ -10,14 +13,12 @@
 
 * Firewalling for tcp/udp syslog on the test node?!
 
-* Implement a register-cleanup script on the server (call register_cleanup).
-
 * Implement a client-side cleanup script that cleans up a number of nodes
 
 * When a test script fails, report where it failed (BASH_LINENO[]) ...
 
 * Write some kind of end event into the syslog and events log and wait
-  for these end markers to arrive?
+  for these end markers to arrive to ensure that the syslog is complete.
 
 * Write the test result into the log directory
 

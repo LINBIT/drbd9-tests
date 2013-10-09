@@ -1,6 +1,8 @@
 /cleanup
 /create-disk
+/drbdadm
 /drbd-test.sh
 /install-config
-/drbdadm
+/register-cleanup
+/reset-rsyslogd
 /rsyslogd

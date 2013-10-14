@@ -69,7 +69,7 @@ declare opt_debug= opt_verbose= opt_cleanup=always stdout_dup
 setup() {
     local options
 
-    options=`getopt -o vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,only-setup,help,verbose -- "$@"` || setup_usage 1
+    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,only-setup,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
@@ -155,13 +155,10 @@ setup() {
 	    shift
 	    break
 	    ;;
+	*)
+	    new_node "$1"
+	    ;;
 	esac
-	shift
-    done
-
-    # Treat the remaining arguments as node names
-    while [ $# -gt 0 ]; do
-	new_node "$1"
 	shift
     done
 

@@ -162,6 +162,8 @@ setup() {
 	shift
     done
 
+    unset_all_node_params
+
     if [ -n "$opt_min_nodes" ]; then
 	[ ${#NODES[@]} -ge $opt_min_nodes ] ||
 	    skip_test "Test case requires $opt_min_nodes or more nodes"
@@ -250,7 +252,6 @@ setup() {
     for node_name in "${!params[@]}"; do
 	node=${node_name%%:*}
 	name=${node_name#*:}
-	[ "$node" != "_" ] || continue;
 	case "$name" in
 	DISK_SIZE*|META_SIZE*)
 	    size=${params["$node_name"]}

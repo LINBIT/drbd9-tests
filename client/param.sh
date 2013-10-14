@@ -45,3 +45,14 @@ add_node_param() {
     local count=$((++param_count[$name]))
     params["$node:$name$count"]="$value"
 }
+
+unset_all_node_params() {
+    local node_name node
+
+    for node_name in "${!params[@]}"; do
+        node=${node_name%%:*}
+        if [ "$node" = "_" ]; then
+            unset params[$node_name]
+        fi
+    done
+}

@@ -30,7 +30,7 @@ cleanup_events() {
     local -a pids
 
     shopt -s nullglob
-    set -- run/events-*.pid
+    set -- run/events-*.pid run/console-*.pid
     if [ $# -gt 0 ]; then
 	pids=( $(cat "$@") )
 	kill "${pids[@]}"
@@ -69,7 +69,7 @@ declare opt_debug= opt_verbose= opt_cleanup=always stdout_dup
 setup() {
     local options
 
-    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,only-setup,help,verbose -- "$@"` || setup_usage 1
+    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,console:,only-setup,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
@@ -151,6 +151,10 @@ setup() {
 	    opt_only_setup=1
 	    opt_cleanup=never
 	    ;;
+	--console)
+	    set_node_param "$1" "$node" "$2"
+	    shift
+	    ;;
 	--)
 	    shift
 	    break
@@ -188,6 +192,24 @@ setup() {
     # Duplicate stdout so that we can write to it even when file descriptor
     # one has been redirected
     exec {stdout_dup}>&1
+
+    local console
+    for node_name in "${!params[@]}"; do
+	node=${node_name%%:*}
+	name=${node_name#*:}
+	case "$name" in
+	CONSOLE)
+	    console=${params["$node_name"]}
+	    if ! [ -r "$console" ]; then
+		echo "Cannot read from console $console of node $node" >&2
+		exit 1
+	    fi
+	    verbose "$node: capturing console $console"
+	    cat "$console" > $DRBD_TEST_JOB/console-$node.log &
+	    echo $! > run/console-$node.pid
+	    ;;
+	esac
+    done
 
     connect_to_nodes "${NODES[@]}"
 

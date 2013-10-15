@@ -33,10 +33,12 @@ cleanup_events() {
     set -- run/events-*.pid run/console-*.pid
     if [ $# -gt 0 ]; then
 	pids=( $(cat "$@") )
-	kill "${pids[@]}"
+	kill "${pids[@]}" 2> /dev/null
 	# FIXME: got "kill: (27979) - No such process" here once --
 	# how did this happen?
-	wait "${pids[@]}"
+	# FIXME: kill and wait sometimes spit out job control messages like
+	# "$PID Terminated ..." even in a non-interactive shell.
+	wait "${pids[@]}" 2> /dev/null
 	rm -f "$@""$@"
     fi
 }

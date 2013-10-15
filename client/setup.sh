@@ -69,11 +69,11 @@ declare opt_debug= opt_verbose= opt_cleanup=always stdout_dup
 setup() {
     local options
 
-    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,console:,only-setup,help,verbose -- "$@"` || setup_usage 1
+    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,console:,vconsole,only-setup,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
-    declare opt_min_nodes=2 opt_only_setup=
+    declare opt_min_nodes=2 opt_only_setup= opt_vconsole=
     declare opt_template=m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -155,6 +155,9 @@ setup() {
 	    set_node_param "$1" "$node" "$2"
 	    shift
 	    ;;
+	--vconsole)
+	    opt_vconsole=1
+	    ;;
 	--)
 	    shift
 	    break
@@ -167,6 +170,17 @@ setup() {
     done
 
     unset_all_node_params
+
+    if [ -n "$opt_vconsole" ]; then
+	for node in "${NODES[@]}"; do
+	    [ -z "${params[$node:CONSOLE]}" ] || continue
+	    # FIXME: sudo doesn't seem right here ...
+	    set -- $(sudo virsh ttyconsole "$node")
+	    if [ -n "$1" ]; then
+		params[$node:CONSOLE]="$1"
+	    fi
+	done
+    fi
 
     if [ -n "$opt_min_nodes" ]; then
 	[ ${#NODES[@]} -ge $opt_min_nodes ] ||

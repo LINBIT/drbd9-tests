@@ -92,9 +92,9 @@ event() {
 	shift
     done
     for node in "${nodes[@]}"; do
-	logfiles[${#logfiles[@]}]=$node:$DRBD_TEST_JOB/events-$node
+	set -- "$@" --label=$node $DRBD_TEST_JOB/events-$node
     done
-    logscan ${opt_verbose+--verbose} -p $DRBD_TEST_JOB/events.pos "$@" "${logfiles[@]}"
+    logscan ${opt_verbose+--verbose} -p $DRBD_TEST_JOB/events.pos "$@"
 }
 
 connect_to_nodes() {

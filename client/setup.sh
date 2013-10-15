@@ -7,6 +7,9 @@ HERE=${0%/*}
 . $HERE/client.sh
 set -e
 
+# All the defined connections
+declare -A CONNECTIONS
+
 instantiate_template() {
     local I=("${INSTANTIATE[@]}") option n
     local node_name node name
@@ -325,6 +328,13 @@ setup() {
 	    fi
 	done
     fi
+
+    for n1 in "${NODES[@]}"; do
+	for n2 in "${NODES[@]}"; do
+	    [ "$n1" != "$n2" ] || continue
+	    CONNECTIONS["$n1:$n2"]="$n1:$n2"
+	done
+    done
 
     [ -z "$opt_only_setup" ] || exit 0
     #if [ "$opt_cleanup" = "success" ]; then

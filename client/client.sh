@@ -97,6 +97,26 @@ event() {
     logscan ${opt_verbose+--verbose} -p $DRBD_TEST_JOB/events.pos "$@"
 }
 
+connection_event() {
+    local -a connections
+    local connection n1 n2 logfile posfile filter
+
+    while :; do
+	[ -n "${CONNECTIONS[$1]}" ] || break
+	connections[${#connections[@]}]=$1
+	shift
+    done
+    for connection in "${connections[@]}"; do
+	n1=${connection%%:*}
+	n2=${connection#*:}
+	logfile=${connection/:/:}:$DRBD_TEST_JOB/events-$n1
+	posfile=$DRBD_TEST_JOB/events-$connection.pos
+	filter=conn-name:${params["$n2:FULL_HOSTNAMES"]}
+	logscan ${opt_verbose+--verbose} -p "$posfile" -f "$filter" "$@" \
+		--label="$connection" $DRBD_TEST_JOB/events-$n1
+    done
+}
+
 connect_to_nodes() {
     local node
 

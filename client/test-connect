@@ -7,9 +7,5 @@
 setup "$@"
 
 on "${NODES[@]}" drbdadm up all
-# In an n-node cluster where each node is connected with each other, each node
-# has (n-1) neighbors, each of which should be in secondary role initially.
-for ((n=1; n<${#NODES[@]}; n++)); do
-    event "${NODES[@]}" -y ' connection .* role:Secondary'
-done
+connection_event "${CONNECTIONS[@]}" -y ' connection .* role:Secondary'
 on "${NODES[@]}" drbdadm down all

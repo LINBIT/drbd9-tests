@@ -11,15 +11,20 @@ instantiate_template() {
     local I=("${INSTANTIATE[@]}") option n
     local node_name node name
 
-    for ((n = 0; n < ${#NODES[n]}; n++)); do
-	node=${NODES[n]}
-	I[${#I[@]}]=--node=${FULL_HOSTNAMES[n]}
+    for node in "${NODES[@]}"; do
+	I[${#I[@]}]=--node=${params["$node:FULL_HOSTNAME"]}
 	for node_name in "${!params[@]}"; do
 	    node2=${node_name%%:*}
 	    name=${node_name#*:}
 	    [ "$node2" = "$node" ] || continue
-	    option=${name//[0-9]}; option=${option//_/-}; option=${option,,}
-	    I[${#I[@]}]="--$option=${params[$node_name]}"
+	    case "$name" in
+	    FULL_HOSTNAME | CONSOLE)
+		;;
+	    *)
+		option=${name//[0-9]}; option=${option//_/-}; option=${option,,}
+		I[${#I[@]}]="--$option=${params[$node_name]}"
+		;;
+	    esac
 	done
     done
     I[${#I[@]}]=$opt_template
@@ -275,14 +280,12 @@ setup() {
 
     # Replace the node names we were passed with the names under which the nodes
     # know themselves: drbd depends on this in its config files.
-    local -a FULL_HOSTNAMES=( "${NODES[@]}" )
-    for ((n = 0; n < ${#NODES[n]}; n++)); do
-	node=${NODES[n]}
+    for node in "${NODES[@]}"; do
 	hostname=$(on $node hostname -f)
 	if [ "$hostname" != "$node" ]; then
 	    echo "$node: full hostname = $hostname"
-	    FULL_HOSTNAMES[$n]=$hostname
 	fi
+	params["$node:FULL_HOSTNAME"]="$hostname"
     done
 
     # FIXME: The disks could be created in parallel ...
@@ -301,9 +304,9 @@ setup() {
 	    verbose "$node: disk $device created ($size)"
 	    params["$node:$disk"]="$device"
 	    have_disks=1
+	    unset params["$node_name"]
 	    ;;
 	esac
-	unset params["$node_name"]
     done
 
     instantiate_template > $DRBD_TEST_JOB/drbd.conf

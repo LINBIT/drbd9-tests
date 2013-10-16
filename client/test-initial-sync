@@ -13,7 +13,7 @@ for node in "${NODES[@]}"; do
     if [ "$node" = "${NODES[0]}" ]; then
 	event "$node" -y ' device .* disk:UpToDate'
     else
-	event "$node" -y ' peer-device .* disk:UpToDate'
+	event "$node" --timeout=300 -y ' peer-device .* disk:UpToDate'
     fi
 done
 on "${NODES[@]}" drbdadm down all

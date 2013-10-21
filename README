@@ -1,0 +1,112 @@
+DRBD 9 Test Suite
+=================
+
+This is the beginning of a test suite for DRBD 9.  The test infrastructure
+provided so far is not complete and the DRBD functionality covered by the tests
+is quite minimal, but our goal is to build upon the existing components, and
+add more infrastructure and tests in parallel to fixing any bugs that the tests
+help to uncover.
+
+Running the test suite requires the following components:
+
+ * One test coordinator node.  The basic test infrastructure can be run as an
+   unprivileged user.  (Access to virtual machine serial consoles requires
+   sudo access as root though.)
+
+ * Two or more nodes to use as the test cluster.  The nodes must be accessible
+   over ssh without password prompt. (This is best configured by putting the
+   ssh public key of the user running the test suite into
+   ~root/.ssh/authorized_keys on each test node.)
+
+ * The DRBD 9 kernel module and user-space utilities must be installed on all
+   test nodes.
+
+ * The exxe utility (http://git.drbd.org/exxe.git/) must be installed on the
+   test coordinator and on all test nodes.  (This utility is used by the test
+   coordinator for efficiently dispatching commands on the test nodes.)
+
+ * The logscan utility (http://git.drbd.org/logscan.git/) must be installed on
+   the test coordinator.
+
+ * The server components of the test suite (directory server/) must be built
+   once, and then installed on all test nodes (for example: "cd server && make"
+   on the test coordinator, then mount the server/ directory on all test nodes
+   and "make install" on each of them).
+
+ * On each test node, all test volumes are currently created inside an LVM
+   volume group called "scratch".  (The volume group name can be overridden
+   with the --volume-group=<name> option.)
+
+
+The tests are found in the client/ directory; they are relatively simple shell
+scripts which take a number of parameters.  When invoked with a number of node
+names as arguments, they will connect to all those test nodes via ssh and
+execute various commands on them as defined by the test.  All the test results
+are collected in the coordinator.  The coordinator is also where the test suite
+checks for various DRBD state transitions to occur.  By default, each test run
+is assigned a job name which consists of the base name of the test, with a
+timestamp appended: the test-connect test would log into directory
+connect-20131015-173644/, for example.  The following files can be found there:
+
+  drbd.conf: the DRBD configuration file used on all nodes.
+
+  events-<node-name>: The output of "drbdsetup events" on each node.  These
+    event traces are used for checking for state transitions.
+
+  <node-name>.log: The syslog of each node.
+
+  exxe-<node-name>.log: The log of the exxe utility (all commands executed).
+
+  *.pos: positions of the last match for logscan.
+
+  console-<node-name>: the serial console output of each node (if the
+    --console or --vconsole options are used).
+
+
+The most important options supported by the test scripts are:
+
+  --node=<node-name>  or just  <node-name>: The name of one of the test nodes.
+    Depending on the test, one, two, or more nodes are required.
+
+  --disk=<size>, --meta=<size>: Create a volume of the specified size on each
+    test node.  If the --meta option is not used, the volumes are created with
+    internal metadata; otherwise, the data and metadata are split.
+  
+  --verbose: Log more information while running the test.
+
+  --debug: Include some information for debugging the test suite.
+
+All --disk and --meta options specified before the first --node option apply to
+all nodes.  Any --disk or --meta options specified after a --node option apply
+only to that node.
+
+In addition, the tests can be run with "bash -x" for a complete execution trace.
+
+
+Virtual Machines
+
+ * When testing virtual machines and logging their serial consoles, the virtual
+   machine names must match the names under which the nodes are reachable via
+   ssh.
+
+
+Serial Consoles
+
+ * Logging of serial console output is supported via the --console=/dev/...
+   option.  The file permissions of that device must be set to allow read
+   access to he user running the test suite.
+
+ * Logging the serial console output of virtual machines running on the test
+   coordinator is supported via the --vconsole option.  This requires that
+   "sudo virsh" is permitted so that "sudo virsh ttyconsole <node-name>" can be
+   used for finding out the pseudo-terminal that the serial console is attached
+   to.  The file permissions of that device must be set to allow read access to
+   the user running the test suite.  The name of the virtual machine must be
+   the same as the name used for accessing the node via ssh.
+
+
+Examples
+
+  cd client
+  ./test-connect tick trick track
+  ./test-initial-sync --verbose --disk=100M jekyll hyde

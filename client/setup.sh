@@ -66,6 +66,16 @@ listen_to_events() {
     register_cleanup cleanup_events
 }
 
+write_status_file() {
+    local status=$1
+
+    if [ $status = 0 ]; then
+	touch $DRBD_TEST_JOB/test.ok
+    else
+	echo $status > $DRBD_TEST_JOB/test.failed
+    fi
+}
+
 setup_usage() {
     [ $1 -eq 0 ] || exec >&2
     cat <<EOF
@@ -212,6 +222,8 @@ setup() {
     echo "Logging to directory $DRBD_TEST_JOB"
     mkdir -p "$DRBD_TEST_JOB"
     rm -f $DRBD_TEST_JOB/*.pos $DRBD_TEST_JOB/test.log
+
+    register_cleanup write_status_file
 
     exec > >(tee -a $DRBD_TEST_JOB/test.log)
     exec 2> >(tee -a $DRBD_TEST_JOB/test.log >&2)

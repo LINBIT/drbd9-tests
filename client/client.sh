@@ -7,10 +7,10 @@ register_cleanup() {
     CLEANUP[${#CLEANUP[@]}]="$*"
 }
 cleanup() {
-    local cleanup
+    local cleanup status=$?
 
     for cleanup in "${CLEANUP[@]}"; do
-	$cleanup || :
+	$cleanup $status || :
     done
 }
 trap cleanup EXIT

@@ -211,7 +211,10 @@ setup() {
 
     echo "Logging to directory $DRBD_TEST_JOB"
     mkdir -p "$DRBD_TEST_JOB"
-    rm -f $DRBD_TEST_JOB/*.pos
+    rm -f $DRBD_TEST_JOB/*.pos $DRBD_TEST_JOB/test.log
+
+    exec > >(tee -a $DRBD_TEST_JOB/test.log)
+    exec 2> >(tee -a $DRBD_TEST_JOB/test.log >&2)
 
     # Duplicate stdout so that we can write to it even when file descriptor
     # one has been redirected

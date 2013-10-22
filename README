@@ -53,6 +53,9 @@ connect-20131015-173644/, for example.  The following files can be found there:
   events-<node-name>: The output of "drbdsetup events" on each node.  These
     event traces are used for checking for state transitions.
 
+  test.log: The output of the test script (both standard output and standard
+    error combined).
+
   <node-name>.log: The syslog of each node.
 
   exxe-<node-name>.log: The log of the exxe utility (all commands executed).

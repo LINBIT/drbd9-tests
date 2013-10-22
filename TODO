@@ -24,3 +24,6 @@
 
 * Removing the kernel module after a test sometimes reveals additional bugs;
   maybe we should do this by default.
+
+* Run logscan inside the directory of the event traces to avoid directory names
+  in the *.pos files.

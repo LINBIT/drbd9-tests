@@ -51,6 +51,10 @@ cleanup_events() {
     fi
 }
 
+kill_rsyslogd() {
+    kill $(cat run/rsyslogd.pid)
+}
+
 listen_to_events() {
     local resource=$1
     shift
@@ -276,7 +280,7 @@ setup() {
 	rsyslog.conf.in \
 	> run/rsyslog.conf
     rsyslogd -c5 -i $PWD/run/rsyslogd.pid -f $PWD/run/rsyslog.conf
-    register_cleanup kill $(cat run/rsyslogd.pid)
+    register_cleanup kill_rsyslogd
 
     for node in "${NODES[@]}"; do
 	on $node rsyslogd $hostname $RSYSLOGD_PORT $node

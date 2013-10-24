@@ -6,11 +6,15 @@ declare -a CLEANUP
 register_cleanup() {
     CLEANUP[${#CLEANUP[@]}]="$*"
 }
+
 cleanup() {
     local cleanup status=$?
 
+    set +e
     for cleanup in "${CLEANUP[@]}"; do
-	$cleanup $status || :
+	# Restore the $? variable for each cleanup task
+	( exit $status )
+	$cleanup
     done
 }
 trap cleanup EXIT

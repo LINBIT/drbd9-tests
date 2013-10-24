@@ -71,7 +71,7 @@ listen_to_events() {
 }
 
 write_status_file() {
-    local status=$1
+    local status=$?
 
     if [ $status = 0 ]; then
 	touch $DRBD_TEST_JOB/test.ok
@@ -230,7 +230,9 @@ setup() {
     register_cleanup write_status_file
 
     exec > >(tee -a $DRBD_TEST_JOB/test.log)
+    register_cleanup kill $!
     exec 2> >(tee -a $DRBD_TEST_JOB/test.log >&2)
+    register_cleanup kill $!
 
     # Duplicate stdout so that we can write to it even when file descriptor
     # one has been redirected

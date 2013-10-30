@@ -1,0 +1,3 @@
+* Create connections between nodes, wait for the connections to be established,
+  create one or more volumes on the nodes.  In addition, the same scenario
+  without waiting for the connections to be established.

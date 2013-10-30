@@ -17,3 +17,4 @@ for node in "${NODES[@]}"; do
     fi
 done
 on "${NODES[@]}" drbdadm down all
+on "${NODES[@]}" rmmod drbd

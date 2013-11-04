@@ -27,3 +27,13 @@
 
 * Run logscan inside the directory of the event traces to avoid directory names
   in the *.pos files.
+
+* Set /proc/sys/kernel/hung_task_timeout_secs small enough so that hung tasks
+  will be reported in the syslog trace // otherwise dump all tasks when a test
+  fails?
+
+* Check for Oopses and warnings in the console and system logs.
+
+* Check for states or state transitions which generally should not occur. (Will
+  probably need to be turned off for tests checking for these states in
+  particular.)

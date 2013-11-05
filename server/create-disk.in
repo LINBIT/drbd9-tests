@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/bash
 
 . @DRBD_TEST_LIB@
 set -e

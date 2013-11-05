@@ -58,7 +58,7 @@ register_cleanup() {
 	    if ! [ -e "transient/$job/cleanup-0.$n" -o \
 		   -e "persistent/$job/cleanup-0.$n" ]; then
 		cat > "$jobfile" <<EOF
-#! /bin/sh
+#! /bin/bash
 set -e
 export PATH=@DRBD_TEST_DATA@:$PATH
 $1

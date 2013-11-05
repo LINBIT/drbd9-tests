@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/bash
 
 export PATH=${PATH#@DRBD_TEST_DATA@:}
 drbdadm -c "@DRBD_TEST_VAR@/$DRBD_TEST_JOB/drbd.conf" "$@"

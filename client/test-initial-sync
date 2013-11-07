@@ -7,13 +7,18 @@
 setup --disk=10M "$@"
 
 on "${NODES[@]}" drbdadm up all
-on "${NODES[0]}" drbdadm primary --force all
-event "${NODES[0]}" -y ' resource .* role:Primary'
 for node in "${NODES[@]}"; do
-    if [ "$node" = "${NODES[0]}" ]; then
-	event "$node" -y ' device .* disk:UpToDate'
-    else
-	event "$node" --timeout=300 -y ' peer-device .* disk:UpToDate'
+    event "$node" -y ' device .* disk:Inconsistent'
+done
+
+# Use unlimited resync bandwidth
+on "${NODES[@]}" drbdadm disk-options --c-min-rate=0 all
+
+on "${NODES[0]}" drbdadm primary --force all
+event "${NODES[0]}" -y ' resource .* role:Primary' -y ' device .* disk:UpToDate'
+for node in "${NODES[@]}"; do
+    if [ "$node" != "${NODES[0]}" ]; then
+	event "$node" --timeout=300 -y ' device .* disk:UpToDate'
     fi
 done
 on "${NODES[@]}" drbdadm down all

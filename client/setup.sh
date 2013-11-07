@@ -97,7 +97,7 @@ setup() {
     eval set -- "$options"
 
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
-    declare opt_min_nodes=2 opt_only_setup= opt_vconsole=
+    declare opt_min_nodes=2 opt_only_setup= opt_vconsole= job_symlink=
     declare opt_template=m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -201,6 +201,7 @@ setup() {
 	    # FIXME: sudo doesn't seem right here ...
 	    set -- $(sudo virsh ttyconsole "$node")
 	    if [ -n "$1" ]; then
+		sudo chmod g+r "$1"
 		params[$node:CONSOLE]="$1"
 	    fi
 	done
@@ -213,6 +214,7 @@ setup() {
 
     if [ -z "$opt_job" ]; then
 	opt_job=${0##*test-}-$(date '+%Y%m%d-%H%M%S')
+	job_symlink=${0##*test-}-latest
     fi
     [ ${#NODES} -gt 0 ] || setup_usage 1
     if [ -z "$opt_resource" ]; then
@@ -226,6 +228,10 @@ setup() {
     echo "Logging to directory $DRBD_TEST_JOB"
     mkdir -p "$DRBD_TEST_JOB"
     rm -f $DRBD_TEST_JOB/*.pos $DRBD_TEST_JOB/test.log
+    if [ -n "$job_symlink" ]; then
+	rm -f "$job_symlink"
+	ln -s "$DRBD_TEST_JOB" "$job_symlink"
+    fi
 
     register_cleanup write_status_file
 

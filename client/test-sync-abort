@@ -17,7 +17,7 @@ for node in "${NODES[@]}"; do
 	# (This was a mistake in the test, but it turned out that aborting
 	# resyncs causes a BUG -- Objects remaining in drbd_bm on
 	# kmem_cache_close().)
-	event "$node" --timeout=300 -y ' peer-device .* disk:UpToDate'
+	event "$node" --timeout=300 -y ' peer-device .* peer-disk:UpToDate'
     fi
 done
 on "${NODES[@]}" drbdadm down all

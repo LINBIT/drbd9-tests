@@ -1,8 +1,2 @@
-* Create connections between nodes, wait for the connections to be established,
-  create one or more volumes on the nodes.  In addition, the same scenario
-  without waiting for the connections to be established.  (By default, drbdadm
-  creates all volumes before establishing connections; make sure that creating
-  the connections first works as well.)
-
 * While a resource is doing application I/O, create another volume in that
   resource.

@@ -142,3 +142,34 @@ skip_test() {
     echo "${0##*/}:" "$@" >&2
     exit 100
 }
+
+_up() {
+    on "${NODES[@]}" drbdadm up all
+    for node in "${NODES[@]}"; do
+	event "$node" -y ' device .* disk:Inconsistent'
+    done
+}
+
+_force_primary() {
+    on "${NODES[0]}" drbdadm primary --force all
+    event "${NODES[0]}" -y ' resource .* role:Primary' -y ' device .* disk:UpToDate'
+}
+
+_initial_resync() {
+    # Use unlimited resync bandwidth
+    on "${NODES[@]}" drbdadm disk-options --c-min-rate=0 all
+
+    for node in "${NODES[@]}"; do
+	if [ "$node" != "${NODES[0]}" ]; then
+	    event "$node" --timeout=300 -y ' device .* disk:UpToDate'
+	fi
+    done
+}
+
+_down() {
+    on "${NODES[@]}" drbdadm down all
+}
+
+_rmmod() {
+    on "${NODES[@]}" rmmod drbd
+}

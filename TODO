@@ -20,11 +20,6 @@
 * Write some kind of end event into the syslog and events log and wait
   for these end markers to arrive to ensure that the syslog is complete.
 
-* Write the test result into the log directory
-
-* Removing the kernel module after a test sometimes reveals additional bugs;
-  maybe we should do this by default.
-
 * Run logscan inside the directory of the event traces to avoid directory names
   in the *.pos files.
 
@@ -37,3 +32,6 @@
 * Check for states or state transitions which generally should not occur. (Will
   probably need to be turned off for tests checking for these states in
   particular.)
+
+* Add iptables code for simulating slow or broken network connections or node
+  failures (see the old test suite).

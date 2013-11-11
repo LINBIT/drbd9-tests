@@ -344,7 +344,7 @@ setup() {
     for node in "${NODES[@]}"; do
 	on -p $node install-config < $DRBD_TEST_JOB/drbd.conf
     done
-    on "${NODES[@]}" register-cleanup -t drbdsetup down "$DRBD_TEST_JOB"
+    on "${NODES[@]}" register-cleanup -t bash -c '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'
 
     if [ -n "$opt_create_md" -a -n "$have_disks" ]; then
 	for node in "${NODES[@]}"; do

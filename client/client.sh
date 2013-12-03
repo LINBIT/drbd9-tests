@@ -138,6 +138,34 @@ connection_event() {
     done
 }
 
+# Synchronize between global and per-connection matching
+#
+# The event and connection_event functions keep track of the current position
+# in the event log independently: globally (event), and separately for each
+# connection (connection_event).  The sync_events function synchronizes the
+# current positions of event and connection_event.
+#
+# Use sync_events when switching between global and per-connection matching.
+#
+sync_events() {
+    local -a file files connection
+
+    files[0]=$DRBD_TEST_JOB/events.pos
+    for connection in "${CONNECTIONS[@]}"; do
+	files[${#files[@]}]=$DRBD_TEST_JOB/events-$connection.pos
+    done
+    for file in "${files[@]}"; do
+	[ -e "$file" ] || continue
+	cat "$file"
+    done \
+    | sort -t ' ' -k 2,2 -r \
+    | sort -t ' ' -k 3,3 -u \
+    > $DRBD_TEST_JOB/tmp
+    for file in "${files[@]}"; do
+	cat $DRBD_TEST_JOB/tmp > "$file"
+    done
+}
+
 connect_to_nodes() {
     local node
 

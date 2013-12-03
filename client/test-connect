@@ -9,4 +9,11 @@ setup "$@"
 on "${NODES[@]}" drbdadm up all
 connection_event "${CONNECTIONS[@]}" -y ' connection .* role:Secondary'
 on "${NODES[@]}" drbdadm down all
+
+# Start matching 'destroy resource' events after the last connection event.
+# (For example, 'create resource' would not match any longer after
+# sync_events.)
+sync_events
+event "${NODES[@]}" -y 'destroy resource'
+
 on "${NODES[@]}" rmmod drbd

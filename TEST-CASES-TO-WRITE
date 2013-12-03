@@ -1,2 +1,8 @@
 * While a resource is doing application I/O, create another volume in that
   resource.
+
+* Multiple resources per node.
+
+* Diskless nodes combined with nodes with disks.
+
+* Auto-promote and competing access from multiple nodes

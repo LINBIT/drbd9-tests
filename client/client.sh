@@ -86,6 +86,14 @@ on() {
     done
 }
 
+# Match an event on one or more nodes
+#
+# USAGE: event {node} [... {node}] {logscan options}
+#
+# This function keeps track of the current position in the event logs
+# independently for each node.  (The setup function sets the NODES array to a
+# list of defined nodes; use this to iterate over all nodes.)
+#
 event() {
     local -a nodes logfiles
     local node
@@ -101,6 +109,15 @@ event() {
     logscan ${opt_verbose+--verbose} -p $DRBD_TEST_JOB/events.pos "$@"
 }
 
+# Match an event on one or more nodes
+#
+# USAGE: connection_event {connection} [... {connection}] {logscan options}
+#
+# This function keeps track of the current position in the event logs
+# independently for each connection.  (The setup function sets the CONNECTIONS
+# array to a list of defined connections; use this to iterate over all
+# connections.)
+#
 connection_event() {
     local -a connections
     local connection n1 n2 logfile posfile filter

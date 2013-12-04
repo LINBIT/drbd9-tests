@@ -132,7 +132,7 @@ connection_event() {
 	n2=${connection#*:}
 	logfile=${connection/:/:}:$DRBD_TEST_JOB/events-$n1
 	posfile=$DRBD_TEST_JOB/events-$connection.pos
-	filter=conn-name:${params["$n2:FULL_HOSTNAMES"]}
+	filter=conn-name:${params["$n2:FULL_HOSTNAME"]}
 	logscan ${opt_verbose+--verbose} -p "$posfile" -f "$filter" "$@" \
 		--label="$connection" $DRBD_TEST_JOB/events-$n1
     done

@@ -21,7 +21,7 @@ instantiate_template() {
 	    name=${node_name#*:}
 	    [ "$node2" = "$node" ] || continue
 	    case "$name" in
-	    FULL_HOSTNAME | CONSOLE)
+	    FULL_HOSTNAME | CONSOLE | VCONSOLE)
 		;;
 	    *)
 		option=${name//[0-9]}; option=${option//_/-}; option=${option,,}
@@ -34,11 +34,15 @@ instantiate_template() {
     do_debug $HERE/instantiate-template "${I[@]}"
 }
 
+cleanup_log_console() {
+    screen -S console-$1 -p 0 -X stuff $'\c]'
+}
+
 cleanup_events() {
     local -a pids
 
     shopt -s nullglob
-    set -- run/events-*.pid run/console-*.pid
+    set -- run/events-*.pid
     if [ $# -gt 0 ]; then
 	pids=( $(cat "$@") )
 	kill "${pids[@]}" 2> /dev/null
@@ -97,7 +101,7 @@ setup() {
     eval set -- "$options"
 
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
-    declare opt_min_nodes=2 opt_only_setup= opt_vconsole= job_symlink=
+    declare opt_min_nodes=2 opt_only_setup= job_symlink=
     declare opt_template=m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -180,7 +184,7 @@ setup() {
 	    shift
 	    ;;
 	--vconsole)
-	    opt_vconsole=1
+	    set_node_param "$1" "$node" yes
 	    ;;
 	--)
 	    shift
@@ -194,18 +198,6 @@ setup() {
     done
 
     unset_all_node_params
-
-    if [ -n "$opt_vconsole" ]; then
-	for node in "${NODES[@]}"; do
-	    [ -z "${params[$node:CONSOLE]}" ] || continue
-	    # FIXME: sudo doesn't seem right here ...
-	    set -- $(sudo virsh ttyconsole "$node")
-	    if [ -n "$1" ]; then
-		sudo chmod g+r "$1"
-		params[$node:CONSOLE]="$1"
-	    fi
-	done
-    fi
 
     if [ -n "$opt_min_nodes" ]; then
 	[ ${#NODES[@]} -ge $opt_min_nodes ] ||
@@ -244,20 +236,26 @@ setup() {
     # one has been redirected
     exec {stdout_dup}>&1
 
-    local console
     for node_name in "${!params[@]}"; do
 	node=${node_name%%:*}
 	name=${node_name#*:}
 	case "$name" in
-	CONSOLE)
-	    console=${params["$node_name"]}
-	    if ! [ -r "$console" ]; then
-		echo "Cannot read from console $console of node $node" >&2
-		exit 1
-	    fi
+	VCONSOLE)
+	    # Check if a virtual machine called "$node" exists -- otherwise we
+	    # would loop forever below.
+	    virsh domid "$node" > /dev/null
+
+	    screen -S console-$node -d -m virsh console $node
+
+	    # Wait until screen has started up and is ready
+	    while ! screen -S console-$node -p 0 -X version > /dev/null; do
+		sleep 0.1
+	    done
+
+	    screen -S console-$node -p 0 -X logfile $DRBD_TEST_JOB/console-$node.log
+	    screen -S console-$node -p 0 -X log on
 	    verbose "$node: capturing console $console"
-	    cat "$console" > $DRBD_TEST_JOB/console-$node.log &
-	    echo $! > run/console-$node.pid
+	    register_cleanup cleanup_log_console $node
 	    ;;
 	esac
     done

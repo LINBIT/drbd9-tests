@@ -1,0 +1,51 @@
+#! /bin/bash
+
+# Pass this script a list of host names to use as the test nodes.
+
+. ${0%/*}/setup.sh
+
+setup --disk=10M --disk=10M "$@"
+
+_up
+_force_primary
+_initial_resync
+
+DEVICE1=$(on "${NODES[0]}" drbdadm sh-dev ${DRBD_TEST_JOB}/1)
+DEVICE2=$(on "${NODES[0]}" drbdadm sh-dev ${DRBD_TEST_JOB}/2)
+
+on "${NODES[0]}" io-load-dd --count=100 --oflag=sync --repeat=forever $DEVICE2
+sleep 1
+
+for node in "${NODES[@]}"; do
+    on "$node" drbdadm detach ${DRBD_TEST_JOB}/1
+    event "$node" -y ' device .* disk:Diskless'
+done
+
+on "${NODES[@]}" drbdadm del-minor ${DRBD_TEST_JOB}/1
+sleep 1
+
+on "${NODES[@]}" drbdadm new-minor ${DRBD_TEST_JOB}/1
+sleep 1
+
+# FIXME: It is known that DRBD does not correctly handle concurrent attach
+for node in "${NODES[@]}"; do
+    if [ "$node" = "${NODES[0]}" ]; then
+	on "$node" drbdadm attach ${DRBD_TEST_JOB}/1
+	# The node doing the attach first, goes straight to UpToDate
+	event "$node" -y ' device .* disk:UpToDate'
+    else
+	# The other nodes that see that, will go though Negotiating first
+	event "$node" -y " peer-device .* conn-name:${NODES[0]} .* peer-disk:UpToDate"
+	on "$node" drbdadm attach ${DRBD_TEST_JOB}/1
+	event "$node" -y ' device .* disk:Negotiating'
+	event "$node" -y ' device .* disk:UpToDate'
+    fi
+done
+
+on "${NODES[0]}" io-load-dd --stop $DEVICE2
+sleep 1
+on "${NODES[0]}" drbdadm secondary ${DRBD_TEST_JOB}
+event "${NODES[0]}" -y ' resource .* role:Secondary'
+
+_down
+_rmmod

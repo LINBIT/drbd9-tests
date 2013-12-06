@@ -29,7 +29,8 @@ data_scripts := \
 	install-config \
 	register-cleanup \
 	reset-rsyslogd \
-	rsyslogd
+	rsyslogd \
+	io-load-dd
 
 extra_files := \
 	rsyslog-forward.conf.in

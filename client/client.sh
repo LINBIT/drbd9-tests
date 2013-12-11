@@ -131,9 +131,31 @@ connection_event() {
 	n1=${connection%%:*}
 	n2=${connection#*:}
 	posfile=$DRBD_TEST_JOB/connection-event-$connection.pos
-	filter=conn-name:${params["$n2:FULL_HOSTNAME"]}
+	filter=" conn-name:${params["$n2:FULL_HOSTNAME"]} "
 	logscan ${opt_verbose+--verbose} -p "$posfile" -f "$filter" "$@" \
 		--label="$connection" $DRBD_TEST_JOB/events-$n1
+    done
+}
+
+# Match an event on one or more nodes and volumes
+volume_event() {
+    local -a nodes_volumes
+    local node_volume node posfile filter
+
+    while :; do
+	# FIXME: Convert NODES into an associative array to make this work
+	# here instead of messing with the params array:
+	# [ -n "$[NODES[$var]}" ]
+	[ -n "${params["${1%:*}:FULL_HOSTNAME"]}" ] || break
+	nodes_volumes[${#nodes_volumes[@]}]=$1
+	shift
+    done
+    for node_volume in "${nodes_volumes[@]}"; do
+	node=${node_volume%:*}
+	posfile=$DRBD_TEST_JOB/volume-event-$node_volume.pos
+	filter=" volume:${node_volume##*:} "
+	logscan ${opt_verbose+--verbose} -p "$posfile" -f "$filter" "$@" \
+		--label="$node_volume" $DRBD_TEST_JOB/events-$node
     done
 }
 
@@ -200,14 +222,19 @@ _force_primary() {
 }
 
 _initial_resync() {
+    local node volume
+
     # Use unlimited resync bandwidth
     on "${NODES[@]}" drbdadm disk-options --c-min-rate=0 all
 
     for node in "${NODES[@]}"; do
 	if [ "$node" != "${NODES[0]}" ]; then
-	    event "$node" --timeout=300 -y ' device .* disk:UpToDate'
+	    for volume in ${VOLUMES[$node]}; do
+		volume_event "$node:$volume" --timeout=300 -y ' device .* disk:UpToDate'
+	    done
 	fi
     done
+    sync_events
 }
 
 _down() {

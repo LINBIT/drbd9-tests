@@ -95,7 +95,7 @@ on() {
 # list of defined nodes; use this to iterate over all nodes.)
 #
 event() {
-    local -a nodes logfiles
+    local -a nodes
     local node
 
     while :; do
@@ -106,7 +106,7 @@ event() {
     for node in "${nodes[@]}"; do
 	set -- "$@" --label=$node $DRBD_TEST_JOB/events-$node
     done
-    logscan ${opt_verbose+--verbose} -p $DRBD_TEST_JOB/events.pos "$@"
+    logscan ${opt_verbose+--verbose} -p $DRBD_TEST_JOB/node-event.pos "$@"
 }
 
 # Match an event on one or more nodes
@@ -120,7 +120,7 @@ event() {
 #
 connection_event() {
     local -a connections
-    local connection n1 n2 logfile posfile filter
+    local connection n1 n2 posfile filter
 
     while :; do
 	[ -n "${CONNECTIONS[$1]}" ] || break
@@ -130,8 +130,7 @@ connection_event() {
     for connection in "${connections[@]}"; do
 	n1=${connection%%:*}
 	n2=${connection#*:}
-	logfile=${connection/:/:}:$DRBD_TEST_JOB/events-$n1
-	posfile=$DRBD_TEST_JOB/events-$connection.pos
+	posfile=$DRBD_TEST_JOB/connection-event-$connection.pos
 	filter=conn-name:${params["$n2:FULL_HOSTNAME"]}
 	logscan ${opt_verbose+--verbose} -p "$posfile" -f "$filter" "$@" \
 		--label="$connection" $DRBD_TEST_JOB/events-$n1

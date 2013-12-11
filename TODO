@@ -35,3 +35,6 @@
 
 * Add iptables code for simulating slow or broken network connections or node
   failures (see the old test suite).
+
+* Check for skipped events in the event log; that should not happen except in
+  out-of-memory scenarios.

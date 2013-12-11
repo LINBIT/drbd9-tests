@@ -14,7 +14,7 @@ DEVICE1=$(on "${NODES[0]}" drbdadm sh-dev ${DRBD_TEST_JOB}/1)
 DEVICE2=$(on "${NODES[0]}" drbdadm sh-dev ${DRBD_TEST_JOB}/2)
 
 on "${NODES[0]}" io-load-dd --count=100 --oflag=sync --repeat=forever $DEVICE2
-sleep 1
+sleep 1  # Ensure that some I/O happens before the next steps
 
 for node in "${NODES[@]}"; do
     on "$node" drbdadm detach ${DRBD_TEST_JOB}/1
@@ -22,12 +22,12 @@ for node in "${NODES[@]}"; do
 done
 
 on "${NODES[@]}" drbdadm del-minor ${DRBD_TEST_JOB}/1
-sleep 1
+event "${NODES[@]}" -y ' destroy device .* volume:1 '
 
 on "${NODES[@]}" drbdadm new-minor ${DRBD_TEST_JOB}/1
-sleep 1
+event "${NODES[@]}" -y ' create device .* volume:1 '
 
-# FIXME: It is known that DRBD does not correctly handle concurrent attach
+# FIXME: DRBD does not handle concurrent attach correctly
 for node in "${NODES[@]}"; do
     if [ "$node" = "${NODES[0]}" ]; then
 	on "$node" drbdadm attach ${DRBD_TEST_JOB}/1
@@ -43,7 +43,6 @@ for node in "${NODES[@]}"; do
 done
 
 on "${NODES[0]}" io-load-dd --stop $DEVICE2
-sleep 1
 on "${NODES[0]}" drbdadm secondary ${DRBD_TEST_JOB}
 event "${NODES[0]}" -y ' resource .* role:Secondary'
 

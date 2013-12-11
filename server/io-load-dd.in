@@ -76,9 +76,11 @@ pidfile=$jobdir/io-load-dd-$dd_id.pid
 [ -n "$opt_device" -a $# -eq 1 ] || usage 1
 
 if [ -n "$opt_stop" ]; then
-    pid=$(cat $pidfile)
+    pid=$(cat $pidfile 2>/dev/null) || exit 0
     kill $pid
-    rm $pidfile
+    while [ -e $pidfile ]; do
+	sleep 0.1
+    done
     exit 0
 fi
 
@@ -88,11 +90,17 @@ else
     repeat=$opt_repeat
 fi
 
-while [ $repeat -gt 0 -o $repeat -eq -1 ]; do
-    dd status=noxfer if=$opt_indevice of=$opt_device bs=$opt_blocksize count=$opt_count \
-	seek=$opt_seek $option_iflag $option_oflag
-    [ $repeat -gt 0 ] && repeat=$((repeat - 1))
-done >/dev/null 2>/dev/null &
+doit() {
+    trap "rm -f $pidfile" EXIT
+
+    while [ $repeat -gt 0 -o $repeat -eq -1 ]; do
+	dd status=noxfer if=$opt_indevice of=$opt_device bs=$opt_blocksize count=$opt_count \
+	    seek=$opt_seek $option_iflag $option_oflag
+	[ $repeat -gt 0 ] && repeat=$((repeat - 1))
+    done
+}
+
+doit >/dev/null 2>/dev/null &
 
 pid=$!
 disown $pid

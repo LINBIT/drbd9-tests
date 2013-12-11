@@ -8,7 +8,7 @@ HERE=${0%/*}
 set -e
 
 # All the defined connections
-declare -A CONNECTIONS
+declare -A CONNECTIONS VOLUMES
 
 instantiate_template() {
     local I=("${INSTANTIATE[@]}") option n
@@ -359,6 +359,21 @@ setup() {
 	    [ "$n1" != "$n2" ] || continue
 	    CONNECTIONS["$n1:$n2"]="$n1:$n2"
 	done
+    done
+
+    for node_name in "${!params[@]}"; do
+	node=${node_name%%:*}
+	name=${node_name#*:}
+	case "$name" in
+	DISK*)
+	    set -- ${VOLUMES["$node"]:-0} ${name#DISK}
+	    VOLUMES["$node"]=$(($1 > $2 ? $1 : $2))
+	    ;;
+	esac
+    done
+    for node in "${!VOLUMES[@]}"; do
+	set -- $(seq ${VOLUMES[$node]:-0})
+	VOLUMES["$node"]="$*"
     done
 
     [ -z "$opt_only_setup" ] || exit 0

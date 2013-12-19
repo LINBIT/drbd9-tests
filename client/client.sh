@@ -143,10 +143,7 @@ volume_event() {
     local node_volume node posfile filter
 
     while :; do
-	# FIXME: Convert NODES into an associative array to make this work
-	# here instead of messing with the params array:
-	# [ -n "$[NODES[$var]}" ]
-	[ -n "${params["${1%:*}:FULL_HOSTNAME"]}" ] || break
+	[ -n "${DEFINED_NODES[${1%:*}]}" ] || break
 	nodes_volumes[${#nodes_volumes[@]}]=$1
 	shift
     done

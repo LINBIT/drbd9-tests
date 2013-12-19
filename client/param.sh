@@ -1,5 +1,6 @@
 # All the defined nodes
 declare -a NODES
+declare -A DEFINED_NODES
 
 # We store all global settings in array[_].
 node=_
@@ -16,6 +17,7 @@ new_node() {
     local name
 
     node=$1
+    DEFINED_NODES[$node]=${#NODES[@]}
     NODES=("${NODES[@]}" "$node")
     param_count=()
 

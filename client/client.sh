@@ -98,6 +98,7 @@ event() {
     local -a nodes
     local node
 
+    sync_events node
     while :; do
 	[ -n "${COPROC_PID[$1]}" ] || break
 	nodes[${#nodes[@]}]=$1
@@ -122,6 +123,7 @@ connection_event() {
     local -a connections
     local connection n1 n2 posfile filter
 
+    sync_events connection
     while :; do
 	[ -n "${CONNECTIONS[$1]}" ] || break
 	connections[${#connections[@]}]=$1
@@ -142,6 +144,7 @@ volume_event() {
     local -a nodes_volumes
     local node_volume node posfile filter
 
+    sync_events volume
     while :; do
 	[ -n "${DEFINED_NODES[${1%:*}]}" ] || break
 	nodes_volumes[${#nodes_volumes[@]}]=$1
@@ -163,26 +166,30 @@ volume_event() {
 # connection (connection_event).  The sync_events function synchronizes the
 # current positions of event and connection_event.
 #
-# Use sync_events when switching between global and per-connection matching.
+# This function is called internally whenever switching between different
+# types of matches (event, connection_event, volume_event).
 #
-sync_events() {
-    local -a file files connection
+declare LAST_EVENT_CLASS
 
-    files[0]=$DRBD_TEST_JOB/events.pos
-    for connection in "${CONNECTIONS[@]}"; do
-	files[${#files[@]}]=$DRBD_TEST_JOB/events-$connection.pos
-    done
-    for file in "${files[@]}"; do
-	[ -e "$file" ] || continue
-	cat "$file"
-    done \
-    | sort -t ' ' -k 2,2 -r \
-    | sort -t ' ' -k 3,3 -u \
-    > $DRBD_TEST_JOB/tmp
-    for file in "${files[@]}"; do
-	cat $DRBD_TEST_JOB/tmp > "$file"
-    done
-}
+sync_events() {(
+    local -a file data
+
+    shopt -s nullglob
+
+    if [ "${1:-node}" != "$LAST_EVENT_CLASS" ]; then
+	LAST_EVENT_CLASS=${1:-node}
+
+	data="$(
+	    for file in $DRBD_TEST_JOB/*.pos; do
+		cat "$file"
+	    done \
+	    | sort -t ' ' -k 2,2 -r \
+	    | sort -t ' ' -k 3,3 -u)"
+	for file in $DRBD_TEST_JOB/*.pos; do
+	    echo "$data" > "$file"
+	done
+    fi
+)}
 
 connect_to_nodes() {
     local node
@@ -231,7 +238,6 @@ _initial_resync() {
 	    done
 	fi
     done
-    sync_events
 }
 
 _down() {

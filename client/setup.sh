@@ -8,7 +8,7 @@ HERE=${0%/*}
 set -e
 
 # All the defined connections
-declare -A CONNECTIONS VOLUMES
+declare -A CONNECTIONS VOLUMES PEER_DEVICES
 
 instantiate_template() {
     local I=("${INSTANTIATE[@]}") option n
@@ -374,6 +374,15 @@ setup() {
     for node in "${!VOLUMES[@]}"; do
 	set -- $(seq -f "$node:%g" ${VOLUMES[$node]:-0})
 	VOLUMES["$node"]="$*"
+    done
+
+    for n1 in "${NODES[@]}"; do
+	set --
+	for n2 in "${NODES[@]}"; do
+	    [ "$n1" != "$n2" ] || continue
+	    set -- "$@" ${VOLUMES[$n1]//:/:$n2:}
+	done
+	PEER_DEVICES["$n1"]="$*"
     done
 
     [ -z "$opt_only_setup" ] || exit 0

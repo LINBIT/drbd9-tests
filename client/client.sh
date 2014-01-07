@@ -107,12 +107,14 @@ event() {
     for node in "${nodes[@]}"; do
 	set -- "$@" --label=$node $DRBD_TEST_JOB/events-$node
     done
-    logscan ${opt_verbose+--verbose} -p $DRBD_TEST_JOB/node-event.pos "$@"
+    logscan ${opt_verbose+--verbose} \
+	-p $DRBD_TEST_JOB/node-event.pos \
+	"$@"
 }
 
 # Match an event on one or more nodes
 #
-# USAGE: connection_event {connection} [... {connection}] {logscan options}
+# USAGE: connection_event {node1:node2} [... {node1:node2}] {logscan options}
 #
 # This function keeps track of the current position in the event logs
 # independently for each connection.  (The setup function sets the CONNECTIONS
@@ -121,7 +123,7 @@ event() {
 #
 connection_event() {
     local -a connections
-    local connection n1 n2 posfile filter
+    local connection n1 n2
 
     sync_events connection
     while :; do
@@ -132,17 +134,22 @@ connection_event() {
     for connection in "${connections[@]}"; do
 	n1=${connection%%:*}
 	n2=${connection#*:}
-	posfile=$DRBD_TEST_JOB/connection-event-$connection.pos
-	filter=" conn-name:${params["$n2:FULL_HOSTNAME"]} "
-	logscan ${opt_verbose+--verbose} -p "$posfile" -f "$filter" "$@" \
-		--label="$connection" $DRBD_TEST_JOB/events-$n1
+	logscan ${opt_verbose+--verbose} \
+	    -p $DRBD_TEST_JOB/connection-event-$n2.pos \
+	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} " \
+	    "$@" \
+	    --label="$connection" \
+	    $DRBD_TEST_JOB/events-$n1
     done
 }
 
 # Match an event on one or more nodes and volumes
+#
+# USAGE: volume_event {node:volume} [ ... {node:volume} ] {logscan options}
+#
 volume_event() {
     local -a nodes_volumes
-    local node_volume node posfile filter
+    local node_volume node volume
 
     sync_events volume
     while :; do
@@ -152,10 +159,41 @@ volume_event() {
     done
     for node_volume in "${nodes_volumes[@]}"; do
 	node=${node_volume%:*}
-	posfile=$DRBD_TEST_JOB/volume-event-$node_volume.pos
-	filter=" volume:${node_volume##*:} "
-	logscan ${opt_verbose+--verbose} -p "$posfile" -f "$filter" "$@" \
-		--label="$node_volume" $DRBD_TEST_JOB/events-$node
+	volume=${node_volume##*:}
+	logscan ${opt_verbose+--verbose} \
+	    -p $DRBD_TEST_JOB/volume-event-$volume.pos \
+	    -f " volume:$volume " \
+	    "$@" \
+	    --label="$node_volume" \
+	    $DRBD_TEST_JOB/events-$node
+    done
+}
+
+# Match an event on one or more peer devices
+#
+# Usage: peer_device_event {node1:node2:volume} [ ... {node1:node2:volume} ] {logscan options}
+#
+peer_device_event() {
+    local -a nodes_volumes
+    local nodes_volume nodes n1 n2 volume
+
+    sync_events peer_device
+    while :; do
+	nodes=${1%:*}; n1=${nodes%:*}; n2=${nodes#:*}
+	[ -n "${DEFINED_NODES[$n1]}" -a -n "${DEFINED_NODES[$n2]}" ] || break
+	nodes_volumes[${#nodes_volumes[@]}]=$1
+	shift
+    done
+    for nodes_volume in "${nodes_volumes[@]}"; do
+	nodes=${node_volume%:*}; n1=${nodes%:*}; n2=${nodes#:*}
+	volume=${nodes_volume##*:}
+	logscan ${opt_verbose+--verbose} \
+	    -p $DRBD_TEST_JOB/peer-device-event-$n2:$volume.pos \
+	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} " \
+	    -f " volume:$volume " \
+	    "$@" \
+	    --label="$node_volume" \
+	    $DRBD_TEST_JOB/events-$n1
     done
 }
 
@@ -167,7 +205,7 @@ volume_event() {
 # current positions of event and connection_event.
 #
 # This function is called internally whenever switching between different
-# types of matches (event, connection_event, volume_event).
+# types of matches (event, connection_event, volume_event, peer_device_event).
 #
 declare LAST_EVENT_CLASS
 

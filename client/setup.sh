@@ -372,7 +372,7 @@ setup() {
 	esac
     done
     for node in "${!VOLUMES[@]}"; do
-	set -- $(seq ${VOLUMES[$node]:-0})
+	set -- $(seq -f "$node:%g" ${VOLUMES[$node]:-0})
 	VOLUMES["$node"]="$*"
     done
 

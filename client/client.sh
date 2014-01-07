@@ -230,7 +230,7 @@ _initial_resync() {
     for node in "${NODES[@]}"; do
 	if [ "$node" != "${NODES[0]}" ]; then
 	    for volume in ${VOLUMES[$node]}; do
-		volume_event "$node:$volume" --timeout=300 -y ' device .* disk:UpToDate'
+		volume_event "$volume" --timeout=300 -y ' device .* disk:UpToDate'
 	    done
 	fi
     done

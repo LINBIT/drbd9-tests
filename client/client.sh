@@ -108,7 +108,7 @@ event() {
 	set -- "$@" --label=$node $DRBD_TEST_JOB/events-$node
     done
     logscan ${opt_verbose+--verbose} \
-	-p $DRBD_TEST_JOB/node-event.pos \
+	-p $DRBD_TEST_JOB/.events.pos \
 	"$@"
 }
 
@@ -135,7 +135,7 @@ connection_event() {
 	n1=${connection%%:*}
 	n2=${connection#*:}
 	logscan ${opt_verbose+--verbose} \
-	    -p $DRBD_TEST_JOB/connection-event-$n2.pos \
+	    -p $DRBD_TEST_JOB/.events-connection-$n2.pos \
 	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} " \
 	    "$@" \
 	    --label="$connection" \
@@ -161,7 +161,7 @@ volume_event() {
 	node=${node_volume%:*}
 	volume=${node_volume##*:}
 	logscan ${opt_verbose+--verbose} \
-	    -p $DRBD_TEST_JOB/volume-event-$volume.pos \
+	    -p $DRBD_TEST_JOB/.events-volume-$volume.pos \
 	    -f " volume:$volume " \
 	    "$@" \
 	    --label="$node_volume" \
@@ -188,7 +188,7 @@ peer_device_event() {
 	nodes=${node_volume%:*}; n1=${nodes%:*}; n2=${nodes#:*}
 	volume=${nodes_volume##*:}
 	logscan ${opt_verbose+--verbose} \
-	    -p $DRBD_TEST_JOB/peer-device-event-$n2:$volume.pos \
+	    -p $DRBD_TEST_JOB/.events-peer-device-$n2:$volume.pos \
 	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} " \
 	    -f " volume:$volume " \
 	    "$@" \
@@ -218,12 +218,12 @@ sync_events() {(
 	LAST_EVENT_CLASS=${1:-node}
 
 	data="$(
-	    for file in $DRBD_TEST_JOB/*.pos; do
+	    for file in $DRBD_TEST_JOB/.*.pos; do
 		cat "$file"
 	    done \
 	    | sort -t ' ' -k 2,2 -r \
 	    | sort -t ' ' -k 3,3 -u)"
-	for file in $DRBD_TEST_JOB/*.pos; do
+	for file in $DRBD_TEST_JOB/.*.pos; do
 	    echo "$data" > "$file"
 	done
     fi

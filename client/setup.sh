@@ -101,7 +101,7 @@ setup() {
     eval set -- "$options"
 
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
-    declare opt_min_nodes=2 opt_only_setup= job_symlink=
+    declare opt_min_nodes=2 opt_only_setup= job_symlink= max_volume
     declare opt_template=m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -218,8 +218,7 @@ setup() {
     export LOGSCAN_TIMEOUT=30
 
     echo "Logging to directory $DRBD_TEST_JOB"
-    mkdir -p "$DRBD_TEST_JOB"
-    rm -f $DRBD_TEST_JOB/*.pos $DRBD_TEST_JOB/test.log
+    mkdir "$DRBD_TEST_JOB"
     if [ -n "$job_symlink" ]; then
 	rm -f "$job_symlink"
 	ln -s "$DRBD_TEST_JOB" "$job_symlink"
@@ -368,6 +367,9 @@ setup() {
 	DISK*)
 	    set -- ${VOLUMES["$node"]:-0} ${name#DISK}
 	    VOLUMES["$node"]=$(($1 > $2 ? $1 : $2))
+
+	    set -- ${max_volume:-0} ${VOLUMES["$node"]}
+	    max_volume=$(($1 > $2 ? $1 : $2))
 	    ;;
 	esac
     done
@@ -384,6 +386,14 @@ setup() {
 	done
 	PEER_DEVICES["$n1"]="$*"
     done
+
+    set -- ".events.pos"
+    set -- "$@" $(seq -f ".events-volume-%g.pos" $max_volume)
+    for node in "${NODES[@]}"; do
+	set -- "$@" ".events-connection-$node.pos"
+	set -- "$@" $(seq -f ".events-peer-device-$node:%g.pos" $max_volume)
+    done
+    touch "${@/#/$DRBD_TEST_JOB/}"
 
     [ -z "$opt_only_setup" ] || exit 0
     #if [ "$opt_cleanup" = "success" ]; then

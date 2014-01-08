@@ -18,27 +18,31 @@ sleep 1  # Ensure that some I/O happens before the next steps
 
 for node in "${NODES[@]}"; do
     on "$node" drbdadm detach ${DRBD_TEST_JOB}/1
-    event "$node" -y ' device .* disk:Diskless'
+    volume_event "$node:1" -y ' device .* disk:Diskless'
 done
 
-on "${NODES[@]}" drbdadm del-minor ${DRBD_TEST_JOB}/1
-event "${NODES[@]}" -y ' destroy device .* volume:1 '
+for node in "${NODES[@]}"; do
+    on "$node" drbdadm del-minor ${DRBD_TEST_JOB}/1
+    volume_event "$node:1" -y ' destroy device '
+done
 
-on "${NODES[@]}" drbdadm new-minor ${DRBD_TEST_JOB}/1
-event "${NODES[@]}" -y ' create device .* volume:1 '
+for node in "${NODES[@]}"; do
+    on "$node" drbdadm new-minor ${DRBD_TEST_JOB}/1
+    volume_event "$node:1" -y ' create device '
+done
 
 # FIXME: DRBD does not handle concurrent attach correctly
 for node in "${NODES[@]}"; do
     if [ "$node" = "${NODES[0]}" ]; then
 	on "$node" drbdadm attach ${DRBD_TEST_JOB}/1
 	# The node doing the attach first, goes straight to UpToDate
-	event "$node" -y ' device .* disk:UpToDate'
+	volume_event "$node:1" -y ' device .* disk:UpToDate'
     else
 	# The other nodes that see that, will go though Negotiating first
-	event "$node" -y " peer-device .* conn-name:${NODES[0]} .* peer-disk:UpToDate"
+	volume_event "$node:1" -y ' peer-device .* peer-disk:UpToDate'
 	on "$node" drbdadm attach ${DRBD_TEST_JOB}/1
-	event "$node" -y ' device .* disk:Negotiating'
-	event "$node" -y ' device .* disk:UpToDate'
+	volume_event "$node:1" -y ' device .* disk:Negotiating'
+	volume_event "$node:1" -y ' device .* disk:UpToDate'
     fi
 done
 

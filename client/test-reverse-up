@@ -17,24 +17,20 @@ on "${NODES[@]}" drbdadm new-minor all
 # FIXME: For now we need to wait until everyone sees that the peer
 # created the minor. Attach might do unresonable things if this status
 # update comes in later...
-connection_event "${CONNECTIONS[@]}" -y ' peer-device .* peer-disk:Diskless'
-# UNFINISHED: Actually we need the previous statement for every voluem
-#connection_event "${CONNECTIONS[@]}" -y ' peer-device .* volume:1 .* peer-disk:Diskless' -y ' peer-device .* volume:2 .* peer-disk:Diskless'
-# or hopefully something like
-# peer_device_event "${PEER_DEVICES[@]}" -y ' peer-device .* peer-disk:Diskless'
+peer_device_event ${PEER_DEVICES[@]} -y ' peer-device .* peer-disk:Diskless'
 
 # FIXME: It is known that DRBD does not correctly handle concurrent attach
 for node in "${NODES[@]}"; do
     if [ "$node" = "${NODES[0]}" ]; then
 	on "$node" drbdadm attach all
 	# The node doing the attach first, goes straight to Inconsistent
-	event "$node" -y ' device .* disk:Inconsistent'
+	volume_event ${VOLUMES[$node]} -y ' device .* disk:Inconsistent'
     else
 	# The other nodes that see that, will go though Negotiating first
-	event "$node" -y " peer-device .* conn-name:${NODES[0]} .* peer-disk:Inconsistent"
+	volume_event ${VOLUMES[$node]} -y ' peer-device .* peer-disk:Inconsistent'
 	on "$node" drbdadm attach all
-	event "$node" -y ' device .* disk:Negotiating'
-	event "$node" -y ' device .* disk:Inconsistent'
+	volume_event ${VOLUMES[$node]} -y ' device .* disk:Negotiating'
+	volume_event ${VOLUMES[$node]} -y ' device .* disk:Inconsistent'
     fi
 done
 

@@ -90,8 +90,19 @@ else
     repeat=$opt_repeat
 fi
 
-doit() {
-    trap "rm -f $pidfile" EXIT
+cleanup_dd() {
+    kill %1
+
+    # wait %1  never terminates :(
+    while kill -0 %1; do
+	sleep 0.1
+    done
+
+    rm -f $pidfile
+}
+
+run_dd() {
+    trap "cleanup_dd" EXIT
 
     while [ $repeat -gt 0 -o $repeat -eq -1 ]; do
 	dd status=noxfer if=$opt_indevice of=$opt_device bs=$opt_blocksize count=$opt_count \
@@ -100,7 +111,7 @@ doit() {
     done
 }
 
-doit >/dev/null 2>/dev/null &
+run_dd >/dev/null 2>/dev/null &
 
 pid=$!
 disown $pid

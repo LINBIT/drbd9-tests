@@ -3,6 +3,7 @@
 /drbdadm
 /drbd-test.sh
 /install-config
+/io-load-dd
 /register-cleanup
 /reset-rsyslogd
 /rsyslogd

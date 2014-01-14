@@ -101,7 +101,7 @@ setup() {
     eval set -- "$options"
 
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
-    declare opt_min_nodes=2 opt_only_setup= job_symlink= max_volume
+    declare opt_min_nodes=2 opt_only_setup= job_symlink= max_volume=0
     declare opt_template=m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -368,7 +368,7 @@ setup() {
 	    set -- ${VOLUMES["$node"]:-0} ${name#DISK}
 	    VOLUMES["$node"]=$(($1 > $2 ? $1 : $2))
 
-	    set -- ${max_volume:-0} ${VOLUMES["$node"]}
+	    set -- $max_volume ${VOLUMES["$node"]}
 	    max_volume=$(($1 > $2 ? $1 : $2))
 	    ;;
 	esac

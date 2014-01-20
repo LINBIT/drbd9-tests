@@ -34,8 +34,10 @@ instantiate_template() {
     do_debug $HERE/instantiate-template "${I[@]}"
 }
 
-cleanup_log_console() {
+end_log_console() {
+    local logfile=$DRBD_TEST_JOB/console-$1.log
     screen -S console-$1 -p 0 -X stuff $'\c]'
+    grep --label="$1" --with-filename -e 'BUG:' -e 'INFO:' < $logfile || :
 }
 
 cleanup_events() {
@@ -254,7 +256,7 @@ setup() {
 	    screen -S console-$node -p 0 -X logfile $DRBD_TEST_JOB/console-$node.log
 	    screen -S console-$node -p 0 -X log on
 	    verbose "$node: capturing console $console"
-	    register_cleanup cleanup_log_console $node
+	    register_cleanup end_log_console $node
 	    ;;
 	esac
     done

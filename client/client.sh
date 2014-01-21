@@ -101,15 +101,14 @@ event() {
     sync_events node
     while :; do
 	[ -n "${COPROC_PID[$1]}" ] || break
-	nodes[${#nodes[@]}]=$1
+	node=$1
 	shift
+	set -- "$@" \
+	    $DRBD_TEST_JOB/events-$node \
+	    --label="$node" \
+	    -p $DRBD_TEST_JOB/.events.pos
     done
-    for node in "${nodes[@]}"; do
-	set -- "$@" --label=$node $DRBD_TEST_JOB/events-$node
-    done
-    logscan ${opt_verbose+--verbose} \
-	-p $DRBD_TEST_JOB/.events.pos \
-	"$@"
+    logscan ${opt_verbose+--verbose} "$@"
 }
 
 # Match an event on one or more nodes
@@ -122,25 +121,21 @@ event() {
 # connections.)
 #
 connection_event() {
-    local -a connections
-    local connection n1 n2
+    local n1 n2
 
     sync_events connection
     while :; do
 	[ -n "${CONNECTIONS[$1]}" ] || break
-	connections[${#connections[@]}]=$1
+	n1=${1%%:*}
+	n2=${1#*:}
+	set -- "$@" \
+	    $DRBD_TEST_JOB/events-$n1 \
+	    --label="$1" \
+	    -p $DRBD_TEST_JOB/.events-connection-$n2.pos \
+	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} "
 	shift
     done
-    for connection in "${connections[@]}"; do
-	n1=${connection%%:*}
-	n2=${connection#*:}
-	logscan ${opt_verbose+--verbose} \
-	    -p $DRBD_TEST_JOB/.events-connection-$n2.pos \
-	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} " \
-	    "$@" \
-	    --label="$connection" \
-	    $DRBD_TEST_JOB/events-$n1
-    done
+    logscan ${opt_verbose+--verbose} "$@"
 }
 
 # Match an event on one or more nodes and volumes
@@ -148,25 +143,21 @@ connection_event() {
 # USAGE: volume_event {node:volume} [ ... {node:volume} ] {logscan options}
 #
 volume_event() {
-    local -a nodes_volumes
-    local node_volume node volume
+    local node volume
 
     sync_events volume
     while :; do
 	[ -n "${DEFINED_NODES[${1%:*}]}" ] || break
-	nodes_volumes[${#nodes_volumes[@]}]=$1
+	node=${1%:*}
+	volume=${1##*:}
+	set -- "$@" \
+	    $DRBD_TEST_JOB/events-$node \
+	    --label="$1" \
+	    -p $DRBD_TEST_JOB/.events-volume-$volume.pos \
+	    -f " volume:$volume "
 	shift
     done
-    for node_volume in "${nodes_volumes[@]}"; do
-	node=${node_volume%:*}
-	volume=${node_volume##*:}
-	logscan ${opt_verbose+--verbose} \
-	    -p $DRBD_TEST_JOB/.events-volume-$volume.pos \
-	    -f " volume:$volume " \
-	    "$@" \
-	    --label="$node_volume" \
-	    $DRBD_TEST_JOB/events-$node
-    done
+    logscan ${opt_verbose+--verbose} "$@"
 }
 
 # Match an event on one or more peer devices
@@ -174,27 +165,22 @@ volume_event() {
 # Usage: peer_device_event {node1:node2:volume} [ ... {node1:node2:volume} ] {logscan options}
 #
 peer_device_event() {
-    local -a nodes_volumes
-    local nodes_volume nodes n1 n2 volume
+    local nodes n1 n2 volume
 
     sync_events peer_device
     while :; do
 	nodes=${1%:*}; n1=${nodes%:*}; n2=${nodes#:*}
 	[ -n "${DEFINED_NODES[$n1]}" -a -n "${DEFINED_NODES[$n2]}" ] || break
-	nodes_volumes[${#nodes_volumes[@]}]=$1
-	shift
-    done
-    for nodes_volume in "${nodes_volumes[@]}"; do
-	nodes=${node_volume%:*}; n1=${nodes%:*}; n2=${nodes#:*}
-	volume=${nodes_volume##*:}
-	logscan ${opt_verbose+--verbose} \
+	volume=${1##*:}
+	set -- "$@" \
+	    $DRBD_TEST_JOB/events-$n1 \
+	    --label="$1" \
 	    -p $DRBD_TEST_JOB/.events-peer-device-$n2:$volume.pos \
 	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} " \
-	    -f " volume:$volume " \
-	    "$@" \
-	    --label="$node_volume" \
-	    $DRBD_TEST_JOB/events-$n1
+	    -f " volume:$volume "
+	shift
     done
+    logscan ${opt_verbose+--verbose} "$@"
 }
 
 # Synchronize between global and per-connection matching
@@ -255,9 +241,7 @@ skip_test() {
 
 _up() {
     on "${NODES[@]}" drbdadm up all
-    for node in "${NODES[@]}"; do
-	event "$node" -y ' device .* disk:Inconsistent'
-    done
+    event "${NODES[@]}" -y ' device .* disk:Inconsistent'
 }
 
 _force_primary() {
@@ -266,18 +250,16 @@ _force_primary() {
 }
 
 _initial_resync() {
-    local node volume
+    local -a volumes
+    local node
 
     # Use unlimited resync bandwidth
     on "${NODES[@]}" drbdadm disk-options --c-min-rate=0 all
 
-    for node in "${NODES[@]}"; do
-	if [ "$node" != "${NODES[0]}" ]; then
-	    for volume in ${VOLUMES[$node]}; do
-		volume_event "$volume" --timeout=300 -y ' device .* disk:UpToDate'
-	    done
-	fi
+    for node in $(all_nodes_except "${NODES[0]}"); do
+	volumes=( "${volumes[@]}" ${VOLUMES[$node]} )
     done
+    volume_event "${volumes[@]}" --timeout=300 -y ' device .* disk:UpToDate'
 }
 
 _down() {

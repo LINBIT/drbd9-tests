@@ -6,6 +6,11 @@
 
 setup --disk=10M "$@"
 
+first_node="${NODES[0]}"
+first_volumes=( ${VOLUMES[$first_node]} )
+other_nodes=( $(all_nodes_except "$first_node") )
+other_volumes=( $(all_volumes_except ${first_volumes[@]}) )
+
 on "${NODES[@]}" drbdadm new-resource all
 on "${NODES[@]}" drbdadm connect all
 # FIXME: It may be interesting to add volume(s) without waiting
@@ -20,19 +25,16 @@ on "${NODES[@]}" drbdadm new-minor all
 peer_device_event ${PEER_DEVICES[@]} -y ' peer-device .* peer-disk:Diskless'
 
 # FIXME: It is known that DRBD does not correctly handle concurrent attach
-for node in "${NODES[@]}"; do
-    if [ "$node" = "${NODES[0]}" ]; then
-	on "$node" drbdadm attach all
-	# The node doing the attach first, goes straight to Inconsistent
-	volume_event ${VOLUMES[$node]} -y ' device .* disk:Inconsistent'
-    else
-	# The other nodes that see that, will go though Negotiating first
-	volume_event ${VOLUMES[$node]} -y ' peer-device .* peer-disk:Inconsistent'
-	on "$node" drbdadm attach all
-	volume_event ${VOLUMES[$node]} -y ' device .* disk:Negotiating'
-	volume_event ${VOLUMES[$node]} -y ' device .* disk:Inconsistent'
-    fi
-done
+
+on "$first_node" drbdadm attach all
+# The node doing the attach first goes straight to Inconsistent
+volume_event "${first_volumes[@]}" -y ' device .* disk:Inconsistent'
+
+# The other nodes that see that will go though Negotiating first
+volume_event "${other_volumes[@]}" -y ' peer-device .* peer-disk:Inconsistent'
+on "${other_nodes[@]}" drbdadm attach all
+volume_event "${other_volumes[@]}" -y ' device .* disk:Negotiating'
+volume_event "${other_volumes[@]}" -y ' device .* disk:Inconsistent'
 
 _force_primary
 _initial_resync

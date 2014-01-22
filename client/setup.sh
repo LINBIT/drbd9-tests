@@ -389,13 +389,17 @@ setup() {
 	PEER_DEVICES["$n1"]="$*"
     done
 
-    set -- ".events.pos"
-    set -- "$@" $(seq -f ".events-volume-%g.pos" $max_volume)
+    printf "1 0 $DRBD_TEST_JOB/events-%s\n" "${NODES[@]}" \
+	> $DRBD_TEST_JOB/.events.pos
+    set -- $(seq -f ".events-volume-%g.pos" $max_volume)
     for node in "${NODES[@]}"; do
 	set -- "$@" ".events-connection-$node.pos"
 	set -- "$@" $(seq -f ".events-peer-device-$node:%g.pos" $max_volume)
     done
-    touch "${@/#/$DRBD_TEST_JOB/}"
+    while [ $# -gt 0 ]; do
+	cp $DRBD_TEST_JOB/.events.pos "$DRBD_TEST_JOB/$1"
+	shift
+    done
 
     [ -z "$opt_only_setup" ] || exit 0
     #if [ "$opt_cleanup" = "success" ]; then

@@ -195,25 +195,16 @@ peer_device_event() {
 #
 declare LAST_EVENT_CLASS
 
-sync_events() {(
+sync_events() {
     local -a file data
 
     shopt -s nullglob
 
     if [ "${1:-node}" != "$LAST_EVENT_CLASS" ]; then
 	LAST_EVENT_CLASS=${1:-node}
-
-	data="$(
-	    for file in $DRBD_TEST_JOB/.*.pos; do
-		cat "$file"
-	    done \
-	    | sort -t ' ' -k 2,2 -r \
-	    | sort -t ' ' -k 3,3 -u)"
-	for file in $DRBD_TEST_JOB/.*.pos; do
-	    echo "$data" > "$file"
-	done
+	do_debug logscan --sync $DRBD_TEST_JOB/.*.pos
     fi
-)}
+}
 
 connect_to_nodes() {
     local node

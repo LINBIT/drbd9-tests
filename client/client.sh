@@ -234,10 +234,12 @@ connect_to_nodes() {
 
     for node in "$@"; do
 	create_coprocess $node ssh root@$node exxe --syslog
-	on -Q $node export PATH="$DRBD_TEST_DATA:\$PATH"
-	on $node export DRBD_TEST_DATA="$DRBD_TEST_DATA"
-	on $node export DRBD_TEST_JOB="$DRBD_TEST_JOB"
-	on $node export EXXE_IDENT="exxe/$DRBD_TEST_JOB"
+	on -Q $node export \
+	    PATH="$DRBD_TEST_DATA:\$PATH"
+	on $node export \
+	    DRBD_TEST_DATA="$DRBD_TEST_DATA" \
+	    DRBD_TEST_JOB="$DRBD_TEST_JOB" \
+	    EXXE_IDENT="exxe/$DRBD_TEST_JOB"
 
 	if ! on $node test -d "$DRBD_TEST_DATA"; then
 	    echo "Node $node: Directory $DRBD_TEST_DATA does not exist" >&2

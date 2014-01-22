@@ -232,12 +232,15 @@ skip_test() {
 
 _up() {
     on "${NODES[@]}" drbdadm up all
-    event "${NODES[@]}" -y ' device .* disk:Inconsistent'
+    volume_event ${VOLUMES[@]} -y ' device .* disk:Inconsistent'
 }
 
 _force_primary() {
-    on "${NODES[0]}" drbdadm primary --force all
-    event "${NODES[0]}" -y ' resource .* role:Primary' -y ' device .* disk:UpToDate'
+    local first_node="${NODES[0]}"
+
+    on "$first_node" drbdadm primary --force all
+    event "$first_node" -y ' resource .* role:Primary'
+    volume_event ${VOLUMES[$first_node]} -y ' device .* disk:UpToDate'
 }
 
 _initial_resync() {

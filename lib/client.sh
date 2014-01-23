@@ -8,8 +8,16 @@ register_cleanup() {
 }
 
 cleanup() {
-    local cleanup status=$?
+    local cleanup status=$? n file line
 
+    if [ $status -ne 0 ]; then
+	( echo "Backtrace:"
+	for ((n = ${#BASH_SOURCE[@]} - 1; n > 1; n--)); do
+	    file=${BASH_SOURCE[$n]}
+	    line=${BASH_LINENO[$n - 1]}
+	    sed -ne "${line}s,^[ \\t]*,  $file:$line: ,p" "$file"
+	done ) >&2
+    fi
     set +e
     for cleanup in "${CLEANUP[@]}"; do
 	# Restore the $? variable for each cleanup task

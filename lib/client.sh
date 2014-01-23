@@ -169,7 +169,7 @@ peer_device_event() {
 
     sync_events peer_device
     while :; do
-	nodes=${1%:*}; n1=${nodes%:*}; n2=${nodes#:*}
+	nodes=${1%:*}; n1=${nodes%:*}; n2=${nodes#*:}
 	[ -n "${DEFINED_NODES[$n1]}" -a -n "${DEFINED_NODES[$n2]}" ] || break
 	volume=${1##*:}
 	set -- "$@" \

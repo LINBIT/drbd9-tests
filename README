@@ -3,15 +3,14 @@ DRBD 9 Test Suite
 
 This is the beginning of a test suite for DRBD 9.  The test infrastructure
 provided so far is not complete and the DRBD functionality covered by the tests
-is quite minimal, but our goal is to build upon the existing components, and
+is quite small, but our goal is to build upon the existing components, and
 add more infrastructure and tests in parallel to fixing any bugs that the tests
 help to uncover.
 
 Running the test suite requires the following components:
 
  * One test coordinator node.  The basic test infrastructure can be run as an
-   unprivileged user.  (Access to virtual machine serial consoles requires
-   sudo access as root though.)
+   unprivileged user.
 
  * Two or more nodes to use as the test cluster.  The nodes must be accessible
    over ssh without password prompt. (This is best configured by putting the
@@ -28,9 +27,9 @@ Running the test suite requires the following components:
  * The logscan utility (http://git.drbd.org/logscan.git/) must be installed on
    the test coordinator.
 
- * The server components of the test suite (directory server/) must be built
-   once, and then installed on all test nodes (for example: "cd server && make"
-   on the test coordinator, then mount the server/ directory on all test nodes
+ * The target components of the test suite (directory target/) must be built
+   once, and then installed on all test nodes (for example: "cd target && make"
+   on the test coordinator, then mount the target/ directory on all test nodes
    and "make install" on each of them).
 
  * On each test node, all test volumes are currently created inside an LVM
@@ -38,11 +37,10 @@ Running the test suite requires the following components:
    with the --volume-group=<name> option.)
 
 
-The tests are found in the client/ directory; they are relatively simple shell
-scripts which take a number of parameters.  When invoked with a number of node
-names as arguments, they will connect to all those test nodes via ssh and
+The tests are relatively simple shell scripts.  When invoked with a number of
+node names as arguments, they will connect to all those test nodes via ssh and
 execute various commands on them as defined by the test.  All the test results
-are collected in the coordinator.  The coordinator is also where the test suite
+are collected on the coordinator.  The coordinator is also where the test suite
 checks for various DRBD state transitions to occur.  By default, each test run
 is assigned a job name which consists of the base name of the test, with a
 timestamp appended: the test-connect test would log into directory
@@ -60,7 +58,8 @@ connect-20131015-173644/, for example.  The following files can be found there:
 
   exxe-<node-name>.log: The log of the exxe utility (all commands executed).
 
-  *.pos: positions of the last match for logscan.
+  .*.pos: positions of the last matches in the events-* files. The logscan
+    utility uses these to keep trck of the current scanning positions.
 
   console-<node-name>: the serial console output of each node (if the
     --console or --vconsole options are used).
@@ -101,11 +100,9 @@ Serial Consoles
 
  * Logging the serial console output of virtual machines running on the test
    coordinator is supported via the --vconsole option.  This requires that
-   "sudo virsh" is permitted so that "sudo virsh ttyconsole <node-name>" can be
-   used for finding out the pseudo-terminal that the serial console is attached
-   to.  The file permissions of that device must be set to allow read access to
-   the user running the test suite.  The name of the virtual machine must be
-   the same as the name used for accessing the node via ssh.
+   the virtual machine is visible by the current user in virsh.  The name of
+   the virtual machine must be the same as the name used for accessing the node
+   via ssh.
 
 
 Examples

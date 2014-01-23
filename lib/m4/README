@@ -1,3 +1,7 @@
+The quote.m4, foreachq4.m4, forloop2.m4, and join.m4 macros in this directory
+were taken from the GNU M4 package with are released with the following
+copyright statement:
+
 The files in this directory provide example uses of GNU M4.
 The following copyright notice applies to each of these
 description files.

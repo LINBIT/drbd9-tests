@@ -1,5 +1,5 @@
 all:
-	@$(MAKE) -C server $@
+	@$(MAKE) -C target $@
 
 %:
-	@$(MAKE) -C server $@
+	@$(MAKE) -C target $@

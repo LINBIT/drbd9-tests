@@ -3,8 +3,8 @@
 # FIXME: Check for ntp on the test nodes and the client
 
 HERE=${0%/*}
-. $HERE/param.sh
-. $HERE/client.sh
+. $HERE/lib/param.sh
+. $HERE/lib/client.sh
 set -e
 
 # All the defined connections
@@ -31,7 +31,7 @@ instantiate_template() {
 	done
     done
     I[${#I[@]}]=$opt_template
-    do_debug $HERE/instantiate-template "${I[@]}"
+    do_debug $HERE/lib/instantiate-template "${I[@]}"
 }
 
 end_log_console() {
@@ -104,7 +104,7 @@ setup() {
 
     declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
     declare opt_min_nodes=2 opt_only_setup= job_symlink= max_volume=0
-    declare opt_template=m4/template.conf.m4
+    declare opt_template=lib/m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
 
@@ -284,7 +284,7 @@ setup() {
     sed -e "s:@PORT@:$RSYSLOGD_PORT:g" \
 	-e "s:@SYSLOG_DIR@:$PWD/$DRBD_TEST_JOB:g" \
 	-e "s:@SERVER@:${hostname%%.*}:g" \
-	rsyslog.conf.in \
+	lib/rsyslog.conf.in \
 	> run/rsyslog.conf
     rsyslogd -c5 -i $PWD/run/rsyslogd.pid -f $PWD/run/rsyslog.conf
     register_cleanup kill_rsyslogd

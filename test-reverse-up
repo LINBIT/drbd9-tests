@@ -2,7 +2,8 @@
 
 # Pass this script a list of host names to use as the test nodes.
 
-. ${0%/*}/setup.sh
+HERE=${0%/*}
+. $HERE/lib/setup.sh
 
 setup --disk=10M "$@"
 

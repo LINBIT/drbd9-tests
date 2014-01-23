@@ -8,8 +8,6 @@
   on standard error.
 
 * Human readable desctription of an entire test case
-* setup - cleanup: as soon as setup runs in a separate process, we cannot wait
-  for setup's children with wait(2) anymore.
 
 * Firewalling for tcp/udp syslog on the test node?!
 
@@ -19,9 +17,6 @@
 
 * Write some kind of end event into the syslog and events log and wait
   for these end markers to arrive to ensure that the syslog is complete.
-
-* Run logscan inside the directory of the event traces to avoid directory names
-  in the *.pos files.
 
 * Set /proc/sys/kernel/hung_task_timeout_secs small enough so that hung tasks
   will be reported in the syslog trace // otherwise dump all tasks when a test

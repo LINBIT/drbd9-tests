@@ -104,11 +104,11 @@ event() {
 	node=$1
 	shift
 	set -- "$@" \
-	    $DRBD_TEST_JOB/events-$node \
+	    events-$node \
 	    --label="$node" \
-	    -p $DRBD_TEST_JOB/.events.pos
+	    -p .events.pos
     done
-    do_debug logscan ${opt_verbose+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB ${opt_verbose+--verbose} "$@"
 }
 
 # Match an event on one or more nodes
@@ -129,13 +129,13 @@ connection_event() {
 	n1=${1%%:*}
 	n2=${1#*:}
 	set -- "$@" \
-	    $DRBD_TEST_JOB/events-$n1 \
+	    events-$n1 \
 	    --label="$1" \
-	    -p $DRBD_TEST_JOB/.events-connection-$n2.pos \
+	    -p .events-connection-$n2.pos \
 	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} "
 	shift
     done
-    do_debug logscan ${opt_verbose+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB ${opt_verbose+--verbose} "$@"
 }
 
 # Match an event on one or more nodes and volumes
@@ -151,13 +151,13 @@ volume_event() {
 	node=${1%:*}
 	volume=${1##*:}
 	set -- "$@" \
-	    $DRBD_TEST_JOB/events-$node \
+	    events-$node \
 	    --label="$1" \
-	    -p $DRBD_TEST_JOB/.events-volume-$volume.pos \
+	    -p .events-volume-$volume.pos \
 	    -f " volume:$volume "
 	shift
     done
-    do_debug logscan ${opt_verbose+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB ${opt_verbose+--verbose} "$@"
 }
 
 # Match an event on one or more peer devices
@@ -173,14 +173,14 @@ peer_device_event() {
 	[ -n "${DEFINED_NODES[$n1]}" -a -n "${DEFINED_NODES[$n2]}" ] || break
 	volume=${1##*:}
 	set -- "$@" \
-	    $DRBD_TEST_JOB/events-$n1 \
+	    events-$n1 \
 	    --label="$1" \
-	    -p $DRBD_TEST_JOB/.events-peer-device-$n2:$volume.pos \
+	    -p .events-peer-device-$n2:$volume.pos \
 	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} " \
 	    -f " volume:$volume "
 	shift
     done
-    do_debug logscan ${opt_verbose+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB ${opt_verbose+--verbose} "$@"
 }
 
 # Synchronize between global and per-connection matching
@@ -202,7 +202,7 @@ sync_events() {
 
     if [ "${1:-node}" != "$LAST_EVENT_CLASS" ]; then
 	LAST_EVENT_CLASS=${1:-node}
-	do_debug logscan --sync $DRBD_TEST_JOB/.*.pos
+	do_debug logscan -d $DRBD_TEST_JOB --sync .*.pos
     fi
 }
 

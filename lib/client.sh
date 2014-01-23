@@ -108,7 +108,7 @@ event() {
 	    --label="$node" \
 	    -p .events.pos
     done
-    do_debug logscan -d $DRBD_TEST_JOB ${opt_verbose+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB --silent ${opt_verbose:+--verbose} "$@"
 }
 
 # Match an event on one or more nodes
@@ -135,7 +135,7 @@ connection_event() {
 	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} "
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB ${opt_verbose+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB --silent ${opt_verbose:+--verbose} "$@"
 }
 
 # Match an event on one or more nodes and volumes
@@ -157,7 +157,7 @@ volume_event() {
 	    -f " volume:$volume "
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB ${opt_verbose+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB --silent ${opt_verbose:+--verbose} "$@"
 }
 
 # Match an event on one or more peer devices
@@ -180,7 +180,7 @@ peer_device_event() {
 	    -f " volume:$volume "
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB ${opt_verbose+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB --silent ${opt_verbose:+--verbose} "$@"
 }
 
 # Synchronize between global and per-connection matching

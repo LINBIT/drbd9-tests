@@ -389,7 +389,7 @@ setup() {
 	PEER_DEVICES["$n1"]="$*"
     done
 
-    printf "1 0 $DRBD_TEST_JOB/events-%s\n" "${NODES[@]}" \
+    printf "1 0 events-%s\n" "${NODES[@]}" \
 	> $DRBD_TEST_JOB/.events.pos
     set -- $(seq -f ".events-volume-%g.pos" $max_volume)
     for node in "${NODES[@]}"; do

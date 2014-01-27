@@ -215,6 +215,7 @@ sync_events() {
     if [ "${1:-node}" != "$LAST_EVENT_CLASS" ]; then
 	LAST_EVENT_CLASS=${1:-node}
 	do_debug logscan -d $DRBD_TEST_JOB --sync .*.pos
+	( cd $DRBD_TEST_JOB ; do_debug logscan --sync .*.pos )
     fi
 }
 

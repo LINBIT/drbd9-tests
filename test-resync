@@ -1,0 +1,57 @@
+#! /bin/bash
+
+# Pass this script a list of host names to use as the test nodes.
+
+HERE=${0%/*}
+. $HERE/lib/setup.sh
+
+setup --disk=10M "$@"
+
+first_node="${NODES[0]}"
+device=$(on "$first_node" drbdadm sh-dev ${DRBD_TEST_JOB}/1)
+block_size=4096
+cb=0
+
+_up
+_force_primary
+_initial_resync
+
+
+# Disconnect all nodes, last first, writing a something between every action
+for (( idx=${#NODES[@]}-1 ; idx>=1 ; idx-- )) ; do
+    on "$first_node" dd if=/dev/urandom bs=$block_size count=1 of=$device seek=$cb oflag=sync
+    cb=$(( cb + 1 ))
+    on "${NODES[$idx]}" drbdadm disconnect ${DRBD_TEST_JOB}
+
+    closed_connections=()
+    for (( i=0 ; i < idx ; i++ )); do
+	closed_connections[$i]="${NODES[$i]}:${NODES[$idx]}"
+    done
+
+    connection_event "${closed_connections[@]}" -y ' connection .* connection:TearDown'
+    connection_event "${closed_connections[@]}" -y ' connection .* connection:Connecting'
+done
+
+on "$first_node" dd if=/dev/urandom bs=$block_size count=1 of=$device seek=$cb oflag=sync
+cb=$(( cb + 1 ))
+
+# Connect them beginning from the last to the previous, assert resync direction
+for (( idx=${#NODES[@]}-1 ; idx>=2 ; idx-- )) ; do
+    n1=${NODES[$idx-1]}
+    n2=${NODES[$idx]}
+    on "$n1" drbdadm connect ${DRBD_TEST_JOB}:"$n2"
+    on "$n2" drbdadm connect ${DRBD_TEST_JOB}:"$n1"
+    peer_device_event "$n1:$n2:1" -y ' peer-device .* replication:WFBitMapS'
+    peer_device_event "$n1:$n2:1" -y ' peer-device .* replication:SyncSource'
+    peer_device_event "$n1:$n2:1" --timeout=60 -y ' peer-device .* replication:Established'
+done
+
+# Now connect last to the first
+last_node=${NODES[${#NODES[@]}-1]}
+on "${last_node}" drbdadm connect "${DRBD_TEST_JOB}:$first_node"
+peer_device_event "$first_node:$last_node:1" -y ' peer-device .* replication:WFBitMapS'
+peer_device_event "$first_node:$last_node:1" -y ' peer-device .* replication:SyncSource'
+peer_device_event "$first_node:$last_node:1" --timeout=60 -y ' peer-device .* replication:Established'
+
+_down
+_rmmod

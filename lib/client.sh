@@ -106,6 +106,7 @@ event() {
     local -a nodes
     local node
 
+    verbose "Waiting for event $(printf " %q" "$@")"
     sync_events node
     while :; do
 	[ -n "${COPROC_PID[$1]}" ] || break
@@ -131,6 +132,7 @@ event() {
 connection_event() {
     local n1 n2
 
+    verbose "Waiting for event $(printf " %q" "$@")"
     sync_events connection
     while :; do
 	[ -n "${CONNECTIONS[$1]}" ] || break
@@ -153,6 +155,7 @@ connection_event() {
 volume_event() {
     local node volume
 
+    verbose "Waiting for event $(printf " %q" "$@")"
     sync_events volume
     while :; do
 	[ -n "${DEFINED_NODES[${1%:*}]}" ] || break
@@ -175,6 +178,7 @@ volume_event() {
 peer_device_event() {
     local nodes n1 n2 volume
 
+    verbose "Waiting for event $(printf " %q" "$@")"
     sync_events peer_device
     while :; do
 	nodes=${1%:*}; n1=${nodes%:*}; n2=${nodes#*:}

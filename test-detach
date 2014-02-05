@@ -11,6 +11,9 @@ _up
 _force_primary
 _initial_resync
 
+# Detaching causes disks to go through this state.
+pop_forbidden_patterns 'peer-disk:Failed' 'disk:Failed'
+
 DEVICE1=$(on "${NODES[0]}" drbdadm sh-dev ${DRBD_TEST_JOB}/1)
 DEVICE2=$(on "${NODES[0]}" drbdadm sh-dev ${DRBD_TEST_JOB}/2)
 

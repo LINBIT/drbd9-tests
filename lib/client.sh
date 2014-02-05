@@ -284,6 +284,16 @@ skip_test() {
 _up() {
     on "${NODES[@]}" drbdadm up all
     volume_event ${VOLUMES[@]} -y 'device .* disk:Inconsistent'
+
+    # These error states must never occur unless a test case simulates things
+    # like node failures, network errors, or disk failures.
+    push_forbidden_patterns \
+	'connection:Timeout' \
+	'connection:BrokenPipe' \
+	'connection:NetworkFailure' \
+	'connection:ProtocolError' \
+	'disk:Failed' \
+	'peer-disk:Failed'
 }
 
 _force_primary() {
@@ -308,6 +318,7 @@ _initial_resync() {
 }
 
 _down() {
+    pop_forbidden_patterns 'peer-disk:Failed' 'disk:Failed' || :
     on "${NODES[@]}" drbdadm down all
 }
 

@@ -11,8 +11,9 @@ cleanup() {
     local cleanup status=$? n file line
 
     if [ $status -ne 0 ]; then
-	( echo "Backtrace:"
-	for ((n = ${#BASH_SOURCE[@]} - 1; n > 1; n--)); do
+	( echo
+	echo "Backtrace:"
+	for ((n = 2; n < ${#BASH_SOURCE[@]}; n++)); do
 	    file=${BASH_SOURCE[$n]}
 	    line=${BASH_LINENO[$n - 1]}
 	    sed -ne "${line}s,^[ \\t]*,  $file:$line: ,p" "$file"

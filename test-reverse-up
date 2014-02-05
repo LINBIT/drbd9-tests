@@ -16,26 +16,26 @@ on "${NODES[@]}" drbdadm new-resource all
 on "${NODES[@]}" drbdadm connect all
 # FIXME: It may be interesting to add volume(s) without waiting
 # for the connections to be established first.
-connection_event "${CONNECTIONS[@]}" -y ' connection .* connection:Connected'
+connection_event "${CONNECTIONS[@]}" -y 'connection .* connection:Connected'
 
 on "${NODES[@]}" drbdadm new-minor all
 
 # FIXME: For now we need to wait until everyone sees that the peer
 # created the minor. Attach might do unresonable things if this status
 # update comes in later...
-peer_device_event ${PEER_DEVICES[@]} -y ' peer-device .* peer-disk:Diskless'
+peer_device_event ${PEER_DEVICES[@]} -y 'peer-device .* peer-disk:Diskless'
 
 # FIXME: It is known that DRBD does not correctly handle concurrent attach
 
 on "$first_node" drbdadm attach all
 # The node doing the attach first goes straight to Inconsistent
-volume_event "${first_volumes[@]}" -y ' device .* disk:Inconsistent'
+volume_event "${first_volumes[@]}" -y 'device .* disk:Inconsistent'
 
 # The other nodes that see that will go though Negotiating first
-volume_event "${other_volumes[@]}" -y ' peer-device .* peer-disk:Inconsistent'
+volume_event "${other_volumes[@]}" -y 'peer-device .* peer-disk:Inconsistent'
 on "${other_nodes[@]}" drbdadm attach all
-volume_event "${other_volumes[@]}" -y ' device .* disk:Negotiating'
-volume_event "${other_volumes[@]}" -y ' device .* disk:Inconsistent'
+volume_event "${other_volumes[@]}" -y 'device .* disk:Negotiating'
+volume_event "${other_volumes[@]}" -y 'device .* disk:Inconsistent'
 
 _force_primary
 _initial_resync

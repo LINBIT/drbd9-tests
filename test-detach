@@ -21,42 +21,42 @@ on "$first_node" io-load-dd --count=100 --oflag=sync --repeat=forever $DEVICE2
 sleep 1  # Ensure that some I/O happens before the next steps
 
 on "${NODES[@]}" drbdadm detach ${DRBD_TEST_JOB}/1
-volume_event "${NODES[@]/%/:1}" -y ' device .* disk:Diskless'
+volume_event "${NODES[@]/%/:1}" -y 'device .* disk:Diskless'
 
 on "${NODES[@]}" drbdadm del-minor ${DRBD_TEST_JOB}/1
-volume_event "${NODES[@]/%/:1}" -y ' destroy device '
+volume_event "${NODES[@]/%/:1}" -y 'destroy device'
 
 on "${NODES[@]}" drbdadm new-minor ${DRBD_TEST_JOB}/1
-volume_event "${NODES[@]/%/:1}" -y ' create device '
+volume_event "${NODES[@]/%/:1}" -y 'create device'
 
 # FIXME: DRBD does not handle concurrent attach correctly
 
 on "$first_node" drbdadm attach ${DRBD_TEST_JOB}/1
 # The node doing the attach first goes straight to UpToDate
-volume_event "$first_node:1" -y ' device .* disk:UpToDate'
+volume_event "$first_node:1" -y 'device .* disk:UpToDate'
 
 # The other nodes that see that, will go though Negotiating first
-volume_event "${other_nodes[@]/%/:1}" -y ' peer-device .* peer-disk:UpToDate'
+volume_event "${other_nodes[@]/%/:1}" -y 'peer-device .* peer-disk:UpToDate'
 on "${other_nodes[@]}" drbdadm attach ${DRBD_TEST_JOB}/1
-volume_event "${other_nodes[@]/%/:1}" -y ' device .* disk:Negotiating'
-volume_event "${other_nodes[@]/%/:1}" -y ' device .* disk:UpToDate'
+volume_event "${other_nodes[@]/%/:1}" -y 'device .* disk:Negotiating'
+volume_event "${other_nodes[@]/%/:1}" -y 'device .* disk:UpToDate'
 
 
 # Now the same procedure in a different order. Test if they are
 # able to do a cluster-wide detach if one does not know the volume
 on "$first_node" drbdadm detach ${DRBD_TEST_JOB}/1
-volume_event "${first_node}:1" -y ' device .* disk:Diskless'
+volume_event "${first_node}:1" -y 'device .* disk:Diskless'
 
 on "$first_node" drbdadm del-minor ${DRBD_TEST_JOB}/1
-volume_event "${first_node}:1" -y ' destroy device '
+volume_event "${first_node}:1" -y 'destroy device'
 
 on "${other_nodes[@]}" drbdadm detach ${DRBD_TEST_JOB}/1
-volume_event "${other_nodes[@]/%/:1}" -y ' device .* disk:Diskless'
+volume_event "${other_nodes[@]/%/:1}" -y 'device .* disk:Diskless'
 
 
 on "$first_node" io-load-dd --stop $DEVICE2
 on "$first_node" drbdadm secondary ${DRBD_TEST_JOB}
-event "$first_node" -y ' resource .* role:Secondary'
+event "$first_node" -y 'resource .* role:Secondary'
 
 _down
 _rmmod

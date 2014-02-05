@@ -14,15 +14,15 @@ other_volumes=( $(all_volumes_except ${first_volumes[@]}) )
 
 on "$first_node" drbdadm up all
 on "$first_node" drbdadm primary --force all
-event "$first_node" -y ' resource .* role:Primary'
+event "$first_node" -y 'resource .* role:Primary'
 
-volume_event "${first_volumes[@]}" -y ' device .* disk:UpToDate'
+volume_event "${first_volumes[@]}" -y 'device .* disk:UpToDate'
 
 # Note: this check does NOT wait for the resync to be finished!
 # (This was a mistake in the test, but it turned out that aborting
 # resyncs causes a BUG -- Objects remaining in drbd_bm on
 # kmem_cache_close().)
-volume_event "${other_volumes[@]}" --timeout=300 -y ' peer-device .* peer-disk:UpToDate'
+volume_event "${other_volumes[@]}" --timeout=300 -y 'peer-device .* peer-disk:UpToDate'
 
 on "${NODES[@]}" drbdadm down all
 on "${NODES[@]}" rmmod drbd

@@ -118,7 +118,7 @@ event() {
 	    --label="$node" \
 	    -p .events.pos
     done
-    do_debug logscan -d $DRBD_TEST_JOB --silent ${opt_verbose:+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB -w --silent ${opt_verbose:+--verbose} "$@"
 }
 
 # Match an event on one or more nodes
@@ -143,10 +143,10 @@ connection_event() {
 	    events-$n1 \
 	    --label="$1" \
 	    -p .events-connection-$n2.pos \
-	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} "
+	    -f "conn-name:${params["$n2:FULL_HOSTNAME"]}"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB --silent ${opt_verbose:+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB -w --silent ${opt_verbose:+--verbose} "$@"
 }
 
 # Match an event on one or more nodes and volumes
@@ -166,10 +166,10 @@ volume_event() {
 	    events-$node \
 	    --label="$1" \
 	    -p .events-volume-$volume.pos \
-	    -f " volume:$volume "
+	    -f "volume:$volume"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB --silent ${opt_verbose:+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB -w --silent ${opt_verbose:+--verbose} "$@"
 }
 
 # Match an event on one or more peer devices
@@ -189,11 +189,11 @@ peer_device_event() {
 	    events-$n1 \
 	    --label="$1" \
 	    -p .events-peer-device-$n2:$volume.pos \
-	    -f " conn-name:${params["$n2:FULL_HOSTNAME"]} " \
-	    -f " volume:$volume "
+	    -f "conn-name:${params["$n2:FULL_HOSTNAME"]}" \
+	    -f "volume:$volume"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB --silent ${opt_verbose:+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB -w --silent ${opt_verbose:+--verbose} "$@"
 }
 
 # Synchronize between global and per-connection matching
@@ -246,15 +246,15 @@ skip_test() {
 
 _up() {
     on "${NODES[@]}" drbdadm up all
-    volume_event ${VOLUMES[@]} -y ' device .* disk:Inconsistent'
+    volume_event ${VOLUMES[@]} -y 'device .* disk:Inconsistent'
 }
 
 _force_primary() {
     local first_node="${NODES[0]}"
 
     on "$first_node" drbdadm primary --force all
-    event "$first_node" -y ' resource .* role:Primary'
-    volume_event ${VOLUMES[$first_node]} -y ' device .* disk:UpToDate'
+    event "$first_node" -y 'resource .* role:Primary'
+    volume_event ${VOLUMES[$first_node]} -y 'device .* disk:UpToDate'
 }
 
 _initial_resync() {
@@ -267,7 +267,7 @@ _initial_resync() {
     for node in $(all_nodes_except "${NODES[0]}"); do
 	volumes=( "${volumes[@]}" ${VOLUMES[$node]} )
     done
-    volume_event "${volumes[@]}" --timeout=300 -y ' device .* disk:UpToDate'
+    volume_event "${volumes[@]}" --timeout=300 -y 'device .* disk:UpToDate'
 }
 
 _down() {

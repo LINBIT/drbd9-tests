@@ -95,6 +95,8 @@ on() {
     done
 }
 
+declare -a NEVER_MATCH
+
 # Match an event on one or more nodes
 #
 # USAGE: event {node} [... {node}] {logscan options}
@@ -112,13 +114,16 @@ event() {
     while :; do
 	[ -n "${COPROC_PID[$1]}" ] || break
 	node=$1
-	shift
 	set -- "$@" \
 	    events-$node \
 	    --label="$node" \
 	    -p .events.pos
+	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB -w --silent ${opt_verbose:+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB -w \
+		     --silent ${opt_verbose:+--verbose} \
+		     "${NEVER_MATCH[@]/#/-N}" \
+		     "$@"
 }
 
 # Match an event on one or more nodes
@@ -146,7 +151,10 @@ connection_event() {
 	    -f "conn-name:${params["$n2:FULL_HOSTNAME"]}"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB -w --silent ${opt_verbose:+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB -w \
+		     --silent ${opt_verbose:+--verbose} \
+		     "${NEVER_MATCH[@]/#/-N}" \
+		     "$@"
 }
 
 # Match an event on one or more nodes and volumes
@@ -169,7 +177,10 @@ volume_event() {
 	    -f "volume:$volume"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB -w --silent ${opt_verbose:+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB -w \
+		     --silent ${opt_verbose:+--verbose} \
+		     "${NEVER_MATCH[@]/#/-N}" \
+		     "$@"
 }
 
 # Match an event on one or more peer devices
@@ -193,7 +204,33 @@ peer_device_event() {
 	    -f "volume:$volume"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB -w --silent ${opt_verbose:+--verbose} "$@"
+    do_debug logscan -d $DRBD_TEST_JOB -w \
+		     --silent ${opt_verbose:+--verbose} \
+		     "${NEVER_MATCH[@]/#/-N}" \
+		     "$@"
+}
+
+push_forbidden_patterns() {
+    NEVER_MATCH=("${NEVER_MATCH[@]}" "$@")
+}
+
+pop_forbidden_patterns() {
+    local n=$((${#NEVER_MATCH[@]} - 1))
+
+    while [ $# -gt 0 ]; do
+	if [ "${NEVER_MATCH[$n]}" != "$1" ]; then
+	    printf "$0: The last pattern on the stack is '%s', not '%s'\n" \
+		   "$NEVER_MATCH[$n]" "$1" >&2
+	    exit 2
+	fi
+	unset NEVER_MATCH[$n]
+	(( n-- ))
+	shift
+    done
+}
+
+clear_forbidden_patterns() {
+    NEVER_MATCH=()
 }
 
 # Synchronize between global and per-connection matching

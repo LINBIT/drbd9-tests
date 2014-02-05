@@ -296,6 +296,10 @@ _up() {
 	'peer-disk:Failed'
 }
 
+_wait_connected() {
+    connection_event "${CONNECTIONS[@]}" -y 'connection .* connection:Connected'
+}
+
 _force_primary() {
     local first_node="${NODES[0]}"
 

@@ -289,10 +289,8 @@ setup() {
     rsyslogd -c5 -i $PWD/run/rsyslogd.pid -f $PWD/run/rsyslog.conf
     register_cleanup kill_rsyslogd
 
-    for node in "${NODES[@]}"; do
-	on $node rsyslogd $hostname $RSYSLOGD_PORT $node
-	on $node logger "Setting up test job $DRBD_TEST_JOB"
-    done
+    on "${NODES[@]}" rsyslogd $hostname $RSYSLOGD_PORT $node
+    on "${NODES[@]}" logger "Setting up test job $DRBD_TEST_JOB"
 
     for node in "${NODES[@]}"; do
 	# FIXME: If the hostname on the remote host does not match

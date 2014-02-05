@@ -81,8 +81,8 @@ on() {
 	shift
     done
 
+    verbose "${procs[*]}: calling $@"
     for proc in "${procs[@]}"; do
-	verbose "$proc: calling $@"
 	eval "exxe \"\${options[@]}\" -i --logfile=\"\$DRBD_TEST_JOB/exxe-$proc.log\" \"\$@\" >&${COPROC_OUT[$proc]}"
     done
     for proc in "${procs[@]}"; do

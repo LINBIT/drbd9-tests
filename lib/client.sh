@@ -216,15 +216,22 @@ push_forbidden_patterns() {
 
 pop_forbidden_patterns() {
     local n=$((${#NEVER_MATCH[@]} - 1))
+    local opt_f
+
+    if [ "$1" = "-f" ]; then
+	opt_f=1
+	shift
+    fi
 
     while [ $# -gt 0 ]; do
-	if [ "${NEVER_MATCH[$n]}" != "$1" ]; then
+	if [ "${NEVER_MATCH[$n]}" = "$1" ]; then
+	    unset "NEVER_MATCH[$n]"
+	    (( n-- ))
+	elif [ -z "$opt_f" ]; then
 	    printf "$0: The last pattern on the stack is '%s', not '%s'\n" \
 		   "${NEVER_MATCH[$n]}" "$1" >&2
 	    exit 2
 	fi
-	unset "NEVER_MATCH[$n]"
-	(( n-- ))
 	shift
     done
 }
@@ -322,7 +329,7 @@ _initial_resync() {
 }
 
 _down() {
-    pop_forbidden_patterns 'peer-disk:Failed' 'disk:Failed' || :
+    pop_forbidden_patterns -f 'peer-disk:Failed' 'disk:Failed'
     on "${NODES[@]}" drbdadm down all
 }
 

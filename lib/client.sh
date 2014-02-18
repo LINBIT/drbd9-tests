@@ -220,10 +220,10 @@ pop_forbidden_patterns() {
     while [ $# -gt 0 ]; do
 	if [ "${NEVER_MATCH[$n]}" != "$1" ]; then
 	    printf "$0: The last pattern on the stack is '%s', not '%s'\n" \
-		   "$NEVER_MATCH[$n]" "$1" >&2
+		   "${NEVER_MATCH[$n]}" "$1" >&2
 	    exit 2
 	fi
-	unset NEVER_MATCH[$n]
+	unset "NEVER_MATCH[$n]"
 	(( n-- ))
 	shift
     done

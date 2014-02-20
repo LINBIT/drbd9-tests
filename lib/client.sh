@@ -331,6 +331,7 @@ _initial_resync() {
 _down() {
     pop_forbidden_patterns -f 'peer-disk:Failed' 'disk:Failed'
     on "${NODES[@]}" drbdadm down all
+    event "${NODES[@]}" -y 'destroy resource'
 }
 
 _rmmod() {

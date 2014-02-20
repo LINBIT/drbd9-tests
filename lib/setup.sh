@@ -95,6 +95,7 @@ EOF
 }
 
 declare opt_debug= opt_verbose= opt_cleanup=always stdout_dup
+declare RESOURCE=
 
 setup() {
     local options
@@ -102,11 +103,12 @@ setup() {
     options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,console:,vconsole,only-setup,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
-    declare opt_resource= opt_create_md=1 opt_job= opt_volume_group=scratch
+    declare opt_create_md=1 opt_job= opt_volume_group=scratch
     declare opt_min_nodes=2 opt_only_setup= job_symlink= max_volume=0
     declare opt_template=lib/m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
+    RESOURCE=
 
     while :; do
 	case "$1" in
@@ -134,7 +136,7 @@ setup() {
 	    shift
 	    ;;
 	--resource)
-	    opt_resource=$2
+	    RESOURCE=$2
 	    shift
 	    ;;
 	--template)
@@ -211,10 +213,11 @@ setup() {
 	job_symlink=${0##*test-}-latest
     fi
     [ ${#NODES} -gt 0 ] || setup_usage 1
-    if [ -z "$opt_resource" ]; then
-	opt_resource=$opt_job
+    if [ -z "$RESOURCE" ]; then
+	RESOURCE=$opt_job
     fi
-    INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$opt_resource")
+    INSTANTIATE=("${INSTANTIATE[@]}" "--resource=$RESOURCE")
+    export RESOURCE
     export DRBD_TEST_JOB=$opt_job
     export EXXE_TIMEOUT=30
     export LOGSCAN_TIMEOUT=30
@@ -272,7 +275,7 @@ setup() {
 
     mkdir -p run
 
-    listen_to_events "$opt_resource" "${NODES[@]}"
+    listen_to_events "$RESOURCE" "${NODES[@]}"
 
     for node in "${NODES[@]}"; do
 	logfile=$DRBD_TEST_JOB/$node.log
@@ -345,7 +348,7 @@ setup() {
 
     if [ -n "$opt_create_md" -a -n "$have_disks" ]; then
 	for node in "${NODES[@]}"; do
-	    msg=$(on $node drbdadm -- --force create-md "$opt_resource" 2>&1) || status=$?
+	    msg=$(on $node drbdadm -- --force create-md "$RESOURCE" 2>&1) || status=$?
 	    if [ -n "$status" ]; then
 		echo "$msg" >&2
 		exit $status

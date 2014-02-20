@@ -24,9 +24,13 @@ m4_define() {
 	    [ $# -eq 0 ] || set -- "$(printf "\`%s', " "$@")"
 	    echo "m4_define(\`$name', \`${1%??}')"
 	    ;;
-	--)
-	    # Normal variable
+	--|-x)
+	    # Normal variable (exported or not)
 	    echo "m4_define(\`$name', \`${!name}')"
+	    ;;
+	*)
+	    echo "$0: Internal error" >&2
+	    exit 3
 	    ;;
 	esac
     done
@@ -150,7 +154,7 @@ options=`getopt -o h --long resource:,node:,device:,disk:,meta:,node-id:,address
 eval set -- "$options"
 
 opt_debug=
-declare -- RESOURCE
+declare RESOURCE=
 declare -A NODE_ID ADDRESS
 opt_port=7789
 

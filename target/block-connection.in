@@ -1,0 +1,74 @@
+#! /bin/bash
+
+. @DRBD_TEST_LIB@
+set -e
+
+usage() {
+    [ $1 -eq 0 ] || exec >&2
+    echo "USAGE: ${0##*/} [options...] my-ip:my-port peer-ip:per-port ..."
+    exit $1
+}
+
+options=`getopt -o hj: --long help -- "$@"` || usage 1
+eval set -- "$options"
+declare opt_target=REJECT
+
+while :; do
+    case "$1" in
+    -h|--help)
+	usage 0
+	;;
+    -j)
+	opt_target=$2
+	shift
+	;;
+    --)
+	shift
+	break
+	;;
+    esac
+    shift
+done
+
+[ $# -ge 2 ] || usage 1
+
+for ((n = 1; n <= $#; n++)); do
+    [ "${!n%:*}" != "${!n}" ] || usage 1
+done
+
+my_ip=${1%:*}
+my_port=${1##*:}
+shift
+
+if iptables -N drbd-test-input; then
+    iptables -A INPUT -j drbd-test-input
+fi 2> /dev/null
+
+if iptables -N drbd-test-output; then
+    iptables -A OUTPUT -j drbd-test-output
+fi 2> /dev/null
+
+register_cleanup -t reset-iptables
+
+while [ $# -ge 1 ]; do
+    peer_ip=${1%:*}
+    peer_port=${1##*:}
+    shift
+
+    doit iptables -A drbd-test-input -p tcp \
+	--source "$peer_ip" --source-port "$peer_port" \
+	--destination "$my_ip" \
+	-j $opt_target
+    doit iptables -A drbd-test-input -p tcp \
+	--source "$peer_ip" \
+	--destination "$my_ip" --destination-port "$my_port" \
+	-j $opt_target
+    doit iptables -A drbd-test-output -p tcp \
+	--source "$my_ip" \
+	--destination "$peer_ip" --destination-port "$peer_port" \
+	-j $opt_target
+    doit iptables -A drbd-test-output -p tcp \
+	--source "$my_ip" --source-port "$my_port" \
+	--destination "$peer_ip" \
+	-j $opt_target
+done

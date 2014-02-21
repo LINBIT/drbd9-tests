@@ -1,0 +1,24 @@
+#! /bin/bash
+
+# Pass this script two host names to use as the test nodes.
+
+HERE=${0%/*}
+. $HERE/lib/setup.sh
+
+setup --nodes=2 "$@"
+
+on "${NODES[@]}" drbdadm up all
+connection_event "${CONNECTIONS[@]}" -y 'connection.* connection:Connected'
+
+for ((n = 0; n < 5; n++)); do
+  block_connection "${NODES[0]}" "${NODES[1]}"
+  connection_event "${CONNECTIONS[@]}" -y 'connection.* connection:Connecting'
+
+  unblock_connection "${NODES[0]}" "${NODES[1]}"
+  connection_event "${CONNECTIONS[@]}" -y 'connection.* connection:Connected'
+done
+
+on "${NODES[@]}" drbdadm down all
+event "${NODES[@]}" -y 'destroy resource'
+
+on "${NODES[@]}" rmmod drbd

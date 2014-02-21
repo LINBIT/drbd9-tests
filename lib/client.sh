@@ -283,6 +283,22 @@ connect_to_nodes() {
     done
 }
 
+block_connection() {
+    local node1=$1 node2=$2
+
+    on "$node1" block-connection \
+       "${cfg[$RESOURCE:$node1:$node2::local]}" \
+       "${cfg[$RESOURCE:$node1:$node2::peer]}"
+}
+
+unblock_connection() {
+    local node1=$1 node2=$2
+
+    on "$node1" unblock-connection \
+       "${cfg[$RESOURCE:$node1:$node2::local]}" \
+       "${cfg[$RESOURCE:$node1:$node2::peer]}"
+}
+
 skip_test() {
     echo "${0##*/}:" "$@" >&2
     exit 100

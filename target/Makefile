@@ -23,14 +23,17 @@ data_libs := \
 	drbd-test.sh
 
 data_scripts := \
+	block-connection \
 	cleanup \
 	create-disk \
 	drbdadm \
 	install-config \
+	io-load-dd \
 	register-cleanup \
+	reset-iptables \
 	reset-rsyslogd \
 	rsyslogd \
-	io-load-dd
+	unblock-connection \
 
 extra_files := \
 	rsyslog-forward.conf.in

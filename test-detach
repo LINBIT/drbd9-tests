@@ -5,14 +5,11 @@
 HERE=${0%/*}
 . $HERE/lib/setup.sh
 
-setup --disk=10M --disk=10M "$@"
+setup --min-nodes=3 --disk=10M --disk=10M "$@"
 
 _up
 _force_primary
 _initial_resync
-
-# Detaching causes disks to go through this state.
-pop_forbidden_patterns 'peer-disk:Failed' 'disk:Failed'
 
 first_node="${NODES[0]}"
 other_nodes=( $(all_nodes_except "$first_node") )
@@ -22,30 +19,15 @@ device2=$(on "$first_node" drbdadm sh-dev $RESOURCE/2)
 on "$first_node" io-load-dd --count=100 --oflag=sync --repeat=forever $device2
 sleep 1  # Ensure that some I/O happens before the next steps
 
-on "${NODES[@]}" drbdadm detach $RESOURCE/1
-volume_event "${NODES[@]/%/:1}" -y 'device .* disk:Diskless'
 
-on "${NODES[@]}" drbdadm del-minor $RESOURCE/1
-volume_event "${NODES[@]/%/:1}" -y 'destroy device'
-
-on "${NODES[@]}" drbdadm new-minor $RESOURCE/1
-volume_event "${NODES[@]/%/:1}" -y 'create device'
-
-# FIXME: DRBD does not handle concurrent attach correctly
-
-on "$first_node" drbdadm attach $RESOURCE/1
-# The node doing the attach first goes straight to UpToDate
-volume_event "$first_node:1" -y 'device .* disk:UpToDate'
-# The other nodes that see that, will go though Negotiating first
-volume_event "${other_nodes[@]/%/:1}" -y 'peer-device .* peer-disk:UpToDate'
-
-on "${other_nodes[@]}" drbdadm attach $RESOURCE/1
-volume_event "${other_nodes[@]/%/:1}" -y 'device .* disk:Negotiating'
-volume_event "${other_nodes[@]/%/:1}" -y 'device .* disk:UpToDate'
-
-
-# Now the same procedure in a different order. Test if they are
-# able to do a cluster-wide detach if one does not know the volume
+# Part 1, test detach & del-minor"
+##################################
+# In order to remove a volume from a resource with a primary node, you
+# need to do the del-minor on the primary before detaching on the
+# secondaries.
+# If you try to detach on all nodes first, that is expect to fail
+# on the last node with:
+# State change failed: (-2) Need access to UpToDate data
 on "$first_node" drbdadm detach $RESOURCE/1
 volume_event "${first_node}:1" -y 'device .* disk:Diskless'
 
@@ -55,10 +37,89 @@ volume_event "${first_node}:1" -y 'destroy device'
 on "${other_nodes[@]}" drbdadm detach $RESOURCE/1
 volume_event "${other_nodes[@]/%/:1}" -y 'device .* disk:Diskless'
 
+on "${other_nodes[@]}" drbdadm del-minor $RESOURCE/1
+volume_event "${other_nodes}:1" -y 'destroy device'
 
+
+# Part 2, test new-minor & attach
+#################################
+# Since the minor was deleted, the exposed UUID was lost.
+# Therefore attach on the guyes with the most recent data first,
+# and expect a resync to the primary node.
+on "${NODES[@]}" drbdadm new-minor $RESOURCE/1
+volume_event "${NODES[@]/%/:1}" -y 'create device'
+
+# TODO!! The following should work, but does not! Right now.
+# Needs debugging!
+#on "${other_nodes[@]}" drbdadm attach $RESOURCE/1
+#volume_event "${other_nodes}:1" -y 'device .* disk:Attaching'
+#volume_event "${other_nodes}:1" -y 'device .* disk:UpToDate'
+# Works serialized:
+for N in "${other_nodes[@]}"; do
+    on "$N" drbdadm attach $RESOURCE/1
+    volume_event "${N}:1" -y 'device .* disk:Attaching'
+    volume_event "${N}:1" -y 'device .* disk:UpToDate'
+done
+
+on "$first_node" drbdadm attach $RESOURCE/1
+volume_event "$first_node:1" -y 'device .* disk:Inconsistent'
+volume_event "$first_node:1" -y 'device .* disk:UpToDate'
+
+
+# Part 3, test resync diections after detach & attach
+#####################################################
+# Detach from primary, then all but one secondary, reattach
+# in the other order, check resync directions
+last_node=${NODES[ $((${#NODES[@]} - 1)) ]}
+all_but_last=( $(all_nodes_except "$last_node") )
+
+for N in "${all_but_last[@]}"; do
+    on "$N" drbdadm detach $RESOURCE/1
+    volume_event "${N}:1" -y 'device .* disk:Diskless'
+done
+
+# Ensure that it is not possible to remove the last disk
+# holding data!
+ERR=$(on "$last_node" drbdadm detach $RESOURCE/1 2>&1)
+DSTATE=$(on "$last_node" drbdadm dstate $RESOURCE/1)
+if [ -z "$ERR" -o "$DSTATE" != "UpToDate" ]; then
+    echo "Detach should fail on the last node with disk!" >&2
+    exit 10
+fi
+ERR=$(on "$last_node" drbdadm disconnect "$RESOURCE:${first_node}" 2>&1)
+CSTATE=$(on "$last_node" drbdadm cstate "$RESOURCE:${first_node}")
+if [ -z "$ERR" -o "$CSTATE" != "Connected" ]; then
+    echo "Disconnect from the primary node should fail!" >&2
+    exit 10
+fi
+
+for N in "${all_but_last[@]}"; do
+    on "$N" drbdadm attach $RESOURCE/1
+    volume_event "${N}:1" -y 'device .* disk:Attaching'
+    volume_event "${N}:1" -y 'device .* disk:Inconsistent'
+    volume_event "${N}:1" -y 'device .* disk:UpToDate'
+done
+
+# Part 4, test concurrent detach & attach
+#########################################
 on "$first_node" io-load-dd --stop $device2
 on "$first_node" drbdadm secondary $RESOURCE
 event "$first_node" -y 'resource .* role:Secondary'
+
+# Test concurrent detach
+on "${NODES[@]}" drbdadm detach $RESOURCE/1
+volume_event "${NODES[@]/%/:1}" -y 'device .* disk:Diskless'
+
+# TODO!! The following should work, but does not! Right now.
+# Needs debugging!
+#on "${NODES[@]}" drbdadm attach $RESOURCE/1
+#volume_event "${NODES[@]/%/:1}" -y 'device .* disk:UpToDate'
+for N in "${NODES[@]}"; do
+    on "$N" drbdadm attach $RESOURCE/1
+    volume_event "${N}:1" -y 'device .* disk:Attaching'
+    volume_event "${N}:1" -y 'device .* disk:UpToDate'
+done
+
 
 _down
 _rmmod

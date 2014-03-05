@@ -3,7 +3,7 @@
 # FIXME: Check for ntp on the test nodes and the client
 
 HERE=${0%/*}
-. $HERE/lib/param.sh
+. $HERE/lib/params.sh
 . $HERE/lib/client.sh
 set -e
 

@@ -1,7 +1,7 @@
 #! /bin/bash
 
 HERE=${0%/*}
-. $HERE/param.sh
+. $HERE/params.sh
 . $HERE/client.sh
 
 m4_define() {
@@ -206,7 +206,7 @@ assign_addresses
 assign_devices
 assign_node_ids
 
-# Convert param[node:NAME]=value into NAME[node]=value representation
+# Convert params[node:NAME]=value into NAME[node]=value representation
 for node_name in "${!params[@]}"; do
     node=${node_name%%:*}
     name=${node_name#*:}

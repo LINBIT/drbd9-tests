@@ -147,17 +147,20 @@ OPTIONS:
   --port=number
     The port number to use by default.
 
+  --sh-cfg=filename
+    Write the configuration into specified file in shell-parseable form.
+
   --debug
     Print the M4 command line used to produce the configuration file.
 EOF
     exit $1
 }
 
-options=`getopt -o h --long resource:,node:,hostname:,device:,disk:,meta:,node-id:,address:,debug,port:,help -- "$@"` || usage 1
+options=`getopt -o h --long resource:,node:,hostname:,device:,disk:,meta:,node-id:,address:,debug,port:,sh-cfg:,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_debug=
-declare RESOURCE=
+declare RESOURCE= opt_sh_cfg=
 declare -A NODE_ID ADDRESS
 opt_port=7789
 
@@ -201,6 +204,10 @@ while :; do
 	set_node_param "$1" "$node" "$2"
 	shift
 	;;
+    --sh-cfg)
+	opt_sh_cfg=$2
+	shift
+	;;
     --)
 	shift
 	break
@@ -234,5 +241,35 @@ VOLUMES=("${VOLUMES[@]/#DISK}")
 for template in "$@"; do
     instantiate_template "$template" RESOURCE NODES VOLUMES NODE_ID ADDRESS HOSTNAME ${!DEVICE*} ${!DISK*} ${!META*}
 done
+
+if [ -n "$opt_sh_cfg" ]; then
+    {   echo "cfg[\"resources\"]=\"$RESOURCE\""
+	echo "cfg[\"$RESOURCE::nodes\"]=\"${NODES[*]}\""
+
+	for node in "${NODES[@]}"; do
+	    echo "cfg[\"$RESOURCE:$node::node-id\"]=\"${params["$node:NODE_ID"]}\""
+	    echo "cfg[\"$RESOURCE:$node::hostname\"]=\"${params[$node:HOSTNAME]}\""
+	    echo "cfg[\"$RESOURCE:$node::volumes\"]=\"${VOLUMES[@]}\""
+	    declare -a connections=()
+	    for volume in "${VOLUMES[@]}"; do
+		echo "cfg[\"$RESOURCE:$node:$volume::device\"]=\"${params[$node:DEVICE$volume]}\""
+		echo "cfg[\"$RESOURCE:$node:$volume::disk\"]=\"${params[$node:DISK$volume]}\""
+		echo "cfg[\"$RESOURCE:$node:$volume::meta\"]=\"${params[$node:META$volume]}\""
+	    done
+	    for node2 in "${NODES[@]}"; do
+		[ "$node" != "$node2" ] || continue
+		connections[${#connections[@]}]=$node2
+	    done
+	    echo "cfg[\"$RESOURCE:$node::connections\"]=\"${connections[*]}\""
+	    for node2 in "${NODES[@]}"; do
+		[ "$node" != "$node2" ] || continue
+		echo "cfg[\"$RESOURCE:$node:$node2::name\"]=\"${params[$node2:HOSTNAME]}\""
+		echo "cfg[\"$RESOURCE:$node:$node2::local\"]=\"${params[$node:ADDRESS]}\""
+		echo "cfg[\"$RESOURCE:$node:$node2::peer\"]=\"${params[$node2:ADDRESS]}\""
+	    done
+	    echo
+	done
+    } > "$opt_sh_cfg"
+fi
 
 exit $status

@@ -32,7 +32,10 @@ instantiate_template() {
 	done
     done
     I[${#I[@]}]=$opt_template
-    do_debug $HERE/lib/instantiate-template "${I[@]}"
+    do_debug $HERE/lib/instantiate-template \
+	--sh-cfg=$DRBD_TEST_JOB/.drbd.conf.sh "${I[@]}" \
+	> $DRBD_TEST_JOB/drbd.conf
+    source $DRBD_TEST_JOB/.drbd.conf.sh
 }
 
 end_log_console() {
@@ -97,6 +100,7 @@ EOF
 
 declare opt_debug= opt_verbose= opt_cleanup=always stdout_dup
 declare RESOURCE=
+declare -A cfg
 
 setup() {
     local options
@@ -340,7 +344,7 @@ setup() {
 	esac
     done
 
-    instantiate_template > $DRBD_TEST_JOB/drbd.conf
+    instantiate_template
 
     for node in "${NODES[@]}"; do
 	on -p $node install-config < $DRBD_TEST_JOB/drbd.conf

@@ -4,7 +4,7 @@ global {
 
 resource RESOURCE {
 m4_foreachq(`NODE', m4_quote(NODES),
-`	on NODE {
+`	on HOSTNAME(NODE) {
 m4_foreachq(`VOLUME', m4_quote(VOLUMES),
 `		volume VOLUME {
 			device DEVICE(NODE);

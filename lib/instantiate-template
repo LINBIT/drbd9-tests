@@ -116,9 +116,12 @@ OPTIONS:
   --resource=name
     Resource name to fill in (e.g., drbd0).  Required.
 
-  --node=hostname
-    Host name of a test node according to \`hostname'.  This option
-    can be used multiple times, and is requird at least once.
+  --node=name
+    Name of a test node.  This option can be used multiple times, and is
+    requird at least once.
+
+  --hostname=hostname
+    Host name of the test node according to \`hostname'.  Required.
 
   --disk=device, --meta=device
     The lower-level device to use for data or metadata.  When
@@ -150,7 +153,7 @@ EOF
     exit $1
 }
 
-options=`getopt -o h --long resource:,node:,device:,disk:,meta:,node-id:,address:,debug,port:,help -- "$@"` || usage 1
+options=`getopt -o h --long resource:,node:,hostname:,device:,disk:,meta:,node-id:,address:,debug,port:,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_debug=
@@ -176,6 +179,14 @@ while :; do
 	;;
     --node)
 	new_node "$2"
+	shift
+	;;
+    --hostname)
+	if [ "$node" = _ ]; then
+	    echo "Option $1 is not allowed before the first --node option" >&2
+	    exit 1
+	fi
+	set_node_param "$1" "$node" "$2"
 	shift
 	;;
     --device|--disk|--meta)
@@ -206,6 +217,8 @@ assign_addresses
 assign_devices
 assign_node_ids
 
+unset HOSTNAME
+
 # Convert params[node:NAME]=value into NAME[node]=value representation
 for node_name in "${!params[@]}"; do
     node=${node_name%%:*}
@@ -219,7 +232,7 @@ done
 VOLUMES=(${!DISK*})
 VOLUMES=("${VOLUMES[@]/#DISK}")
 for template in "$@"; do
-    instantiate_template "$template" RESOURCE NODES VOLUMES NODE_ID ADDRESS ${!DEVICE*} ${!DISK*} ${!META*}
+    instantiate_template "$template" RESOURCE NODES VOLUMES NODE_ID ADDRESS HOSTNAME ${!DEVICE*} ${!DISK*} ${!META*}
 done
 
 exit $status

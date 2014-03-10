@@ -15,7 +15,8 @@ instantiate_template() {
     local node_name node name
 
     for node in "${NODES[@]}"; do
-	I[${#I[@]}]=--node=${params["$node:FULL_HOSTNAME"]}
+	I[${#I[@]}]=--node=$node
+	I[${#I[@]}]=--hostname=${params["$node:FULL_HOSTNAME"]}
 	for node_name in "${!params[@]}"; do
 	    node2=${node_name%%:*}
 	    name=${node_name#*:}

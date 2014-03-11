@@ -105,11 +105,11 @@ declare -A cfg
 setup() {
     local options
 
-    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,console:,vconsole,only-setup,help,verbose -- "$@"` || setup_usage 1
+    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare opt_create_md=1 opt_job= opt_volume_group=scratch
-    declare opt_min_nodes=2 opt_only_setup= job_symlink= max_volume=0
+    declare opt_min_nodes=2 opt_max_nodes= opt_only_setup= job_symlink= max_volume=0
     declare opt_template=lib/m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile
@@ -184,6 +184,15 @@ setup() {
 	    opt_min_nodes=$2
 	    shift
 	    ;;
+	--max-nodes)
+	    opt_max_nodes=$2
+	    shift
+	    ;;
+	--nodes)
+	    opt_min_nodes=$2
+	    opt_max_nodes=$2
+	    shift
+	    ;;
 	--only-setup)
 	    opt_only_setup=1
 	    opt_cleanup=never
@@ -208,9 +217,19 @@ setup() {
 
     unset_all_node_params
 
+    if [ "$opt_min_nodes" -eq "$opt_max_nodes" ]; then
+	[ ${#NODES[@]} -eq $opt_min_nodes ] ||
+	    skip_test "Test case requires $opt_min_nodes nodes"
+    fi
+
     if [ -n "$opt_min_nodes" ]; then
 	[ ${#NODES[@]} -ge $opt_min_nodes ] ||
 	    skip_test "Test case requires $opt_min_nodes or more nodes"
+    fi
+
+    if [ -n "$opt_max_nodes" ]; then
+	[ ${#NODES[@]} -le $opt_max_nodes ] ||
+	    skip_test "Test case requires $opt_min_nodes or fewer nodes"
     fi
 
     if [ -z "$opt_job" ]; then

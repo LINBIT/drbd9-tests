@@ -1,3 +1,4 @@
+/block-connection
 /cleanup
 /create-disk
 /drbdadm
@@ -5,5 +6,7 @@
 /install-config
 /io-load-dd
 /register-cleanup
+/reset-iptables
 /reset-rsyslogd
 /rsyslogd
+/unblock-connection

@@ -33,3 +33,10 @@
 
 * Check for skipped events in the event log; that should not happen except in
   out-of-memory scenarios.
+
+* Warn when the drbd module is initially loaded.
+
+* Verbose test.log even when not verbose on the console.
+
+* After one of the event commands has died, check and report if the reason was
+  because the processes capturing the event stream has died.

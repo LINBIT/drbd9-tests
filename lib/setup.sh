@@ -109,7 +109,7 @@ setup() {
     eval set -- "$options"
 
     declare opt_create_md=1 opt_job= opt_volume_group=scratch
-    declare opt_min_nodes=2 opt_max_nodes= opt_only_setup= job_symlink= max_volume=0
+    declare opt_min_nodes=2 opt_max_nodes=32 opt_only_setup= job_symlink= max_volume=0
     declare opt_template=lib/m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile

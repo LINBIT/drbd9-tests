@@ -9,6 +9,15 @@ setup "$@"
 
 on "${NODES[@]}" drbdadm up all
 connection_event "${CONNECTIONS[@]}" -y 'connection .* role:Secondary'
+
+push_forbidden_patterns \
+    'connection:Timeout' \
+    'connection:ProtocolError'
+
+# Note: this test does not define any devices, so disconnecting does not
+# require a two-phase commit.  The peer of a disconnecting node will only
+# notice a socket close.
+
 on "${NODES[@]}" drbdadm down all
 event "${NODES[@]}" -y 'destroy resource'
 

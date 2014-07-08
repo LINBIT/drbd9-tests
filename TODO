@@ -40,3 +40,9 @@
 
 * After one of the event commands has died, check and report if the reason was
   because the processes capturing the event stream has died.
+
+* Verify disk contents at various stages (after resync, after writes).
+  Use fio for that?
+
+* Check how many blocks a resync has synced (roughly, to make sure drbd doesn't
+  get things wrong completely).

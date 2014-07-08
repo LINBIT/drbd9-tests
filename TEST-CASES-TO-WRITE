@@ -6,3 +6,5 @@
 * Diskless nodes combined with nodes with disks.
 
 * Auto-promote and competing access from multiple nodes
+
+* Have additional connections configured but not connected during tests.

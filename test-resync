@@ -48,7 +48,7 @@ done
 
 # Now connect last to the first
 last_node=${NODES[${#NODES[@]}-1]}
-on "${last_node}" drbdadm connect "$RESOURCE:$first_node"
+on "${last_node}" drbdadm connect "$RESOURCE:${params["$first_node:FULL_HOSTNAME"]}"
 peer_device_event "$first_node:$last_node:1" -y 'peer-device .* replication:WFBitMapS'
 peer_device_event "$first_node:$last_node:1" -y 'peer-device .* replication:SyncSource'
 peer_device_event "$first_node:$last_node:1" --timeout=60 -y 'peer-device .* replication:Established'

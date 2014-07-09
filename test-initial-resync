@@ -7,8 +7,22 @@ HERE=${0%/*}
 
 setup --disk=10M "$@"
 
-_up
-_force_primary
-_initial_resync
+# Bring up the first node, make it primary, and write defined data onto all
+# volumes.
+first_node=${NODES[0]}
+_up "$first_node"
+_force_primary "$first_node"
+_fio --section=write ${VOLUMES[$first_node]}
+
+# Make the first node secondary again to allow read access on the other nodes.
+on "$first_node" drbdadm secondary all
+
+# Bring up all other nodes as well, wait until they have all the data, and
+# verify the data received.
+_up $(all_nodes_except "$first_node")
+_initial_resync "$first_node"
+_fio --section=verify $(all_volumes_except ${VOLUMES[$first_node]})
+
+# Shut down and clean up.
 _down
 _rmmod

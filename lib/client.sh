@@ -305,8 +305,16 @@ skip_test() {
 }
 
 _up() {
-    on "${NODES[@]}" drbdadm up all
-    volume_event ${VOLUMES[@]} -y 'device .* disk:Inconsistent'
+    # By default, take all nodes up
+    [ $# -gt 0 ] || set -- "${NODES[@]}"
+
+    local volumes
+    for node in "$@"; do
+	volumes=( "${volumes[@]}" ${VOLUMES[$node]} )
+    done
+
+    on "$@" drbdadm up all
+    volume_event ${volumes[@]} -y 'device .* disk:Inconsistent'
 
     # These error states must never occur unless a test case simulates things
     # like node failures, network errors, or disk failures.
@@ -324,21 +332,25 @@ _wait_connected() {
 }
 
 _force_primary() {
-    local first_node="${NODES[0]}"
+    # By default, make the first node the primary
+    [ $# -ge 1 ] || set -- "${NODES[0]}"
 
-    on "$first_node" drbdadm primary --force all
-    event "$first_node" -y 'resource .* role:Primary'
-    volume_event ${VOLUMES[$first_node]} -y 'device .* disk:UpToDate'
+    on "$1" drbdadm primary --force all
+    event "$1" -y 'resource .* role:Primary'
+    volume_event ${VOLUMES[$1]} -y 'device .* disk:UpToDate'
 }
 
 _initial_resync() {
+    # By default, sync from the first node
+    [ $# -gt 0 ] || set -- "${NODES[0]}"
+
     local -a volumes
     local node
 
     # Use unlimited resync bandwidth
     on "${NODES[@]}" drbdadm disk-options --c-min-rate=0 all
 
-    for node in $(all_nodes_except "${NODES[0]}"); do
+    for node in $(all_nodes_except "$1"); do
 	volumes=( "${volumes[@]}" ${VOLUMES[$node]} )
     done
     volume_event "${volumes[@]}" --timeout=300 -y 'device .* disk:UpToDate'

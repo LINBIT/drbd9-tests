@@ -1,0 +1,26 @@
+; fio job description for writing a defined pattern to disk and later
+; verifying the pattern.
+;
+; Usage:
+;  fio --section=write write-verify.fio
+;  fio --section=verify write-verify.fio
+
+[global]
+;thread=1
+bs=4k
+buffered=1
+ioengine=sync
+verify=meta
+verify_interval=4k
+filename=@device@
+
+[write]
+rw=write
+fill_device=1
+do_verify=0
+
+[verify]
+stonewall
+create_serialize=0
+rw=read
+do_verify=1

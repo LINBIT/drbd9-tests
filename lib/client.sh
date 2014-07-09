@@ -365,3 +365,53 @@ _down() {
 _rmmod() {
     on "${NODES[@]}" rmmod drbd
 }
+
+_fio() {
+    local options=`getopt -o -h --long jobfile:,section: -- "$@"`
+    eval set -- "$options"
+    local jobfile=target/write-verify.fio.in section nodes_volumes
+    local node_volume node volume device x job log
+
+    while :; do
+	case "$1" in
+	--jobfile)
+	    jobfile=$2
+	    shift
+	    ;;
+	--section)
+	    section=$2
+	    shift
+	    ;;
+	--)
+	    shift
+	    break
+	    ;;
+	*)
+	    nodes_volumes[${#nodes_volumes[@]}]=$1
+	    ;;
+	esac
+	shift
+    done
+
+    for node_volume in "${nodes_volumes[@]}"; do
+	node=${node_volume%%:*}
+	volume=${node_volume#*:}
+	device=${cfg[$RESOURCE:$node_volume::device]}
+
+	x=
+	while :; do
+	    job=$DRBD_TEST_JOB/fio-$node${section:+-$section}${x:+-$x}.fio
+	    log=$DRBD_TEST_JOB/fio-$node${section:+-$section}${x:+-$x}.log
+	    [ -e "$job" -o -e "$log" ] || break
+	    ((x++))
+	done
+
+	# TODO: Without auto-promote, we would need to switch to primary on
+	# each node first.  With auto-promote, since auto-promote allows
+	# parallel reading, we could start read jobs on multiple nodes in
+	# parallel.
+
+	sed -e "s:@device@:$device:g" "$jobfile" > "$job"
+	on -p "$node" fio ${section:+--section=$section} - < "$job" > "$log"
+    done
+}

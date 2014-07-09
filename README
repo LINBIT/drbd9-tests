@@ -27,6 +27,8 @@ Running the test suite requires the following components:
  * The logscan utility (http://git.drbd.org/logscan.git/) must be installed on
    the test coordinator.
 
+ * For some tests, fio, the "Flexible I/O Tester" (https://github.com/axboe/fio).
+
  * The target components of the test suite (directory target/) must be built
    once, and then installed on all test nodes (for example: "cd target && make"
    on the test coordinator, then mount the target/ directory on all test nodes

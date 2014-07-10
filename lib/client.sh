@@ -403,7 +403,7 @@ _fio() {
 	    job=$DRBD_TEST_JOB/fio-$node${section:+-$section}${x:+-$x}.fio
 	    log=$DRBD_TEST_JOB/fio-$node${section:+-$section}${x:+-$x}.log
 	    [ -e "$job" -o -e "$log" ] || break
-	    ((x++))
+	    ((++x))
 	done
 
 	# TODO: Without auto-promote, we would need to switch to primary on

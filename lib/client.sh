@@ -8,7 +8,7 @@ register_cleanup() {
 }
 
 cleanup() {
-    local cleanup status=$? n file line
+    local cleanup status=$? cleanup_status n file line
 
     if [ $status -ne 0 ]; then
 	( echo
@@ -24,6 +24,8 @@ cleanup() {
 	# Restore the $? variable for each cleanup task
 	( exit $status )
 	$cleanup
+	cleanup_status=$?
+	[ $status -ne 0 ] || status=$cleanup_status
     done
 }
 trap cleanup EXIT

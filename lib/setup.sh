@@ -41,7 +41,11 @@ instantiate_template() {
 end_log_console() {
     local logfile=$DRBD_TEST_JOB/console-$1.log
     screen -S console-$1 -p 0 -X stuff $'\c]'
-    grep --label="$1" --with-filename -e 'BUG:' -e 'INFO:' < $logfile || :
+    if grep --label="$1" --with-filename \
+	    -e 'BUG:' -e 'INFO:' -e 'general protection fault' \
+	    < $logfile; then
+	exit 3
+    fi
 }
 
 cleanup_events() {

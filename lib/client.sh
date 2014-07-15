@@ -71,7 +71,7 @@ close_coprocess() {
 
 on() {
     local -a options procs
-    local proc status
+    local proc status prefix
 
     while [ "${1:0:1}" = "-" ]; do
 	options=("${options[@]}" "$1")
@@ -88,7 +88,12 @@ on() {
 	eval "exxe \"\${options[@]}\" -i --logfile=\"\$DRBD_TEST_JOB/exxe-$proc.log\" \"\$@\" >&${COPROC_OUT[$proc]}"
     done
     for proc in "${procs[@]}"; do
-	eval "exxe -o --error-prefix=\"\$proc: \" --logfile=\"\$DRBD_TEST_JOB/exxe-$proc.log\" <&${COPROC_IN[$proc]}"
+	if [ ${#procs[@]} -gt 1 ]; then
+	    prefix="--prefix=\"\$proc: \""
+	else
+	    prefix="--error-prefix=\"\$proc: \""
+	fi
+	eval "exxe -o $prefix --logfile=\"\$DRBD_TEST_JOB/exxe-$proc.log\" <&${COPROC_IN[$proc]}"
 	status=$?
 	if [ $status != 0 ]; then
 	    verbose "$proc: $1 failed with status code $status"

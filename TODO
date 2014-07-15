@@ -1,3 +1,11 @@
+* On systemd systems, document to set StartLimitInterval=0 in the
+  [Service] section of /etc/systemd/system/syslog.service (or whichever
+  service description file is used) to disable rate limiting.
+  Otherwise, systemd will refuse to restart the rsyslogd daemon,
+  and "systemctl status rsyslog.service" will report:
+
+  rsyslog.service start request repeated too quickly, refusing to start.
+
 * When cleaning up at the end of a test, report that we are cleaning up and
   report when cleaning up fails.
 

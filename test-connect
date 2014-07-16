@@ -21,4 +21,4 @@ push_forbidden_patterns \
 on "${NODES[@]}" drbdadm down all
 event "${NODES[@]}" -y 'destroy resource'
 
-on "${NODES[@]}" rmmod drbd
+_rmmod

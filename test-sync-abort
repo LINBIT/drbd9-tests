@@ -25,4 +25,4 @@ volume_event "${first_volumes[@]}" -y 'device .* disk:UpToDate'
 volume_event "${other_volumes[@]}" --timeout=300 -y 'peer-device .* peer-disk:UpToDate'
 
 on "${NODES[@]}" drbdadm down all
-on "${NODES[@]}" rmmod drbd
+_rmmod

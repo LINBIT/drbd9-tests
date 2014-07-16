@@ -371,7 +371,9 @@ _down() {
 }
 
 _rmmod() {
-    on "${NODES[@]}" rmmod drbd
+    if [ -z "$NO_RMMOD" ]; then
+	on "${NODES[@]}" rmmod drbd
+    fi
 }
 
 _fio() {

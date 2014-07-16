@@ -21,4 +21,4 @@ done
 on "${NODES[@]}" drbdadm down all
 event "${NODES[@]}" -y 'destroy resource'
 
-on "${NODES[@]}" rmmod drbd
+_rmmod

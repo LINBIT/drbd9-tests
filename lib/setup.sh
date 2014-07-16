@@ -109,7 +109,7 @@ declare -A cfg
 setup() {
     local options
 
-    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,help,verbose -- "$@"` || setup_usage 1
+    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,no-rmmod,help,verbose -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare opt_create_md=1 opt_job= opt_volume_group=scratch
@@ -118,6 +118,7 @@ setup() {
     declare -a INSTANTIATE
     local logfile
     RESOURCE=
+    NO_RMMOD=
 
     while :; do
 	case "$1" in
@@ -207,6 +208,9 @@ setup() {
 	    ;;
 	--vconsole)
 	    set_node_param "$1" "$node" yes
+	    ;;
+	--no-rmmod)
+	    NO_RMMOD=1
 	    ;;
 	--)
 	    shift

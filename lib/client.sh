@@ -380,7 +380,7 @@ _fio() {
     local options=`getopt -o -h --long jobfile:,section: -- "$@"`
     eval set -- "$options"
     local jobfile=target/write-verify.fio.in section nodes_volumes
-    local node_volume node volume device x job log
+    local node_volume node volume device x job log status
 
     while :; do
 	case "$1" in
@@ -422,6 +422,14 @@ _fio() {
 	# parallel.
 
 	sed -e "s:@device@:$device:g" "$jobfile" > "$job"
-	on -p "$node" fio ${section:+--section=$section} - < "$job" > "$log"
+	status=0
+	on -p "$node" fio ${section:+--section=$section} - \
+	    < "$job" > "$log" \
+	    || status=$?
+	if [ $status -ne 0 -o -n "$opt_verbose" ]; then
+	    # fio at least sometimes doesn't report errors to standard error ...
+	    cat "$log"
+	    [ $status -eq 0 ] || exit $status
+	fi
     done
 }

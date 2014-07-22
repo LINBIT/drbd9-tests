@@ -312,6 +312,26 @@ skip_test() {
     exit 100
 }
 
+all_nodes_except() {
+    local node n
+    for node in "${NODES[@]}"; do
+	for ((n = 1; n <= $#; n++)); do
+	    [ "$node" != "${!n}" ] || continue 2
+	done
+	echo "$node"
+    done
+}
+
+all_volumes_except() {
+    local volume n
+    for volume in "${VOLUMES[@]}"; do
+	for ((n = 1; n <= $#; n++)); do
+	    [ "$volume" != "${!n}" ] || continue 2
+	done
+	echo "$volume"
+    done
+}
+
 _up() {
     # By default, take all nodes up
     [ $# -gt 0 ] || set -- "${NODES[@]}"

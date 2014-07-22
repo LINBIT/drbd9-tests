@@ -1,0 +1,49 @@
+#! /bin/bash
+
+# Add a new volume to a resource which already has another volume in disk state
+# UpToDate.
+
+# LINBIT bug 523:
+# drbdadm primary --force outdates up to date volumes
+
+# Pass this script a list of host names to use as the test nodes.
+
+HERE=${0%/*}
+. $HERE/lib/setup.sh
+
+setup --disk=10M --disk=10M "$@"
+
+# Hide volume 1 from drbd.conf
+hide_volumes "${NODES[@]/%/:1}"
+
+# Bring up the first node, make it primary and then secondary again to mark the
+# volumes as UpToDate, wait for the initial resync.
+first_node=${NODES[0]}
+_up
+_force_primary "$first_node"
+_initial_resync "$first_node"
+
+# No longer hide the first volume from drbd.conf
+hide_volumes # none
+
+on "$first_node" drbdadm secondary all
+on "${NODES[@]}" drbdadm adjust all
+on "$first_node" drbdadm primary --force all
+volume_event "$first_node:1" -y 'device .* disk:UpToDate'
+
+# Wait for volume 1 to finish resyncing
+other_nodes=( $(all_nodes_except "$first_node") )
+volume_event "${other_nodes[@]/%/:1}" --timeout=300 -y 'device .* disk:UpToDate'
+
+# Make sure none of the other disk states have changed
+volume_event $(all_volumes_except "${other_nodes[@]/%/:1}") -t0 -n 'device .* disk:.*'
+
+on "${NODES[@]}" drbdsetup status
+
+# FIXME:
+# Add a volume to a primary resource, mark it UpToDate (how?), and wait for it
+# to become UpToDate on all peers.
+
+# Shut down and clean up.
+_down
+_rmmod

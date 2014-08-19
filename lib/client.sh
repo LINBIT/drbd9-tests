@@ -155,7 +155,8 @@ connection_event() {
 	    events-$n1 \
 	    --label="$1" \
 	    -p .events-connection-$n2.pos \
-	    -f "conn-name:${params["$n2:FULL_HOSTNAME"]}"
+	    -f "local:[^ :]*:${cfg[$RESOURCE:$1::local]}" \
+	    -f "peer:[^ :]*:${cfg[$RESOURCE:$1::peer]}"
 	shift
     done
     do_debug logscan -d $DRBD_TEST_JOB -w \
@@ -207,7 +208,8 @@ peer_device_event() {
 	    events-$n1 \
 	    --label="$1" \
 	    -p .events-peer-device-$n2:$volume.pos \
-	    -f "conn-name:${params["$n2:FULL_HOSTNAME"]}" \
+	    -f "local:[^ :]*:${cfg[$RESOURCE:$nodes::local]}" \
+	    -f "peer:[^ :]*:${cfg[$RESOURCE:$nodes::peer]}" \
 	    -f "volume:$volume"
 	shift
     done

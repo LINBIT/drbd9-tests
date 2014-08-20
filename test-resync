@@ -12,15 +12,32 @@ device=$(on "$first_node" drbdadm sh-dev $RESOURCE/1)
 block_size=4096
 cb=0
 
+test_log() {
+    [ "$V" ] && echo "$*"
+}
+
+assert_resync_direction() {
+    from=$1
+    to=$2
+
+    peer_device_event "$from:$to:1" -y 'peer-device .* replication:WFBitMapS'
+    peer_device_event "$from:$to:1" -y 'peer-device .* replication:SyncSource'
+    peer_device_event "$from:$to:1" --timeout=60 -y 'peer-device .* replication:Established'
+    peer_device_event "$to:$from:1" -y 'peer-device .* replication:SyncTarget'
+    peer_device_event "$to:$from:1" -y 'peer-device .* replication:Established'
+}
+
 _up
 _force_primary
 _initial_resync
 
-
+test_log Phase I disconnecting
 # Disconnect all nodes, last first, writing a something between every action
 for (( idx=${#NODES[@]}-1 ; idx>=1 ; idx-- )) ; do
     on "$first_node" dd if=/dev/urandom bs=$block_size count=1 of=$device seek=$cb oflag=sync
     cb=$(( cb + 1 ))
+
+    test_log on "${NODES[$idx]}" drbdadm disconnect $RESOURCE
     on "${NODES[$idx]}" drbdadm disconnect $RESOURCE
 
     closed_connections=()
@@ -28,6 +45,7 @@ for (( idx=${#NODES[@]}-1 ; idx>=1 ; idx-- )) ; do
 	closed_connections[$i]="${NODES[$i]}:${NODES[$idx]}"
     done
 
+    test_log asserting disconnect "${closed_connections[@]}"
     connection_event "${closed_connections[@]}" -y 'connection .* connection:TearDown'
     connection_event "${closed_connections[@]}" -y 'connection .* connection:Connecting'
 done
@@ -35,23 +53,63 @@ done
 on "$first_node" dd if=/dev/urandom bs=$block_size count=1 of=$device seek=$cb oflag=sync
 cb=$(( cb + 1 ))
 
+test_log Phase II connecting
 # Connect them beginning from the last to the previous, assert resync direction
 for (( idx=${#NODES[@]}-1 ; idx>=2 ; idx-- )) ; do
     n1=${NODES[$idx-1]}
     n2=${NODES[$idx]}
+    test_log on "$n1" drbdadm connect "$RESOURCE:$n2"
     on "$n1" drbdadm connect "$RESOURCE:$n2"
+    test_log on "$n2" drbdadm connect "$RESOURCE:$n1"
     on "$n2" drbdadm connect "$RESOURCE:$n1"
-    peer_device_event "$n1:$n2:1" -y 'peer-device .* replication:WFBitMapS'
-    peer_device_event "$n1:$n2:1" -y 'peer-device .* replication:SyncSource'
-    peer_device_event "$n1:$n2:1" --timeout=60 -y 'peer-device .* replication:Established'
+    test_log asserting resync from $n1 to $n2
+    assert_resync_direction $n1 $n2
+    for (( j=idx ; j<${#NODES[@]}-1 ; j++)); do
+	n1=${NODES[$j]}
+	n2=${NODES[$j+1]}
+	test_log "asserting follow-up resync resync from $n1 to $n2"
+	assert_resync_direction $n1 $n2
+    done
 done
 
 # Now connect last to the first
+test_log Phase III more follow-up testing
 last_node=${NODES[${#NODES[@]}-1]}
+test_log on "${last_node}" drbdadm connect "$RESOURCE:${params["$first_node:FULL_HOSTNAME"]}"
 on "${last_node}" drbdadm connect "$RESOURCE:${params["$first_node:FULL_HOSTNAME"]}"
-peer_device_event "$first_node:$last_node:1" -y 'peer-device .* replication:WFBitMapS'
-peer_device_event "$first_node:$last_node:1" -y 'peer-device .* replication:SyncSource'
-peer_device_event "$first_node:$last_node:1" --timeout=60 -y 'peer-device .* replication:Established'
+test_log asserting resync form $first_node to $last_node
+assert_resync_direction $first_node $last_node
+
+# TODO, this should work, needs debugging in DRBD
+#
+#for (( idx=${#NODES[@]}-1 ; idx>=2 ; idx-- )) ; do
+#    n1=${NODES[$idx]}
+#    n2=${NODES[$idx-1]}
+#
+#    test_log asserting follow-up resync form $n1 to $n2
+#    assert_resync_direction $n1 $n2
+#done
+
+test_log Phase IV establish the remaining connections
+on "${NODES[@]}" drbdadm adjust all
+
+newly_established_connections=("${NODES[0]}:${NODES[1]}")
+k=1
+for ((i=0 ; i < ${#NODES[@]}-2 ; i++)); do
+    inner_limit=$((i == 0 ? ${#NODES[@]}-1 : ${#NODES[@]}))
+    for ((j=i+2 ; j < inner_limit ; j++)); do
+	newly_established_connections[$k]="${NODES[$i]}:${NODES[$j]}"
+	k=$((k+1))
+    done
+done
+test_log asserting no resync "${newly_established_connections[@]}"
+
+newly_established_vols="${newly_established_connections[@]/%/:1}"
+push_forbidden_patterns 'peer-disk:SyncSource' 'peer-disk:SyncSource'
+for v in ${newly_established_vols[@]}; do
+    peer_device_event $v -y 'peer-device .* replication:Established'
+done
+pop_forbidden_patterns 'peer-disk:SyncSource' 'peer-disk:SyncSource'
 
 _down
 _rmmod

@@ -13,7 +13,7 @@ block_size=4096
 cb=0
 
 test_log() {
-    [ "$V" ] && echo "$*"
+    [ -z "$V" ] || echo "$@"
 }
 
 assert_resync_direction() {
@@ -32,7 +32,7 @@ _force_primary
 _initial_resync
 
 test_log Phase I disconnecting
-# Disconnect all nodes, last first, writing a something between every action
+# Disconnect all nodes, last first, writing something between every action
 for (( idx=${#NODES[@]}-1 ; idx>=1 ; idx-- )) ; do
     on "$first_node" dd if=/dev/urandom bs=$block_size count=1 of=$device seek=$cb oflag=sync
     cb=$(( cb + 1 ))
@@ -105,11 +105,11 @@ done
 test_log asserting no resync "${newly_established_connections[@]}"
 
 newly_established_vols="${newly_established_connections[@]/%/:1}"
-push_forbidden_patterns 'peer-disk:SyncSource' 'peer-disk:SyncSource'
+push_forbidden_patterns 'peer-disk:SyncSource' 'peer-disk:SyncTarget'
 for v in ${newly_established_vols[@]}; do
     peer_device_event $v -y 'peer-device .* replication:Established'
 done
-pop_forbidden_patterns 'peer-disk:SyncSource' 'peer-disk:SyncSource'
+pop_forbidden_patterns 'peer-disk:SyncTarget' 'peer-disk:SyncSource'
 
 _down
 _rmmod

@@ -14,11 +14,12 @@ cb=0
 
 test_log() {
     [ -z "$V" ] || echo "$@"
+    on "${NODES[$idx]}" logger "$@"
 }
 
 assert_resync_direction() {
-    from=$1
-    to=$2
+    local from=$1
+    local to=$2
 
     peer_device_event "$from:$to:1" -y 'peer-device .* replication:WFBitMapS'
     peer_device_event "$from:$to:1" -y 'peer-device .* replication:SyncSource'
@@ -27,8 +28,24 @@ assert_resync_direction() {
     peer_device_event "$to:$from:1" -y 'peer-device .* replication:Established'
 }
 
+disconnect_reverse() {
+    local node=$1
+    local i from
+
+    for ((i=${#NODES[@]}-1; i>=0; i--)); do
+	from="${NODES[$i]}"
+	if [ "$from" != "$node" ]; then
+	    on $node drbdadm disconnect $RESOURCE:$from
+	fi
+    done
+}
+
+test_log resource up on all nodes
 _up
+test_log waiting for connections to establish
+_wait_connected
 _force_primary
+test_log waiting for initial resync
 _initial_resync
 
 test_log Phase I disconnecting
@@ -39,6 +56,7 @@ for (( idx=${#NODES[@]}-1 ; idx>=1 ; idx-- )) ; do
 
     test_log on "${NODES[$idx]}" drbdadm disconnect $RESOURCE
     on "${NODES[$idx]}" drbdadm disconnect $RESOURCE
+    #disconnect_reverse "${NODES[$idx]}"
 
     closed_connections=()
     for (( i=0 ; i < idx ; i++ )); do
@@ -52,6 +70,8 @@ done
 
 on "$first_node" dd if=/dev/urandom bs=$block_size count=1 of=$device seek=$cb oflag=sync
 cb=$(( cb + 1 ))
+
+on "$first_node" drbdadm secondary $RESOURCE
 
 test_log Phase II connecting
 # Connect them beginning from the last to the previous, assert resync direction
@@ -67,7 +87,7 @@ for (( idx=${#NODES[@]}-1 ; idx>=2 ; idx-- )) ; do
     for (( j=idx ; j<${#NODES[@]}-1 ; j++)); do
 	n1=${NODES[$j]}
 	n2=${NODES[$j+1]}
-	test_log "asserting follow-up resync resync from $n1 to $n2"
+	test_log "asserting follow-up resync from $n1 to $n2"
 	assert_resync_direction $n1 $n2
     done
 done
@@ -80,18 +100,16 @@ on "${last_node}" drbdadm connect "$RESOURCE:${params["$first_node:FULL_HOSTNAME
 test_log asserting resync form $first_node to $last_node
 assert_resync_direction $first_node $last_node
 
-# TODO, this should work, needs debugging in DRBD
-#
-#for (( idx=${#NODES[@]}-1 ; idx>=2 ; idx-- )) ; do
-#    n1=${NODES[$idx]}
-#    n2=${NODES[$idx-1]}
-#
-#    test_log asserting follow-up resync form $n1 to $n2
-#    assert_resync_direction $n1 $n2
-#done
+for (( idx=${#NODES[@]}-1 ; idx>=2 ; idx-- )) ; do
+    n1=${NODES[$idx]}
+    n2=${NODES[$idx-1]}
+
+    test_log asserting follow-up resync form $n1 to $n2
+    assert_resync_direction $n1 $n2
+done
 
 test_log Phase IV establish the remaining connections
-on "${NODES[@]}" drbdadm adjust all
+on "${NODES[@]}" drbdadm adjust $RESOURCE
 
 newly_established_connections=("${NODES[0]}:${NODES[1]}")
 k=1

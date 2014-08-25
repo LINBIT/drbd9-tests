@@ -74,10 +74,12 @@ listen_to_events() {
     shift
     for node in "$@"; do
 	mkdir -p $DRBD_TEST_JOB
-	ssh -q root@$node drbdsetup events2 "$resource" \
+	# set -- ssh -q root@$node drbdsetup events2 "$resource" \
+	set -- ssh -q root@$node drbdsetup events2 all \
 		--statistics \
-		--timestamps \
-		> $DRBD_TEST_JOB/events-$node &
+		--timestamps
+	verbose "$node: $*"
+	"$@" > $DRBD_TEST_JOB/events-$node &
 	echo $! > run/events-$node.pid
     done
 

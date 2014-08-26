@@ -334,6 +334,8 @@ all_volumes_except() {
     done
 }
 
+declare _UP_FORBIDDEN=
+
 _up() {
     # By default, take all nodes up
     [ $# -gt 0 ] || set -- "${NODES[@]}"
@@ -346,15 +348,18 @@ _up() {
     on "$@" drbdadm up all
     volume_event ${volumes[@]} -y 'device .* disk:Inconsistent'
 
-    # These error states must never occur unless a test case simulates things
-    # like node failures, network errors, or disk failures.
-    push_forbidden_patterns \
-	'connection:Timeout' \
-	'connection:BrokenPipe' \
-	'connection:NetworkFailure' \
-	'connection:ProtocolError' \
-	'disk:Failed' \
-	'peer-disk:Failed'
+    if [ -z "$_UP_FORBIDDEN" ]; then
+	# These error states must never occur unless a test case simulates things
+	# like node failures, network errors, or disk failures.
+	push_forbidden_patterns \
+	    'connection:Timeout' \
+	    'connection:BrokenPipe' \
+	    'connection:NetworkFailure' \
+	    'connection:ProtocolError' \
+	    'disk:Failed' \
+	    'peer-disk:Failed'
+	_UP_FORBIDDEN=1
+    fi
 }
 
 _wait_connected() {

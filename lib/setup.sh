@@ -12,7 +12,7 @@ declare -A CONNECTIONS VOLUMES PEER_DEVICES
 
 instantiate_template() {
     local I=("${INSTANTIATE[@]}") option n
-    local node_name node name
+    local node_name node name version
 
     for node in "${NODES[@]}"; do
 	I[${#I[@]}]=--node=$node
@@ -22,7 +22,7 @@ instantiate_template() {
 	    name=${node_name#*:}
 	    [ "$node2" = "$node" ] || continue
 	    case "$name" in
-	    FULL_HOSTNAME | CONSOLE | VCONSOLE)
+	    FULL_HOSTNAME | CONSOLE | VCONSOLE | DRBD_MAJOR_VERSION)
 		;;
 	    *)
 		option=${name//[0-9]}; option=${option//_/-}; option=${option,,}
@@ -32,9 +32,14 @@ instantiate_template() {
 	done
     done
     I[${#I[@]}]=$opt_template
-    do_debug $HERE/lib/instantiate-template \
-	--sh-cfg=$DRBD_TEST_JOB/.drbd.conf.sh "${I[@]}" \
-	> $DRBD_TEST_JOB/drbd.conf
+    for node in "${NODES[@]}"; do
+	version=${params["$node:DRBD_MAJOR_VERSION"]}
+	[ -e $DRBD_TEST_JOB/drbd${version}.conf ] || \
+	do_debug $HERE/lib/instantiate-template \
+	    --sh-cfg=$DRBD_TEST_JOB/.drbd.conf.sh \
+	    --drbd-major-version=$version "${I[@]}" \
+	    > $DRBD_TEST_JOB/drbd${version}.conf
+    done
     source $DRBD_TEST_JOB/.drbd.conf.sh
 }
 
@@ -300,6 +305,12 @@ setup() {
 
     connect_to_nodes "${NODES[@]}"
 
+    local drbd_version
+    for node in "${NODES[@]}"; do
+	drbd_version=$(on "$node" drbd-version)
+	params["$node:DRBD_MAJOR_VERSION"]=${drbd_version%%.*}
+    done
+
     if [ -n "$EXXE_TIMEOUT" ]; then
 	on "${NODES[@]}" timeout $EXXE_TIMEOUT
     fi
@@ -375,8 +386,10 @@ setup() {
 
     instantiate_template
 
+    local version
     for node in "${NODES[@]}"; do
-	on -p $node install-config < $DRBD_TEST_JOB/drbd.conf
+	version=${params[$node:DRBD_MAJOR_VERSION]}
+	on -p $node install-config < $DRBD_TEST_JOB/drbd${version}.conf
     done
     on "${NODES[@]}" register-cleanup -t bash -c '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'
 

@@ -12,11 +12,15 @@ m4_foreachq(`VOLUME', m4_quote(VOLUMES),
 			meta-disk m4_default(META(NODE),`internal');
 		}
 ')m4_dnl
-		node-id NODE_ID(NODE);
+m4_ifelse(DRBD_MAJOR_VERSION, `8', `',
+`		node-id NODE_ID(NODE);
+')m4_dnl
 		address ADDRESS(NODE);
 	}
 ')m4_dnl
-	connection-mesh {
+m4_ifelse(DRBD_MAJOR_VERSION, `8', `',
+`	connection-mesh {
 		hosts m4_join(` ', NODES);
 	}
+')m4_dnl
 }

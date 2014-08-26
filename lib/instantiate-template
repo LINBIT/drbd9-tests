@@ -156,11 +156,11 @@ EOF
     exit $1
 }
 
-options=`getopt -o h --long resource:,node:,hostname:,device:,disk:,meta:,node-id:,address:,debug,port:,sh-cfg:,help -- "$@"` || usage 1
+options=`getopt -o h --long resource:,node:,hostname:,device:,disk:,meta:,node-id:,address:,drbd-major-version:,debug,port:,sh-cfg:,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_debug=
-declare RESOURCE= opt_sh_cfg=
+declare DRBD_MAJOR_VERSION= RESOURCE= opt_sh_cfg=
 declare -A NODE_ID ADDRESS
 opt_port=7789
 
@@ -174,6 +174,10 @@ while :; do
 	;;
     --port)
 	opt_port=$2
+	shift
+	;;
+    --drbd-major-version)
+	DRBD_MAJOR_VERSION=$2
 	shift
 	;;
     --resource)
@@ -239,7 +243,7 @@ done
 VOLUMES=(${!DISK*})
 VOLUMES=("${VOLUMES[@]/#DISK}")
 for template in "$@"; do
-    instantiate_template "$template" RESOURCE NODES VOLUMES NODE_ID ADDRESS HOSTNAME ${!DEVICE*} ${!DISK*} ${!META*}
+    instantiate_template "$template" RESOURCE NODES VOLUMES NODE_ID ADDRESS DRBD_MAJOR_VERSION HOSTNAME ${!DEVICE*} ${!DISK*} ${!META*}
 done
 
 if [ -n "$opt_sh_cfg" ]; then

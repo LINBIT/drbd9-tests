@@ -1,0 +1,9 @@
+#! /bin/bash
+
+export PATH=${PATH#@DRBD_TEST_DATA@:}
+
+set -e
+
+[ -e /proc/drbd ] || modprobe drbd
+set -- $(head -n 1 /proc/drbd)
+echo $2

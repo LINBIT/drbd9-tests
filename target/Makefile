@@ -26,6 +26,7 @@ data_scripts := \
 	block-connection \
 	cleanup \
 	create-disk \
+	drbd-version \
 	drbdadm \
 	install-config \
 	io-load-dd \

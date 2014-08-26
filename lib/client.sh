@@ -465,14 +465,17 @@ _fio() {
 # the config file on all test nodes.  When called with 'cat' as argument,
 # restore the original config file.
 change_config() {
-    local node
+    local conf node version
 
-    if ! [ -e "$DRBD_TEST_JOB/drbd.conf.orig" ]; then
-	cp "$DRBD_TEST_JOB/drbd.conf" "$DRBD_TEST_JOB/drbd.conf.orig"
-    fi
-    "$@" < "$DRBD_TEST_JOB/drbd.conf.orig" > "$DRBD_TEST_JOB/drbd.conf"
-    for node in "${NODES[@]}"; do
-	on -p $node install-config < $DRBD_TEST_JOB/drbd.conf
+    for conf in $DRBD_TEST_JOB/drbd*.conf; do
+	if ! [ -e "$conf.orig" ]; then
+	    cp "$conf" "$conf.orig"
+	fi
+	"$@" < "$conf.orig" > "$conf"
+	for node in "${NODES[@]}"; do
+	    version=${params["$node:DRBD_MAJOR_VERSION"]}
+	    on -p $node install-config < $DRBD_TEST_JOB/drbd${version}.conf
+	done
     done
 }
 

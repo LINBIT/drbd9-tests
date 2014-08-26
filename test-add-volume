@@ -22,11 +22,11 @@ first_node=${NODES[0]}
 _up
 _force_primary "$first_node"
 _initial_resync "$first_node"
+on "$first_node" drbdadm secondary all
 
 # No longer hide the first volume from drbd.conf
 hide_volumes # none
 
-on "$first_node" drbdadm secondary all
 on "${NODES[@]}" drbdadm adjust all
 on "$first_node" drbdadm primary --force all
 volume_event "$first_node:1" -y 'device .* disk:UpToDate'

@@ -21,7 +21,12 @@ on "$first_node" drbdadm secondary all
 # verify the data received.
 _up $(all_nodes_except "$first_node")
 _initial_resync "$first_node"
-_fio --section=verify $(all_volumes_except ${VOLUMES[$first_node]})
+for volume in $(all_volumes_except ${VOLUMES[$first_node]}); do
+    node=${volume%:*}
+    on "$node" drbdadm primary all
+    _fio --section=verify $volume
+    on "$node" drbdadm secondary all
+done
 
 # Shut down and clean up.
 _down

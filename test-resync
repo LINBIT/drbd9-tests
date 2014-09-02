@@ -5,7 +5,7 @@
 HERE=${0%/*}
 . $HERE/lib/setup.sh
 
-setup --disk=10M "$@"
+setup --min-nodes=3 --disk=10M "$@"
 
 first_node="${NODES[0]}"
 device=$(on "$first_node" drbdadm sh-dev $RESOURCE/1)
@@ -124,10 +124,10 @@ test_log asserting no resync "${newly_established_connections[@]}"
 
 newly_established_vols="${newly_established_connections[@]/%/:1}"
 push_forbidden_patterns 'peer-disk:SyncSource' 'peer-disk:SyncTarget'
-for v in ${newly_established_vols[@]}; do
-    peer_device_event $v -y 'peer-device .* replication:Established'
-done
+peer_device_event ${newly_established_vols[@]} -y 'peer-device .* replication:Established'
 pop_forbidden_patterns 'peer-disk:SyncTarget' 'peer-disk:SyncSource'
+
+# FIXME: verify the disk contents!
 
 _down
 _rmmod

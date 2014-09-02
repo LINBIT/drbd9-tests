@@ -334,6 +334,31 @@ all_volumes_except() {
     done
 }
 
+all_connections_from() {
+    local connection
+
+    for connection in "${CONNECTIONS[@]}"; do
+	[ "${connection%%:*}" != "$1" ] || echo "$connection"
+    done
+}
+
+all_connections_to() {
+    local connection
+
+    for connection in "${CONNECTIONS[@]}"; do
+	[ "${connection#*:}" != "$1" ] || echo "$connection"
+    done
+}
+
+reverse_connections() {
+    local n1 n2
+    for connection in "$@"; do
+	n1=${connection%%:*}
+	n2=${connection#*:}
+	echo "$n2:$n1"
+    done
+}
+
 declare _UP_FORBIDDEN=
 
 _up() {
@@ -364,6 +389,30 @@ _up() {
 
 _wait_connected() {
     connection_event "${CONNECTIONS[@]}" -y 'connection .* connection:Connected'
+}
+
+_connect() {
+    local n1 n2
+
+    for connection in "$@"; do
+	n1=${connection%%:*}
+	n2=${connection#*:}
+	on "$n1" drbdadm connect $RESOURCE:${param[$n2:FULL_HOSTNAME]}
+	CONNECTIONS["$connection"]=$connection
+    done
+    connection_event "$@" -y 'connection .* connection:Connecting'
+}
+
+_disconnect() {
+    local n1 n2
+
+    for connection in "$@"; do
+	n1=${connection%%:*}
+	n2=${connection#*:}
+	on "$n1" drbdadm disconnect $RESOURCE:${param[$n2:FULL_HOSTNAME]}
+	unset CONNECTIONS["$connection"]
+    done
+    connection_event "$@" -y 'connection .* connection:StandAlone'
 }
 
 _force_primary() {

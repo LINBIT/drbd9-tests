@@ -38,8 +38,6 @@ volume_event "${other_nodes[@]/%/:1}" --timeout=300 -y 'device .* disk:UpToDate'
 # Make sure none of the other disk states have changed
 volume_event $(all_volumes_except "${other_nodes[@]/%/:1}") -t0 -n 'device .* disk:.*'
 
-on "${NODES[@]}" drbdsetup status
-
 # FIXME:
 # Add a volume to a primary resource, mark it UpToDate (how?), and wait for it
 # to become UpToDate on all peers.

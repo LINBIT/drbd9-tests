@@ -397,7 +397,7 @@ _connect() {
     for connection in "$@"; do
 	n1=${connection%%:*}
 	n2=${connection#*:}
-	on "$n1" drbdadm connect $RESOURCE:${param[$n2:FULL_HOSTNAME]}
+	on "$n1" drbdadm connect $RESOURCE:${params["$n2:FULL_HOSTNAME"]}
 	CONNECTIONS["$connection"]=$connection
     done
     connection_event "$@" -y 'connection .* connection:Connecting'
@@ -409,7 +409,7 @@ _disconnect() {
     for connection in "$@"; do
 	n1=${connection%%:*}
 	n2=${connection#*:}
-	on "$n1" drbdadm disconnect $RESOURCE:${param[$n2:FULL_HOSTNAME]}
+	on "$n1" drbdadm disconnect $RESOURCE:${params["$n2:FULL_HOSTNAME"]}
 	unset CONNECTIONS["$connection"]
     done
     connection_event "$@" -y 'connection .* connection:StandAlone'

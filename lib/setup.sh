@@ -83,7 +83,7 @@ listen_to_events() {
 	set -- ssh -q root@$node drbdsetup events2 all \
 		--statistics \
 		--timestamps
-	verbose "$node: $*"
+	debug "$node: $*"
 	"$@" > $DRBD_TEST_JOB/events-$node &
 	echo $! > run/events-$node.pid
     done
@@ -109,21 +109,36 @@ EOF
     exit $1
 }
 
-declare opt_debug= opt_verbose= opt_cleanup=always stdout_dup
+setup_set_level() {
+    # When called with a variable name and level, for example
+    # "setup_set_level opt_debug 2", sets opt_debug1 and opt_debug2 to
+    # 1 and makes sure that no other opt_debugN variables are set.
+    local x
+    for x in $(eval "printf '%s\\n' \${!$1*}" | grep -v "^$1$"); do
+	eval "$x="
+    done
+    for ((x = 1; x <= $2; x++)); do
+	eval "$1$x=1"
+    done
+}
+
+declare opt_cleanup=always stdout_dup opt_slient
+declare opt_verbose= opt_verbose1= opt_verbose2= opt_verbose3=
+declare opt_debug= opt_debug1= opt_debug2=
 declare RESOURCE=
 declare -A cfg
 
 setup() {
     local options
 
-    options=`getopt -o -vh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,debug,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,no-rmmod,help,verbose -- "$@"` || setup_usage 1
+    options=`getopt -o -svdh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,no-rmmod,help,verbose::,debug::,silent -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare opt_create_md=1 opt_job= opt_volume_group=scratch
     declare opt_min_nodes=2 opt_max_nodes=32 opt_only_setup= job_symlink= max_volume=0
     declare opt_template=lib/m4/template.conf.m4
     declare -a INSTANTIATE
-    local logfile
+    local logfile n
     RESOURCE=
     NO_RMMOD=
 
@@ -138,11 +153,29 @@ setup() {
 	-h|--help)
 	    setup_usage 0
 	    ;;
-	--debug)
-	    opt_debug=1
+	-d)
+	    (( ++opt_debug ))
+	    setup_set_level opt_debug $opt_debug
 	    ;;
-	-v|--verbose)
-	    opt_verbose=1
+	--debug)
+	    opt_debug=${2:-$((opt_debug+1))}
+	    setup_set_level opt_debug $opt_debug
+	    shift
+	    ;;
+	-v)
+	    (( ++opt_verbose ))
+	    setup_set_level opt_verbose $opt_verbose
+	    opt_slient=
+	    ;;
+	--verbose)
+	    opt_verbose=${2:-$((opt_verbose+1))}
+	    setup_set_level opt_verbose $opt_verbose
+	    opt_slient=
+	    shift
+	    ;;
+	-s|--silent)
+	    opt_silent=1
+	    setup_set_level opt_verbose 0
 	    ;;
 	--job)
 	    opt_job=$2
@@ -261,7 +294,7 @@ setup() {
     export EXXE_TIMEOUT=30
     export LOGSCAN_TIMEOUT=30
 
-    echo "Logging to directory $DRBD_TEST_JOB"
+    [ -n "$opt_silent" ] || echo "Logging to directory $DRBD_TEST_JOB"
     mkdir "$DRBD_TEST_JOB"
     if [ -n "$job_symlink" ]; then
 	rm -f "$job_symlink"
@@ -297,7 +330,7 @@ setup() {
 
 	    screen -S console-$node -p 0 -X logfile $DRBD_TEST_JOB/console-$node.log
 	    screen -S console-$node -p 0 -X log on
-	    verbose "$node: capturing console $console"
+	    verbose -n2 "$node: capturing console $console"
 	    register_cleanup end_log_console $node
 	    ;;
 	esac
@@ -358,7 +391,7 @@ setup() {
     for node in "${NODES[@]}"; do
 	hostname=$(on $node hostname -f)
 	if [ "$hostname" != "$node" ]; then
-	    echo "$node: full hostname = $hostname"
+	    verbose "$node: full hostname = $hostname"
 	fi
 	params["$node:FULL_HOSTNAME"]="$hostname"
     done

@@ -33,12 +33,32 @@ trap cleanup EXIT
 tmpdir=$(mktemp -dt)
 register_cleanup 'rm -rf "$tmpdir"'
 
+__getopt_level='
+    local level=1
+    case "$1" in
+    -n)
+	level=$2
+	shift 2
+	;;
+    -n*)
+	level=${1:2}
+	shift
+	;;
+    esac'
+
 verbose() {
-    [ -z "$opt_verbose" ] || echo "$@" >&$stdout_dup
+    eval "$__getopt_level"
+    eval "[ -z \"\$opt_verbose$level\" ]" || echo "$*" >&$stdout_dup
+}
+
+debug() {
+    eval "$__getopt_level"
+    eval "[ -z \"\$opt_debug$level\" ]" || echo "# $*" >&2
 }
 
 do_debug() {
-    if [ -n "$opt_debug" ]; then
+    eval "$__getopt_level"
+    if eval "[ -n \"\$opt_debug$level\" ]"; then
 	echo -n "#"
 	printf " %q" "$@"
 	echo
@@ -83,7 +103,7 @@ on() {
 	shift
     done
 
-    verbose "${procs[*]}: calling $@"
+    verbose -n2 "${procs[*]}: calling $@"
     for proc in "${procs[@]}"; do
 	eval "exxe \"\${options[@]}\" -i --logfile=\"\$DRBD_TEST_JOB/exxe-$proc.log\" \"\$@\" >&${COPROC_OUT[$proc]}"
     done
@@ -128,7 +148,7 @@ event() {
 	shift
     done
     do_debug logscan -d $DRBD_TEST_JOB -w \
-		     --silent ${opt_verbose:+--verbose} \
+		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
 		     "$@"
 }
@@ -160,7 +180,7 @@ connection_event() {
 	shift
     done
     do_debug logscan -d $DRBD_TEST_JOB -w \
-		     --silent ${opt_verbose:+--verbose} \
+		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
 		     "$@"
 }
@@ -186,7 +206,7 @@ volume_event() {
 	shift
     done
     do_debug logscan -d $DRBD_TEST_JOB -w \
-		     --silent ${opt_verbose:+--verbose} \
+		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
 		     "$@"
 }
@@ -214,7 +234,7 @@ peer_device_event() {
 	shift
     done
     do_debug logscan -d $DRBD_TEST_JOB -w \
-		     --silent ${opt_verbose:+--verbose} \
+		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
 		     "$@"
 }
@@ -284,7 +304,7 @@ connect_to_nodes() {
 	    DRBD_TEST_DATA="$DRBD_TEST_DATA" \
 	    DRBD_TEST_JOB="$DRBD_TEST_JOB" \
 	    EXXE_IDENT="exxe/$DRBD_TEST_JOB" \
-	    ${opt_verbose:+DRBD_TEST_VERBOSE=1}
+	    DRBD_TEST_VERBOSE=$opt_verbose
 
 	if ! on $node test -d "$DRBD_TEST_DATA"; then
 	    echo "Node $node: Directory $DRBD_TEST_DATA does not exist" >&2
@@ -362,6 +382,7 @@ reverse_connections() {
 declare _UP_FORBIDDEN=
 
 _up() {
+    debug "$FUNCNAME $*"
     # By default, take all nodes up
     [ $# -gt 0 ] || set -- "${NODES[@]}"
 
@@ -388,12 +409,14 @@ _up() {
 }
 
 _wait_connected() {
+    debug "$FUNCNAME $*"
     connection_event "${CONNECTIONS[@]}" -y 'connection .* connection:Connected'
 }
 
 _connect() {
     local n1 n2
 
+    debug "$FUNCNAME $*"
     for connection in "$@"; do
 	n1=${connection%%:*}
 	n2=${connection#*:}
@@ -406,6 +429,7 @@ _connect() {
 _disconnect() {
     local n1 n2
 
+    debug "$FUNCNAME $*"
     for connection in "$@"; do
 	n1=${connection%%:*}
 	n2=${connection#*:}
@@ -416,6 +440,8 @@ _disconnect() {
 }
 
 _force_primary() {
+    debug "$FUNCNAME $*"
+
     # By default, make the first node the primary
     [ $# -ge 1 ] || set -- "${NODES[0]}"
 
@@ -425,6 +451,9 @@ _force_primary() {
 }
 
 _initial_resync() {
+    debug "$FUNCNAME $*"
+
+    local -a nodes
     # By default, sync from the first node
     [ $# -gt 0 ] || set -- "${NODES[0]}"
 
@@ -434,19 +463,22 @@ _initial_resync() {
     # Use unlimited resync bandwidth
     on "${NODES[@]}" drbdadm disk-options --c-min-rate=0 all
 
-    for node in $(all_nodes_except "$1"); do
+    nodes=( $(all_nodes_except "$1") )
+    for node in ${nodes[@]}; do
 	volumes=( "${volumes[@]}" ${VOLUMES[$node]} )
     done
     volume_event "${volumes[@]}" --timeout=300 -y 'device .* disk:UpToDate'
 }
 
 _down() {
+    debug "$FUNCNAME $*"
     pop_forbidden_patterns -f 'peer-disk:Failed' 'disk:Failed'
     on "${NODES[@]}" drbdadm down all
     event "${NODES[@]}" -y 'destroy resource'
 }
 
 _rmmod() {
+    debug "$FUNCNAME $*"
     if [ -z "$NO_RMMOD" ]; then
 	on "${NODES[@]}" rmmod drbd
     fi
@@ -457,6 +489,8 @@ _fio() {
     eval set -- "$options"
     local jobfile=target/write-verify.fio.in section nodes_volumes
     local node_volume node volume device x job log status
+
+    debug "$FUNCNAME $*"
 
     while :; do
 	case "$1" in
@@ -502,7 +536,7 @@ _fio() {
 	on -p "$node" fio ${section:+--section=$section} - \
 	    < "$job" > "$log" \
 	    || status=$?
-	if [ $status -ne 0 -o -n "$opt_verbose" ]; then
+	if [ $status -ne 0 -o -n "$opt_verbose3" ]; then
 	    # fio at least sometimes doesn't report errors to standard error ...
 	    cat "$log"
 	    [ $status -eq 0 ] || exit $status
@@ -536,8 +570,10 @@ change_config() {
 declare -A VOLUMES_ORIG
 hide_volumes() {
     local node node_volume volume volumes
-
     local -A hide
+
+    debug "$FUNCNAME $*"
+
     for node_volume in "$@"; do
 	hide["$node_volume"]=1
     done

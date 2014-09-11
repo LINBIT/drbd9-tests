@@ -368,6 +368,16 @@ all_volumes_except() {
     done
 }
 
+all_connections_except() {
+    local connection n
+    for connection in "${CONNECTIONS[@]}"; do
+	for ((n = 1; n <= $#; n++)); do
+	    [ "$connection" != "${!n}" ] || continue 2
+	done
+	echo "$connection"
+    done
+}
+
 all_connections_from() {
     local connection
 
@@ -390,6 +400,13 @@ reverse_connections() {
 	n1=${connection%%:*}
 	n2=${connection#*:}
 	echo "$n2:$n1"
+    done
+}
+
+all_volumes_on() {
+    local node
+    for node in "$@"; do
+	printf ' %q' ${VOLUMES[$node]}
     done
 }
 
@@ -440,6 +457,10 @@ _connect() {
     connection_event "$@" -y 'connection .* connection:Connecting'
 }
 
+_bidir_connect() {
+    _connect "$@" $(reverse_connections "$@")
+}
+
 _disconnect() {
     local n1 n2
 
@@ -451,6 +472,10 @@ _disconnect() {
 	unset CONNECTIONS["$connection"]
     done
     connection_event "$@" -y 'connection .* connection:StandAlone'
+}
+
+_bidir_disconnect() {
+    _disconnect "$@" $(reverse_connections "$@")
 }
 
 _force_primary() {

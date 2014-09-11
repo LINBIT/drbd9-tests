@@ -1,0 +1,52 @@
+#! /bin/bash
+
+HERE=${0%/*}
+. $HERE/lib/setup.sh
+
+setup --min-nodes=3 --disk=10M "$@"
+
+first_node=${NODES[0]}
+last_node=${NODES[-1]}
+
+# List of connections that form a chain, for example,
+#   ( A:B B:C C:D D:E )
+chain=()
+for ((i = 0; i < ${#NODES[@]} - 1; i++)); do
+    chain[i]="${NODES[i]}:${NODES[i+1]}"
+done
+chain=( "${chain[@]}" $(reverse_connections "${chain[@]}") )
+
+verbose "* Set up and wait for the cluster to stabilize."
+_up
+_wait_connected
+_force_primary
+_initial_resync
+on "$first_node" drbdadm secondary all
+event "$first_node" -y 'resource .* role:Secondary'
+connection_event $(all_connections_to $first_node) -y 'connection .* role:Secondary'
+
+verbose "* Turn cluster into a chain of nodes."
+# FIXME: All disks must stay UpToDate ...
+#push_forbidden_patterns 'disk:(?!UpToDate)'
+_disconnect $(all_connections_except "${chain[@]}")
+#pop_forbidden_patterns 'disk:(?!UpToDate)'
+
+verbose "* Make a node primary and see if volumes on weak nodes become Outdated."
+on "$first_node" drbdadm primary all
+weak_nodes=( $(all_nodes_except $first_node ${NODES[1]}) )
+volume_event $(all_volumes_on "${weak_nodes[@]}") -y 'device .* disk:Outdated'
+
+verbose "* See if node becomes UpToDate when connecting to the primary."
+_bidir_connect "$first_node:$last_node"
+volume_event $(all_volumes_on $last_node) -y 'device .* disk:UpToDate'
+
+verbose "* See if node becomes Outdated again when disconnecting from the primary."
+_bidir_disconnect "$first_node:$last_node"
+volume_event $(all_volumes_on $last_node) -y 'device .* disk:Outdated'
+
+verbose "* Turn primary into secondary and see if previously weak nodes become UpToDate."
+on "$first_node" drbdadm secondary all
+volume_event $(all_volumes_on "${weak_nodes[@]}") -y 'device .* disk:UpToDate'
+
+_down
+_rmmod

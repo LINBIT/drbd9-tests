@@ -66,6 +66,20 @@ do_debug() {
     "$@"
 }
 
+mark() {
+    local node timestamp where
+
+    timestamp=$(date '+%Y-%m-%dT%H:%M:%S.%N%:z')
+    timestamp=${timestamp:0:(-9)}${timestamp:(-6)}
+    where=${BASH_SOURCE[1]#*/}:${BASH_LINENO[0]}
+
+    echo "mark $* ($where)" >&$stdout_dup
+    for node in "${NODES[@]}"; do
+	echo "$timestamp mark $* ($where)" >> $DRBD_TEST_JOB/events-$node
+    done
+    on "${NODES[@]}" mark "$* ($where)" > /dev/null
+}
+
 # This is similar to bash's coproc command, except that the coproc command only
 # allows one coprocess at a time, and even then doesn't really seem to work as
 # described.

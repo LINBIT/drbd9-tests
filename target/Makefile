@@ -30,6 +30,7 @@ data_scripts := \
 	drbdadm \
 	install-config \
 	io-load-dd \
+	mark \
 	register-cleanup \
 	reset-iptables \
 	reset-rsyslogd \

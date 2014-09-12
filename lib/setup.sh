@@ -34,17 +34,17 @@ instantiate_template() {
     I[${#I[@]}]=$opt_template
     for node in "${NODES[@]}"; do
 	version=${params["$node:DRBD_MAJOR_VERSION"]}
-	[ -e $DRBD_TEST_JOB/drbd${version}.conf ] || \
+	[ -e $DRBD_LOG_DIR/drbd${version}.conf ] || \
 	do_debug $HERE/lib/instantiate-template \
-	    --sh-cfg=$DRBD_TEST_JOB/.drbd.conf.sh \
+	    --sh-cfg=$DRBD_LOG_DIR/.drbd.conf.sh \
 	    --drbd-major-version=$version "${I[@]}" \
-	    > $DRBD_TEST_JOB/drbd${version}.conf
+	    > $DRBD_LOG_DIR/drbd${version}.conf
     done
-    source $DRBD_TEST_JOB/.drbd.conf.sh
+    source $DRBD_LOG_DIR/.drbd.conf.sh
 }
 
 end_log_console() {
-    local logfile=$DRBD_TEST_JOB/console-$1.log
+    local logfile=$DRBD_LOG_DIR/console-$1.log
     screen -S console-$1 -p 0 -X stuff $'\c]'
     if grep --label="$1" --with-filename \
 	    -e 'BUG:' -e 'INFO:' -e 'general protection fault' -e 'ASSERTION' \
@@ -78,13 +78,12 @@ listen_to_events() {
     local resource=$1
     shift
     for node in "$@"; do
-	mkdir -p $DRBD_TEST_JOB
 	# set -- ssh -q root@$node drbdsetup events2 "$resource" \
 	set -- ssh -q root@$node drbdsetup events2 all \
 		--statistics \
 		--timestamps
 	debug "$node: $*"
-	"$@" > $DRBD_TEST_JOB/events-$node &
+	"$@" > $DRBD_LOG_DIR/events-$node &
 	echo $! > run/events-$node.pid
     done
 
@@ -95,9 +94,9 @@ write_status_file() {
     local status=$?
 
     if [ $status = 0 ]; then
-	touch $DRBD_TEST_JOB/test.ok
+	touch $DRBD_LOG_DIR/test.ok
     else
-	echo $status > $DRBD_TEST_JOB/test.failed
+	echo $status > $DRBD_LOG_DIR/test.failed
     fi
 }
 
@@ -282,7 +281,7 @@ setup() {
 
     if [ -z "$opt_job" ]; then
 	opt_job=${0##*test-}-$(date '+%Y%m%d-%H%M%S')
-	job_symlink=${0##*test-}-latest
+	job_symlink=${opt_job%-*-*}-latest
     fi
     [ ${#NODES} -gt 0 ] || setup_usage 1
     if [ -z "$RESOURCE" ]; then
@@ -293,19 +292,20 @@ setup() {
     export DRBD_TEST_JOB=$opt_job
     export EXXE_TIMEOUT=30
     export LOGSCAN_TIMEOUT=30
+    export DRBD_LOG_DIR=log/$DRBD_TEST_JOB
 
-    [ -n "$opt_silent" ] || echo "Logging to directory $DRBD_TEST_JOB"
-    mkdir "$DRBD_TEST_JOB"
+    [ -n "$opt_silent" ] || echo "Logging to directory $DRBD_LOG_DIR"
+    mkdir -p "$DRBD_LOG_DIR"
     if [ -n "$job_symlink" ]; then
-	rm -f "$job_symlink"
-	ln -s "$DRBD_TEST_JOB" "$job_symlink"
+	rm -f "log/$job_symlink"
+	ln -s "$DRBD_TEST_JOB" "log/$job_symlink"
     fi
 
     register_cleanup write_status_file
 
-    exec > >(tee -a $DRBD_TEST_JOB/test.log)
+    exec > >(tee -a $DRBD_LOG_DIR/test.log)
     register_cleanup kill $!
-    exec 2> >(tee -a $DRBD_TEST_JOB/test.log >&2)
+    exec 2> >(tee -a $DRBD_LOG_DIR/test.log >&2)
     register_cleanup kill $!
 
     # Duplicate stdout so that we can write to it even when file descriptor
@@ -328,7 +328,7 @@ setup() {
 		sleep 0.1
 	    done
 
-	    screen -S console-$node -p 0 -X logfile $DRBD_TEST_JOB/console-$node.log
+	    screen -S console-$node -p 0 -X logfile $DRBD_LOG_DIR/console-$node.log
 	    screen -S console-$node -p 0 -X log on
 	    verbose -n2 "$node: capturing console $console"
 	    register_cleanup end_log_console $node
@@ -356,14 +356,14 @@ setup() {
     listen_to_events "$RESOURCE" "${NODES[@]}"
 
     for node in "${NODES[@]}"; do
-	logfile=$DRBD_TEST_JOB/$node.log
+	logfile=$DRBD_LOG_DIR/$node.log
 	rm -f $logfile
     done
 
     local hostname=$(hostname -f)
 
     sed -e "s:@PORT@:$RSYSLOGD_PORT:g" \
-	-e "s:@SYSLOG_DIR@:$PWD/$DRBD_TEST_JOB:g" \
+	-e "s:@SYSLOG_DIR@:$PWD/$DRBD_LOG_DIR:g" \
 	-e "s:@SERVER@:${hostname%%.*}:g" \
 	lib/rsyslog.conf.in \
 	> run/rsyslog.conf
@@ -377,7 +377,7 @@ setup() {
 	# FIXME: If the hostname on the remote host does not match
 	# the name used here, we will loop here forever.  Fix this
 	# by configuring rsyslog on the node to use the right name?
-	logfile=$DRBD_TEST_JOB/$node.log
+	logfile=$DRBD_LOG_DIR/$node.log
 	i=0
 	while :; do
 	    (( ++i % 10 )) || echo "Waiting for $logfile to appear ..."
@@ -422,7 +422,7 @@ setup() {
     local version
     for node in "${NODES[@]}"; do
 	version=${params[$node:DRBD_MAJOR_VERSION]}
-	on -p $node install-config < $DRBD_TEST_JOB/drbd${version}.conf
+	on -p $node install-config < $DRBD_LOG_DIR/drbd${version}.conf
     done
     on "${NODES[@]}" register-cleanup -t bash -c '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'
 
@@ -471,14 +471,14 @@ setup() {
     done
 
     printf "1 0 events-%s\n" "${NODES[@]}" \
-	> $DRBD_TEST_JOB/.events.pos
+	> $DRBD_LOG_DIR/.events.pos
     set -- $(seq -f ".events-volume-%g.pos" $max_volume)
     for node in "${NODES[@]}"; do
 	set -- "$@" ".events-connection-$node.pos"
 	set -- "$@" $(seq -f ".events-peer-device-$node:%g.pos" $max_volume)
     done
     while [ $# -gt 0 ]; do
-	cp $DRBD_TEST_JOB/.events.pos "$DRBD_TEST_JOB/$1"
+	cp $DRBD_LOG_DIR/.events.pos "$DRBD_LOG_DIR/$1"
 	shift
     done
 

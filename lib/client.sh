@@ -75,7 +75,7 @@ mark() {
 
     echo "mark $* ($where)" >&$stdout_dup
     for node in "${NODES[@]}"; do
-	echo "$timestamp mark $* ($where)" >> $DRBD_TEST_JOB/events-$node
+	echo "$timestamp mark $* ($where)" >> $DRBD_LOG_DIR/events-$node
     done
     on "${NODES[@]}" mark "$* ($where)" > /dev/null
 }
@@ -119,7 +119,7 @@ on() {
 
     verbose -n2 "${procs[*]}: calling $@"
     for proc in "${procs[@]}"; do
-	eval "exxe \"\${options[@]}\" -i --logfile=\"\$DRBD_TEST_JOB/exxe-$proc.log\" \"\$@\" >&${COPROC_OUT[$proc]}"
+	eval "exxe \"\${options[@]}\" -i --logfile=\"\$DRBD_LOG_DIR/exxe-$proc.log\" \"\$@\" >&${COPROC_OUT[$proc]}"
     done
     for proc in "${procs[@]}"; do
 	if [ ${#procs[@]} -gt 1 ]; then
@@ -127,7 +127,7 @@ on() {
 	else
 	    prefix="--error-prefix=\"\$proc: \""
 	fi
-	eval "exxe -o $prefix --logfile=\"\$DRBD_TEST_JOB/exxe-$proc.log\" <&${COPROC_IN[$proc]}"
+	eval "exxe -o $prefix --logfile=\"\$DRBD_LOG_DIR/exxe-$proc.log\" <&${COPROC_IN[$proc]}"
 	status=$?
 	if [ $status != 0 ]; then
 	    verbose "$proc: $1 failed with status code $status"
@@ -161,7 +161,7 @@ event() {
 	    -p .events.pos
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB -w \
+    do_debug logscan -d $DRBD_LOG_DIR -w \
 		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
 		     "$@"
@@ -193,7 +193,7 @@ connection_event() {
 	    -f "peer:[^ :]*:${cfg[$RESOURCE:$1::peer]}"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB -w \
+    do_debug logscan -d $DRBD_LOG_DIR -w \
 		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
 		     "$@"
@@ -219,7 +219,7 @@ volume_event() {
 	    -f "volume:$volume"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB -w \
+    do_debug logscan -d $DRBD_LOG_DIR -w \
 		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
 		     "$@"
@@ -247,7 +247,7 @@ peer_device_event() {
 	    -f "volume:$volume"
 	shift
     done
-    do_debug logscan -d $DRBD_TEST_JOB -w \
+    do_debug logscan -d $DRBD_LOG_DIR -w \
 		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
 		     "$@"
@@ -302,8 +302,8 @@ sync_events() {
 
     if [ "${1:-node}" != "$LAST_EVENT_CLASS" ]; then
 	LAST_EVENT_CLASS=${1:-node}
-	do_debug logscan -d $DRBD_TEST_JOB --sync .*.pos
-	( cd $DRBD_TEST_JOB ; do_debug logscan --sync .*.pos )
+	do_debug logscan -d $DRBD_LOG_DIR --sync .*.pos
+	( cd $DRBD_LOG_DIR ; do_debug logscan --sync .*.pos )
     fi
 }
 
@@ -559,8 +559,8 @@ _fio() {
 
 	x=
 	while :; do
-	    job=$DRBD_TEST_JOB/fio-$node${section:+-$section}${x:+-$x}.fio
-	    log=$DRBD_TEST_JOB/fio-$node${section:+-$section}${x:+-$x}.log
+	    job=$DRBD_LOG_DIR/fio-$node${section:+-$section}${x:+-$x}.fio
+	    log=$DRBD_LOG_DIR/fio-$node${section:+-$section}${x:+-$x}.log
 	    [ -e "$job" -o -e "$log" ] || break
 	    ((++x))
 	done
@@ -589,14 +589,14 @@ _fio() {
 change_config() {
     local conf node version
 
-    for conf in $DRBD_TEST_JOB/drbd*.conf; do
+    for conf in $DRBD_LOG_DIR/drbd*.conf; do
 	if ! [ -e "$conf.orig" ]; then
 	    cp "$conf" "$conf.orig"
 	fi
 	"$@" < "$conf.orig" > "$conf"
 	for node in "${NODES[@]}"; do
 	    version=${params["$node:DRBD_MAJOR_VERSION"]}
-	    on -p $node install-config < $DRBD_TEST_JOB/drbd${version}.conf
+	    on -p $node install-config < $DRBD_LOG_DIR/drbd${version}.conf
 	done
     done
 }

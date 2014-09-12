@@ -20,10 +20,10 @@ cleanup() {
 	done ) >&2
     fi
     set +e
-    for cleanup in "${CLEANUP[@]}"; do
+    for ((n = ${#CLEANUP[@]} - 1; n >= 0; n--)); do
 	# Restore the $? variable for each cleanup task
 	( exit $status )
-	$cleanup
+	${CLEANUP[n]}
 	cleanup_status=$?
 	[ $status -ne 0 ] || status=$cleanup_status
     done

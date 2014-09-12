@@ -66,12 +66,15 @@ cleanup_events() {
 	# FIXME: kill and wait sometimes spit out job control messages like
 	# "$PID Terminated ..." even in a non-interactive shell.
 	wait "${pids[@]}" 2> /dev/null
-	rm -f "$@""$@"
+	rm -f "$@"
     fi
+    rmdir --ignore-fail-on-non-empty run
 }
 
 kill_rsyslogd() {
     kill $(cat run/rsyslogd.pid)
+    rm -f run/rsyslogd.pid run/rsyslog.conf
+    rmdir --ignore-fail-on-non-empty run
 }
 
 listen_to_events() {

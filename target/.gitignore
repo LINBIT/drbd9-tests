@@ -1,10 +1,13 @@
 /block-connection
+/change-config
 /cleanup
 /create-disk
-/drbdadm
 /drbd-test.sh
+/drbd-version
+/drbdadm
 /install-config
 /io-load-dd
+/mark
 /register-cleanup
 /reset-iptables
 /reset-rsyslogd

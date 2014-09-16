@@ -328,7 +328,7 @@ connect_to_nodes() {
 }
 
 block_connection() {
-    local node1=$1 node2=$2
+    local node1=${1%%:*} node2=${1#*:}
 
     on "$node1" block-connection \
        "${cfg[$RESOURCE:$node1:$node2::local]}" \
@@ -336,7 +336,7 @@ block_connection() {
 }
 
 unblock_connection() {
-    local node1=$1 node2=$2
+    local node1=${1%%:*} node2=${1#*:}
 
     on "$node1" unblock-connection \
        "${cfg[$RESOURCE:$node1:$node2::local]}" \

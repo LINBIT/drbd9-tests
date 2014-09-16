@@ -258,8 +258,7 @@ push_forbidden_patterns() {
 }
 
 pop_forbidden_patterns() {
-    local n=$((${#NEVER_MATCH[@]} - 1))
-    local opt_f
+    local n opt_f
 
     if [ "$1" = "-f" ]; then
 	opt_f=1
@@ -267,15 +266,18 @@ pop_forbidden_patterns() {
     fi
 
     while [ $# -gt 0 ]; do
-	if [ "${NEVER_MATCH[$n]}" = "$1" ]; then
-	    unset "NEVER_MATCH[$n]"
-	    (( n-- ))
-	elif [ -z "$opt_f" ]; then
-	    printf "$0: The last pattern on the stack is '%s', not '%s'\n" \
-		   "${NEVER_MATCH[$n]}" "$1" >&2
+	for ((n = ${#NEVER_MATCH[@]} - 1; n >= 0; n--)); do
+	    if [ "${NEVER_MATCH[n]}" = "$1" ]; then
+		unset "NEVER_MATCH[n]"
+		NEVER_MATCH=( "${NEVER_MATCH[@]}" )
+		shift
+		continue 2
+	    fi
+	done
+	if [ -z "$opt_f" ]; then
+	    printf "$0: Pattern '%s' not found on the stack\n" "$1" >&2
 	    exit 2
 	fi
-	shift
     done
 }
 
@@ -511,7 +513,9 @@ _initial_resync() {
 
 _down() {
     debug "$FUNCNAME $*"
-    pop_forbidden_patterns -f 'peer-disk:Failed' 'disk:Failed' 'connection:BrokenPipe'
+    pop_forbidden_patterns -f \
+	'connection:Timeout' \
+	'connection:BrokenPipe'
     on "${NODES[@]}" drbdadm down all
     event "${NODES[@]}" -y 'destroy resource'
 }

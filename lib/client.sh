@@ -430,9 +430,9 @@ _up() {
 	# like node failures, network errors, or disk failures.
 	push_forbidden_patterns \
 	    'connection:Timeout' \
-	    'connection:BrokenPipe' \
 	    'connection:NetworkFailure' \
 	    'connection:ProtocolError' \
+	    'connection:BrokenPipe' \
 	    'disk:Failed' \
 	    'peer-disk:Failed'
 	_UP_FORBIDDEN=1
@@ -511,7 +511,7 @@ _initial_resync() {
 
 _down() {
     debug "$FUNCNAME $*"
-    pop_forbidden_patterns -f 'peer-disk:Failed' 'disk:Failed'
+    pop_forbidden_patterns -f 'peer-disk:Failed' 'disk:Failed' 'connection:BrokenPipe'
     on "${NODES[@]}" drbdadm down all
     event "${NODES[@]}" -y 'destroy resource'
 }

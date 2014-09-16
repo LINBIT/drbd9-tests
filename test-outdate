@@ -25,6 +25,12 @@ on "$first_node" drbdadm secondary all
 event "$first_node" -y 'resource .* role:Secondary'
 connection_event $(all_connections_to $first_node) -y 'connection .* role:Secondary'
 
+# Remove forbidden patterns related to connection failures: this test case
+# exercises disconnects and connection failures.
+pop_forbidden_patterns \
+	'connection:Timeout' \
+	'connection:BrokenPipe'
+
 verbose "* Turn cluster into a chain of nodes."
 # FIXME: All disks must stay UpToDate ...
 #push_forbidden_patterns 'disk:(?!UpToDate)'
@@ -40,7 +46,14 @@ verbose "* See if node becomes UpToDate when connecting to the primary."
 _bidir_connect "$first_node:$last_node"
 volume_event $(all_volumes_on $last_node) -y 'device .* disk:UpToDate'
 
-verbose "* See if node becomes Outdated again when disconnecting from the primary."
+verbose "* See if node becomes Outdated when connection to primary is lost."
+block_connection "$first_node:$last_node"
+volume_event $(all_volumes_on $last_node) -y 'device .* disk:Outdated'
+
+unblock_connection "$first_node:$last_node"
+volume_event $(all_volumes_on $last_node) -y 'device .* disk:UpToDate'
+
+verbose "* See if node becomes Outdated when disconnecting from the primary."
 _bidir_disconnect "$first_node:$last_node"
 volume_event $(all_volumes_on $last_node) -y 'device .* disk:Outdated'
 

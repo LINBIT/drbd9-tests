@@ -98,8 +98,10 @@ write_status_file() {
 
     if [ $status = 0 ]; then
 	touch $DRBD_LOG_DIR/test.ok
+	verbose "Test succeeded."
     else
 	echo $status > $DRBD_LOG_DIR/test.failed
+	verbose "Test FAILED (log files in $DRBD_LOG_DIR)."
     fi
 }
 

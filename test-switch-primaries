@@ -1,0 +1,35 @@
+#! /bin/bash
+
+# Pass this script a list of host names to use as the test nodes.
+
+HERE=${0%/*}
+. $HERE/lib/setup.sh
+
+setup --min-nodes=1 "$@"
+
+on "${NODES[@]}" drbdadm up all
+connection_event "${CONNECTIONS[@]}" -y 'connection .* role:Secondary'
+
+push_forbidden_patterns \
+    'connection:Timeout' \
+    'connection:ProtocolError'
+
+# Note: this test can easily be modified to test auto-promote instead.
+
+opt_force=--force
+for ((i = 0; i < 100; i++)); do
+    node=${NODES[RANDOM % ${#NODES[@]}]}
+    on $node drbdadm $opt_force primary all
+    opt_force=
+    event $node -y 'resource .* role:Primary'
+    on $node drbdadm secondary all
+done
+
+# Note: this test does not define any devices, so disconnecting does not
+# require a two-phase commit.  The peer of a disconnecting node will only
+# notice a socket close.
+
+on "${NODES[@]}" drbdadm down all
+event "${NODES[@]}" -y 'destroy resource'
+
+_rmmod

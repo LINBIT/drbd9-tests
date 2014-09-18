@@ -148,12 +148,13 @@ declare -a NEVER_MATCH
 #
 event() {
     local -a nodes
-    local node
+    local node have_nodes
 
     verbose "Waiting for event$(printf " %q" "$@")"
     sync_events node
     while :; do
 	[ -n "${COPROC_PID[$1]}" ] || break
+	have_nodes=1
 	node=$1
 	set -- "$@" \
 	    events-$node \
@@ -161,6 +162,7 @@ event() {
 	    -p .events.pos
 	shift
     done
+    [ -z "$have_nodes" ] || \
     do_debug logscan -d $DRBD_LOG_DIR -w \
 		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
@@ -177,12 +179,13 @@ event() {
 # connections.)
 #
 connection_event() {
-    local n1 n2
+    local n1 n2 have_connections
 
     verbose "Waiting for event$(printf " %q" "$@")"
     sync_events connection
     while :; do
 	[ -n "${CONNECTIONS[$1]}" ] || break
+	have_connections=1
 	n1=${1%%:*}
 	n2=${1#*:}
 	set -- "$@" \
@@ -193,6 +196,7 @@ connection_event() {
 	    -f "peer:[^ :]*:${cfg[$RESOURCE:$1::peer]}"
 	shift
     done
+    [ -z "$have_connections" ] || \
     do_debug logscan -d $DRBD_LOG_DIR -w \
 		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
@@ -204,12 +208,13 @@ connection_event() {
 # USAGE: volume_event {node:volume} [ ... {node:volume} ] {logscan options}
 #
 volume_event() {
-    local node volume
+    local node volume have_volumes
 
     verbose "Waiting for event$(printf " %q" "$@")"
     sync_events volume
     while :; do
 	[ -n "${DEFINED_NODES[${1%:*}]}" ] || break
+	have_volumes=1
 	node=${1%:*}
 	volume=${1##*:}
 	set -- "$@" \
@@ -219,6 +224,7 @@ volume_event() {
 	    -f "volume:$volume"
 	shift
     done
+    [ -z "$have_volumes" ] || \
     do_debug logscan -d $DRBD_LOG_DIR -w \
 		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \
@@ -230,13 +236,14 @@ volume_event() {
 # Usage: peer_device_event {node1:node2:volume} [ ... {node1:node2:volume} ] {logscan options}
 #
 peer_device_event() {
-    local nodes n1 n2 volume
+    local nodes n1 n2 volume have_peer_devices
 
     verbose "Waiting for event$(printf " %q" "$@")"
     sync_events peer_device
     while :; do
 	nodes=${1%:*}; n1=${nodes%:*}; n2=${nodes#*:}
 	[ -n "${DEFINED_NODES[$n1]}" -a -n "${DEFINED_NODES[$n2]}" ] || break
+	have_peer_devices=1
 	volume=${1##*:}
 	set -- "$@" \
 	    events-$n1 \
@@ -247,6 +254,7 @@ peer_device_event() {
 	    -f "volume:$volume"
 	shift
     done
+    [ -z "$have_peer_devices" ] || \
     do_debug logscan -d $DRBD_LOG_DIR -w \
 		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
 		     "${NEVER_MATCH[@]/#/-N}" \

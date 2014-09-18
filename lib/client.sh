@@ -506,17 +506,17 @@ _initial_resync() {
     # By default, sync from the first node
     [ $# -gt 0 ] || set -- "${NODES[0]}"
 
-    local -a volumes
+    local -a peer_devices
     local node
 
     # Use unlimited resync bandwidth
     on "${NODES[@]}" drbdadm disk-options --c-min-rate=0 all
 
     nodes=( $(all_nodes_except "$1") )
-    for node in ${nodes[@]}; do
-	volumes=( "${volumes[@]}" ${VOLUMES[$node]} )
+    for node in ${NODES[@]}; do
+	peer_devices=( "${peer_devices[@]}" ${PEER_DEVICES[$node]} )
     done
-    volume_event "${volumes[@]}" --timeout=300 -y 'device .* disk:UpToDate'
+    peer_device_event "${peer_devices[@]}" --timeout=300 -y 'peer-device .* replication:Established'
 }
 
 _down() {

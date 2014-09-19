@@ -538,7 +538,7 @@ _rmmod() {
 _fio() {
     local options=`getopt -o -h --long jobfile:,section: -- "$@"`
     eval set -- "$options"
-    local jobfile=target/write-verify.fio.in section nodes_volumes
+    local jobfile=$HERE/target/write-verify.fio.in section nodes_volumes
     local node_volume node volume device x job log status
 
     debug "$FUNCNAME $*"

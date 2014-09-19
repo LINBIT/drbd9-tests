@@ -41,9 +41,9 @@ instantiate_template() {
     shift
     local TMPL_DEFS="$(m4_define "$@")"
 
-    do_debug m4 -P -I lib/m4 \
+    do_debug m4 -P -I $HERE/m4 \
 	-D TMPL_DEFS="$TMPL_DEFS" \
-	preamble.m4 "$TMPL"
+	$HERE/m4/preamble.m4 "$TMPL"
 }
 
 assign_addresses() {

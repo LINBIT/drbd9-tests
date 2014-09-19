@@ -140,7 +140,7 @@ setup() {
 
     declare opt_create_md=1 opt_job= opt_volume_group=scratch
     declare opt_min_nodes=2 opt_max_nodes=32 opt_only_setup= job_symlink= max_volume=0
-    declare opt_template=lib/m4/template.conf.m4
+    declare opt_template=$HERE/lib/m4/template.conf.m4
     declare -a INSTANTIATE
     local logfile n
     RESOURCE=
@@ -368,9 +368,9 @@ setup() {
     local hostname=$(hostname -f)
 
     sed -e "s:@PORT@:$RSYSLOGD_PORT:g" \
-	-e "s:@SYSLOG_DIR@:$PWD/$DRBD_LOG_DIR:g" \
+	-e "s:@SYSLOG_DIR@:$(readlink -f $DRBD_LOG_DIR):g" \
 	-e "s:@SERVER@:${hostname%%.*}:g" \
-	lib/rsyslog.conf.in \
+	$HERE/lib/rsyslog.conf.in \
 	> run/rsyslog.conf
     rsyslogd -c5 -i $PWD/run/rsyslogd.pid -f $PWD/run/rsyslog.conf
     register_cleanup kill_rsyslogd

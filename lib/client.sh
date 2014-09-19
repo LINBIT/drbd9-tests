@@ -516,7 +516,8 @@ _initial_resync() {
     for node in ${NODES[@]}; do
 	peer_devices=( "${peer_devices[@]}" ${PEER_DEVICES[$node]} )
     done
-    peer_device_event "${peer_devices[@]}" --timeout=300 -y 'peer-device .* replication:Established'
+    peer_device_event "${peer_devices[@]}" --timeout=300 \
+	-y 'peer-device .* peer-disk:UpToDate'
 }
 
 _down() {

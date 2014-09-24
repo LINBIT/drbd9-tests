@@ -33,9 +33,9 @@ pop_forbidden_patterns \
 
 verbose "* Turn cluster into a chain of nodes."
 # FIXME: All disks must stay UpToDate ...
-#push_forbidden_patterns 'disk:(?!UpToDate)'
+#push_forbidden_patterns 'disk:(?!UpToDate).*'
 _disconnect $(all_connections_except "${chain[@]}")
-#pop_forbidden_patterns 'disk:(?!UpToDate)'
+#pop_forbidden_patterns 'disk:(?!UpToDate).*'
 
 verbose "* Make a node primary and see if volumes on weak nodes become Outdated."
 on "$first_node" drbdadm primary all
@@ -47,11 +47,15 @@ _bidir_connect "$first_node:$last_node"
 volume_event $(all_volumes_on $last_node) -y 'device .* disk:UpToDate'
 
 verbose "* See if node becomes Outdated when connection to primary is lost."
+pop_forbidden_patterns \
+	'connection:NetworkFailure'
 block_connection "$first_node:$last_node"
 volume_event $(all_volumes_on $last_node) -y 'device .* disk:Outdated'
 
 unblock_connection "$first_node:$last_node"
 volume_event $(all_volumes_on $last_node) -y 'device .* disk:UpToDate'
+push_forbidden_patterns \
+	'connection:NetworkFailure'
 
 verbose "* See if node becomes Outdated when disconnecting from the primary."
 _bidir_disconnect "$first_node:$last_node"

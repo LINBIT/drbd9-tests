@@ -1,0 +1,63 @@
+#! /bin/bash
+# Pass this script a list of host names to use as the test nodes.
+
+# https://bugs.linbit/cgi-bin/bugzilla/show_bug.cgi?id=540
+
+HERE=${0%/*}
+. $HERE/lib/setup.sh
+
+setup --min-nodes=3 "$@"
+
+err=0
+A=${NODES[0]}
+B=${NODES[1]}
+C=${NODES[2]}
+
+
+_up $A
+_force_primary $A
+_secondary $A
+#_connect $(all_connections_from $A)
+
+
+block_connection $B:$C
+
+
+_up $B
+#_connect $B:$A
+on $A drbdsetup status
+on $B drbdsetup status
+connection_event "$B:$A" -y 'connection .* connection:Connected'
+_primary $B
+_secondary $B
+
+
+_up $C
+#_connect $C:$A
+connection_event "$C:$A" -y 'connection .* connection:Connected'
+
+
+old_uuid=$(_get_uuid $B)
+echo "got uuid $old_uuid"
+_primary $B
+volume_event $(all_volumes_on $C) -y 'device .* disk:Outdated'
+_secondary $B
+sleep 1
+_primary $B
+# Notice that no new UUID was generated!!
+new_uuid=$(_get_uuid $B)
+echo "got uuid $new_uuid"
+_secondary $B
+
+sleep 1
+# Notice that C stays outdated!
+volume_event $(all_volumes_on $C) -y 'device .* disk:Outdated'
+
+_down
+_rmmod
+
+if [[ "$new_uuid" == "$old_uuid" ]] ; then
+	echo "WE WANT A NEW UUID"
+	err=1
+fi
+exit $err

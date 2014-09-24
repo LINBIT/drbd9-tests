@@ -13,7 +13,7 @@ _initial_resync
 on ${NODES[0]} drbdadm secondary all
 
 # Switching roles must not cause any more resyncs:
-push_forbidden_patterns \
+add_forbidden_patterns \
 	'replication:.*'
 
 # Note: this test can easily be modified to test auto-promote instead.
@@ -29,7 +29,7 @@ done
 # require a two-phase commit.  The peer of a disconnecting node will only
 # notice a socket close.
 
-pop_forbidden_patterns -f \
+remove_forbidden_patterns -f \
 	'connection:NetworkFailure' \
 	'replication:.*'
 

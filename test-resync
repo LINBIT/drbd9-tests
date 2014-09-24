@@ -123,9 +123,9 @@ done
 test_log asserting no resync "${newly_established_connections[@]}"
 
 newly_established_vols="${newly_established_connections[@]/%/:1}"
-push_forbidden_patterns 'peer-disk:SyncSource' 'peer-disk:SyncTarget'
+add_forbidden_patterns 'peer-disk:SyncSource' 'peer-disk:SyncTarget'
 peer_device_event ${newly_established_vols[@]} -y 'peer-device .* replication:Established'
-pop_forbidden_patterns 'peer-disk:SyncTarget' 'peer-disk:SyncSource'
+remove_forbidden_patterns 'peer-disk:SyncTarget' 'peer-disk:SyncSource'
 
 # FIXME: verify the disk contents!
 

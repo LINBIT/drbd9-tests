@@ -136,7 +136,7 @@ on() {
     done
 }
 
-declare -a NEVER_MATCH
+declare -A NEVER_MATCH
 
 # Match an event on one or more nodes
 #
@@ -261,29 +261,29 @@ peer_device_event() {
 		     "$@"
 }
 
-push_forbidden_patterns() {
-    NEVER_MATCH=("${NEVER_MATCH[@]}" "$@")
+add_forbidden_patterns() {
+    local pattern
+
+    for pattern in "$@"; do
+	verbose -n3 "Adding forbidden pattern $pattern"
+	NEVER_MATCH[$pattern]=$pattern
+    done
 }
 
-pop_forbidden_patterns() {
-    local n opt_f
+remove_forbidden_patterns() {
+    local pattern opt_f
 
     if [ "$1" = "-f" ]; then
 	opt_f=1
 	shift
     fi
 
-    while [ $# -gt 0 ]; do
-	for ((n = ${#NEVER_MATCH[@]} - 1; n >= 0; n--)); do
-	    if [ "${NEVER_MATCH[n]}" = "$1" ]; then
-		unset "NEVER_MATCH[n]"
-		NEVER_MATCH=( "${NEVER_MATCH[@]}" )
-		shift
-		continue 2
-	    fi
-	done
-	if [ -z "$opt_f" ]; then
-	    printf "$0: Pattern '%s' not found on the stack\n" "$1" >&2
+    for pattern in "$@"; do
+	if [ -n "NEVER_MATCH[$pattern]" ]; then
+	    verbose -n3 "Removing forbidden pattern $pattern"
+	    unset "NEVER_MATCH[$pattern]"
+	elif [ -z "$opt_f" ]; then
+	    printf "$0: Forbidden pattern '%s' not found\n" "$pattern" >&2
 	    exit 2
 	fi
     done
@@ -438,7 +438,7 @@ _up() {
     if [ -z "$_UP_FORBIDDEN" ]; then
 	# These error states must never occur unless a test case simulates things
 	# like node failures, network errors, or disk failures.
-	push_forbidden_patterns \
+	add_forbidden_patterns \
 	    'connection:Timeout' \
 	    'connection:NetworkFailure' \
 	    'connection:ProtocolError' \
@@ -522,7 +522,7 @@ _initial_resync() {
 
 _down() {
     debug "$FUNCNAME $*"
-    pop_forbidden_patterns -f \
+    remove_forbidden_patterns -f \
 	'connection:Timeout' \
 	'connection:BrokenPipe'
     on "${NODES[@]}" drbdadm down all

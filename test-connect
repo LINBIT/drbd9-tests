@@ -10,7 +10,7 @@ setup "$@"
 on "${NODES[@]}" drbdadm up all
 connection_event "${CONNECTIONS[@]}" -y 'connection .* role:Secondary'
 
-push_forbidden_patterns \
+add_forbidden_patterns \
     'connection:Timeout' \
     'connection:ProtocolError'
 

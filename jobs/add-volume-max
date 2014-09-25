@@ -1,0 +1,3 @@
+[ $MAX_NODES = 1 ] || want_nodes=$MAX_NODES
+
+test-add-volume "$@"

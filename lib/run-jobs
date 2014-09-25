@@ -1,0 +1,98 @@
+#! /bin/bash
+
+# Job files are first called without arguments to evaluate how the job should
+# be run.  They should set the want_nodes variable.  Unknown commands are
+# ignored.
+#
+# Then, they are called again but with the names of the nodes the job should
+# run on, and possibly with additional options.
+
+HERE=${0%/*}
+. $HERE/jobs.sh
+
+usage() {
+    [ $1 -eq 0 ] || exec >&2
+    echo "USAGE: ${0##*/} [options] {node} ... -- {job-file} ..."
+    exit $1
+}
+
+options=`getopt -o -hdv --long jobs:,logdir:,debug,verbose,help -- "$@"` || usage 1
+eval set -- "$options"
+
+declare -a NODES pass_through
+declare opt_jobs= LOG_DIR= jobs_symlink=
+
+while :; do
+    case "$1" in
+    --jobs)
+	opt_jobs=$2
+	shift
+	;;
+    --logdir)
+	LOG_DIR=$2
+	shift
+	;;
+    -d|--debug|-v|--verbose)
+	pass_through[${#pass_through[@]}]=$1
+	;;
+    -h|--help)
+	usage 0
+	;;
+    --)
+	shift
+	break
+	;;
+    *)
+	NODES[${#NODES[@]}]=$1
+	;;
+    esac
+    shift
+done
+
+[ ${#NODES[@]} -gt 0 ] || usage 1
+
+if [ -z "$opt_jobs" ]; then
+    opt_jobs=jobs-$(date '+%Y%m%d-%H%M%S')
+fi
+
+if [ -z "$LOG_DIR" ]; then
+    LOG_DIR=log/$opt_jobs
+    jobs_symlink=log/jobs-latest
+fi
+
+mkdir -p $LOG_DIR
+
+if [ -n "$jobs_symlink" ]; then
+    mkdir -p $LOG_DIR
+    rm -f "$jobs_symlink"
+    ln -s "$opt_jobs" "$jobs_symlink"
+fi
+
+exec > >(tee -a $LOG_DIR/jobs.log)
+
+export MAX_NODES=${#NODES[@]}
+
+declare num_jobs=0 num_succeeded=0 num_failed=0 num_skipped=0
+for job in "$@"; do
+    (( ++num_jobs ))
+    if ! analyze_job "$job" || [ -z "$want_nodes" ]; then
+	echo "$job: SKIPPING"
+	(( ++num_skipped ))
+    elif [ "$want_nodes" -gt "$MAX_NODES" ]; then
+	echo "$job: SKIPPING: Requires $want_nodes nodes; we only have $MAX_NODES"
+	(( ++num_skipped ))
+    else
+	if run_job "$job" "$want_nodes"; then
+	    (( ++num_succeeded ))
+	else
+	    (( ++num_failed ))
+	fi
+    fi
+done
+
+echo -n "$num_succeeded jobs succeeded"
+[ $num_skipped = 0 ] || echo -n ", $num_skipped jobs skipped"
+[ $num_failed = 0 ] || echo -n ", $num_skipped jobs FAILED"
+echo
+
+[ $num_failed = 0 ] || exit 1

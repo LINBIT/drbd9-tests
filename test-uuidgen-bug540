@@ -6,7 +6,7 @@
 HERE=${0%/*}
 . $HERE/lib/setup.sh
 
-setup --min-nodes=3 "$@"
+setup --nodes=3 "$@"
 
 err=0
 A=${NODES[0]}

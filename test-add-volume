@@ -11,7 +11,7 @@
 HERE=${0%/*}
 . $HERE/lib/setup.sh
 
-setup --disk=10M --disk=10M "$@"
+setup --min-nodes=1 --disk=10M --disk=10M "$@"
 
 # Hide volume 1 from drbd.conf
 hide_volumes "${NODES[@]/%/:1}"

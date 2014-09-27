@@ -135,10 +135,10 @@ declare -A cfg
 setup() {
     local options
 
-    options=`getopt -o -svdh --long job:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,no-rmmod,help,verbose::,debug::,silent -- "$@"` || setup_usage 1
+    options=`getopt -o -svdh --long job:,logdir:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,no-rmmod,help,verbose::,debug::,silent -- "$@"` || setup_usage 1
     eval set -- "$options"
 
-    declare opt_create_md=1 opt_job= opt_volume_group=scratch
+    declare opt_create_md=1 opt_job= opt_logdir= opt_volume_group=scratch
     declare opt_min_nodes=2 opt_max_nodes=32 opt_only_setup= job_symlink= max_volume=0
     declare opt_template=$HERE/lib/m4/template.conf.m4
     declare -a INSTANTIATE
@@ -183,6 +183,10 @@ setup() {
 	    ;;
 	--job)
 	    opt_job=$2
+	    shift
+	    ;;
+	--logdir)
+	    opt_logdir=$2
 	    shift
 	    ;;
 	--volume-group)
@@ -286,6 +290,9 @@ setup() {
 
     if [ -z "$opt_job" ]; then
 	opt_job=${0##*test-}-$(date '+%Y%m%d-%H%M%S')
+    fi
+    if [ -z "$opt_logdir" ]; then
+	opt_logdir=log/$opt_job
 	job_symlink=${opt_job%-*-*}-latest
     fi
     [ ${#NODES} -gt 0 ] || setup_usage 1
@@ -297,7 +304,7 @@ setup() {
     export DRBD_TEST_JOB=$opt_job
     export EXXE_TIMEOUT=30
     export LOGSCAN_TIMEOUT=30
-    export DRBD_LOG_DIR=log/$DRBD_TEST_JOB
+    export DRBD_LOG_DIR=$opt_logdir
 
     [ -n "$opt_silent" ] || echo "Logging to directory $DRBD_LOG_DIR"
     mkdir -p "$DRBD_LOG_DIR"

@@ -49,7 +49,7 @@ while :; do
     shift
 done
 
-[ ${#NODES[@]} -gt 0 ] || usage 1
+[ ${#NODES[@]} -gt 0 -a $# -gt 0 ] || usage 1
 
 if [ -z "$opt_jobs" ]; then
     opt_jobs=jobs-$(date '+%Y%m%d-%H%M%S')

@@ -1,3 +1,5 @@
+* FIXME: Check for ntp on the test nodes and the client
+
 * Add a protocol option to logscan that shows which patterns have matched /
   have not matched in which files in which lines.
 

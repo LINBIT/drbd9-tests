@@ -45,7 +45,7 @@ execute various commands on them as defined by the test.  All the test results
 are collected on the coordinator.  The coordinator is also where the test suite
 checks for various DRBD state transitions to occur.  By default, each test run
 is assigned a job name which consists of the base name of the test, with a
-timestamp appended: the test-connect test would log into directory
+timestamp appended: the tests/connect test would log into directory
 connect-20131015-173644/, for example.  The following files can be found there:
 
   drbd.conf: the DRBD configuration file used on all nodes.
@@ -110,5 +110,5 @@ Serial Consoles
 Examples
 
   cd client
-  ./test-connect tick trick track
-  ./test-initial-sync --verbose --disk=100M jekyll hyde
+  tests/connect tick trick track
+  tests/initial-sync --verbose --disk=100M jekyll hyde

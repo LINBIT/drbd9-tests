@@ -2,8 +2,8 @@
 
 # Pass this script two host names to use as the test nodes.
 
-HERE=${0%/*}
-. $HERE/lib/setup.sh
+TOP=${0%/*}/..
+. $TOP/lib/setup.sh
 
 setup --nodes=2 "$@"
 

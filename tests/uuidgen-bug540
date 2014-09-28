@@ -3,8 +3,8 @@
 
 # https://bugs.linbit/cgi-bin/bugzilla/show_bug.cgi?id=540
 
-HERE=${0%/*}
-. $HERE/lib/setup.sh
+TOP=${0%/*}/..
+. $TOP/lib/setup.sh
 
 setup --nodes=3 "$@"
 

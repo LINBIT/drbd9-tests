@@ -29,7 +29,7 @@ run_job() {
 
     echo -n "Running job $job on $want_nodes nodes - "
     err=$(bash -c '
-	export PATH='"$HERE/.."':$PATH
+	export PATH='"$TOP/tests"':$PATH
 	source "'"$job"'"
 	' "$job" "${pass_through[@]}" --logdir=$LOG_DIR/${job##*/} "${nodes[@]}" > /dev/null 2>&1)
     status=${PIPESTATUS[0]}

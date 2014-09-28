@@ -1,8 +1,8 @@
 #! /bin/bash
 
-HERE=${0%/*}
-. $HERE/params.sh
-. $HERE/client.sh
+: ${TOP:=${0%/*}/..}
+. $TOP/lib/params.sh
+. $TOP/lib/client.sh
 
 m4_define() {
     local name array key
@@ -41,9 +41,9 @@ instantiate_template() {
     shift
     local TMPL_DEFS="$(m4_define "$@")"
 
-    do_debug m4 -P -I $HERE/m4/ \
+    do_debug m4 -P -I $TOP/lib/m4/ \
 	-D TMPL_DEFS="$TMPL_DEFS" \
-	$HERE/m4/preamble.m4 "$TMPL"
+	$TOP/lib/m4/preamble.m4 "$TMPL"
 }
 
 assign_addresses() {

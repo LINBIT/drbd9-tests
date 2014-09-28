@@ -7,8 +7,8 @@
 # Then, they are called again but with the names of the nodes the job should
 # run on, and possibly with additional options.
 
-HERE=${0%/*}
-. $HERE/jobs.sh
+: ${TOP:=${0%/*}/..}
+. $TOP/lib/jobs.sh
 
 usage() {
     [ $1 -eq 0 ] || exec >&2

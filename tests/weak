@@ -5,8 +5,8 @@ test_log() {
     on "${NODES[@]}" logger "$@"
 }
 
-HERE=${0%/*}
-. $HERE/lib/setup.sh
+TOP=${0%/*}/..
+. $TOP/lib/setup.sh
 
 setup --min-nodes=3 --disk=10M "$@"
 

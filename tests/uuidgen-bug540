@@ -40,7 +40,7 @@ connection_event "$C:$A" -y 'connection .* connection:Connected'
 old_uuid=$(_get_uuid $B)
 echo "got uuid $old_uuid"
 _primary $B
-volume_event $(all_volumes_on $C) -y 'device .* disk:Outdated'
+volume_event $(volumes_on $C) -y 'device .* disk:Outdated'
 _secondary $B
 sleep 1
 _primary $B
@@ -51,7 +51,7 @@ _secondary $B
 
 sleep 1
 # Notice that C stays outdated!
-volume_event $(all_volumes_on $C) -y 'device .* disk:Outdated'
+volume_event $(volumes_on $C) -y 'device .* disk:Outdated'
 
 _down
 _rmmod

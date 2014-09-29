@@ -413,7 +413,7 @@ reverse_connections() {
     done
 }
 
-all_volumes_on() {
+volumes_on() {
     local node
     for node in "$@"; do
 	printf ' %q' ${VOLUMES[$node]}

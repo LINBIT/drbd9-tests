@@ -42,30 +42,30 @@ _disconnect $(all_connections_except "${chain[@]}")
 verbose "* Make a node primary and see if volumes on weak nodes become Outdated."
 on "$first_node" drbdadm primary all
 weak_nodes=( $(all_nodes_except $first_node ${NODES[1]}) )
-volume_event $(all_volumes_on "${weak_nodes[@]}") -y 'device .* disk:Outdated'
+volume_event $(volumes_on "${weak_nodes[@]}") -y 'device .* disk:Outdated'
 
 verbose "* See if node becomes UpToDate when connecting to the primary."
 _bidir_connect "$first_node:$last_node"
-volume_event $(all_volumes_on $last_node) -y 'device .* disk:UpToDate'
+volume_event $(volumes_on $last_node) -y 'device .* disk:UpToDate'
 
 verbose "* See if node becomes Outdated when connection to primary is lost."
 remove_forbidden_patterns \
 	'connection:NetworkFailure'
 block_connection "$first_node:$last_node"
-volume_event $(all_volumes_on $last_node) -y 'device .* disk:Outdated'
+volume_event $(volumes_on $last_node) -y 'device .* disk:Outdated'
 
 unblock_connection "$first_node:$last_node"
-volume_event $(all_volumes_on $last_node) -y 'device .* disk:UpToDate'
+volume_event $(volumes_on $last_node) -y 'device .* disk:UpToDate'
 add_forbidden_patterns \
 	'connection:NetworkFailure'
 
 verbose "* See if node becomes Outdated when disconnecting from the primary."
 _bidir_disconnect "$first_node:$last_node"
-volume_event $(all_volumes_on $last_node) -y 'device .* disk:Outdated'
+volume_event $(volumes_on $last_node) -y 'device .* disk:Outdated'
 
 verbose "* Turn primary into secondary and see if previously weak nodes become UpToDate."
 on "$first_node" drbdadm secondary all
-volume_event $(all_volumes_on "${weak_nodes[@]}") -y 'device .* disk:UpToDate'
+volume_event $(volumes_on "${weak_nodes[@]}") -y 'device .* disk:UpToDate'
 
 _down
 _rmmod

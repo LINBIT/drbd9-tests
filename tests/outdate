@@ -1,5 +1,7 @@
 #! /bin/bash
 
+# FIXME: Verify the disk contents as well!
+
 TOP=${0%/*}/..
 . $TOP/lib/setup.sh
 

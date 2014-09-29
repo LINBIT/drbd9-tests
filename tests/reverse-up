@@ -8,15 +8,14 @@ TOP=${0%/*}/..
 setup --disk=10M "$@"
 
 first_node="${NODES[0]}"
-first_volumes=( ${VOLUMES[$first_node]} )
 other_nodes=( $(all_nodes_except "$first_node") )
-other_volumes=( $(all_volumes_except ${first_volumes[@]}) )
+other_volumes=( $(all_volumes_except $(volumes_on "$first_node")) )
 
 on "${NODES[@]}" drbdadm new-resource all
 on "${NODES[@]}" drbdadm connect all
 # FIXME: It may be interesting to add volume(s) without waiting
 # for the connections to be established first.
-connection_event "${CONNECTIONS[@]}" -y 'connection .* connection:Connected'
+_wait_connected
 
 on "${NODES[@]}" drbdadm new-minor all
 
@@ -29,7 +28,7 @@ peer_device_event ${PEER_DEVICES[@]} -y 'peer-device .* peer-disk:Diskless'
 
 on "$first_node" drbdadm attach all
 # The node doing the attach first goes straight to Inconsistent
-volume_event "${first_volumes[@]}" -y 'device .* disk:Inconsistent'
+volume_event $(volumes_on "$first_node") -y 'device .* disk:Inconsistent'
 
 # The other nodes that see that will go though Negotiating first
 volume_event "${other_volumes[@]}" -y 'peer-device .* peer-disk:Inconsistent'

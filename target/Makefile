@@ -26,8 +26,10 @@ data_scripts := \
 	block-connection \
 	cleanup \
 	create-disk \
+	disable-faults \
 	drbd-version \
 	drbdadm \
+	enable-faults \
 	install-config \
 	io-load-dd \
 	mark \

@@ -1,0 +1,49 @@
+#! /bin/bash
+
+# enable-faults [--faults=MASK] [--rate=RATE] --devs=MASK
+
+parms=/sys/module/drbd/parameters
+
+options=`getopt -o h --long faults:,rate:,devs: -- "$@"`
+eval set -- "$options"
+
+usage() {
+    echo "USAGE: ${0##*/} [--faults=MASK] [--rate=RATE] --devs=MASK" >&2
+    exit 1
+}
+
+declare opt_faults=255 opt_rate=10 opt_devs=0
+while :; do
+    case "$1" in
+    --faults|--rate|--devs)
+	eval "opt_${1#--}=\$2"
+	shift
+	;;
+    --)
+	shift
+	break
+	;;
+    *)
+	usage
+	;;
+    esac
+    shift
+done
+
+[ $# -eq 0 -a $opt_devs != 0 ] || usage
+
+if ! [ -e $parms/enable_faults -a -e $parms/fault_rate -a -e $parms/fault_devs ]; then
+    echo "${0##*/}: Fault injection parameters not found in $parms; is the drbd" \
+	 "kernel module compiled with CONFIG_DRBD_FAULT_INJECTION enabled?" >&2
+    exit 1
+fi
+
+previous_devs=$(< $parms/fault_devs)
+if [ $previous_devs -ne 0 -a $previous_devs -ne $opt_devs ]; then
+    echo "WARNING: Fault injection was already enabled for device mask $previous_devs; resetting" >&2
+    echo 0 > $parms/fault_devs
+fi
+
+echo $opt_faults > $parms/enable_faults
+echo $opt_rate > $parms/fault_rate
+echo $opt_devs > $parms/fault_devs

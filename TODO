@@ -1,3 +1,5 @@
+* Copy the test script into the log directory as well
+
 * FIXME: Check for ntp on the test nodes and the client
 
 * Add a protocol option to logscan that shows which patterns have matched /

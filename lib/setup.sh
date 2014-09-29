@@ -358,6 +358,8 @@ setup() {
 	on "${NODES[@]}" onexit cleanup
     fi
 
+    on "${NODES[@]}" disable-faults
+
     mkdir -p run
 
     listen_to_events "$RESOURCE" "${NODES[@]}"

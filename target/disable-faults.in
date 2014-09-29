@@ -8,7 +8,7 @@ options=`getopt -o h --long devs: -- "$@"`
 eval set -- "$options"
 
 usage() {
-    echo "USAGE: ${0##*/} --devs=MASK" >&2
+    echo "USAGE: ${0##*/} [--devs=MASK]" >&2
     exit 1
 }
 
@@ -30,7 +30,7 @@ while :; do
     shift
 done
 
-[ $# -eq 0 -a $opt_devs != 0 ] || usage
+[ $# -eq 0 ] || usage
 
 if ! [ -e $parms/enable_faults -a -e $parms/fault_rate -a -e $parms/fault_devs ]; then
     echo "${0##*/}: Fault injection parameters not found in $parms; is the drbd" \

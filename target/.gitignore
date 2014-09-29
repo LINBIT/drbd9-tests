@@ -2,9 +2,11 @@
 /change-config
 /cleanup
 /create-disk
+/disable-faults
 /drbd-test.sh
 /drbd-version
 /drbdadm
+/enable-faults
 /install-config
 /io-load-dd
 /mark

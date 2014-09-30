@@ -406,7 +406,8 @@ setup() {
     done
 
     # FIXME: The disks could be created in parallel ...
-    local disk device have_disks
+    local disk device
+    local -A have_disks
     for node_name in "${!params[@]}"; do
 	node=${node_name%%:*}
 	name=${node_name#*:}
@@ -414,13 +415,17 @@ setup() {
 	DISK_SIZE*|META_SIZE*)
 	    size=${params["$node_name"]}
 	    disk=${name/_SIZE}
-	    device=$(on $node create-disk \
-		--job=$opt_job \
-		--volume-group=$opt_volume_group \
-		--size=$size $DRBD_TEST_JOB-${disk,,})
-	    verbose "$node: disk $device created ($size)"
+	    if [ ${name:0:4} = DISK -a "$size" = none ]; then
+		device=none
+	    else
+		device=$(on $node create-disk \
+		    --job=$opt_job \
+		    --volume-group=$opt_volume_group \
+		    --size=$size $DRBD_TEST_JOB-${disk,,})
+		verbose "$node: disk $device created ($size)"
+		have_disks[$node]=1
+	    fi
 	    params["$node:$disk"]="$device"
-	    have_disks=1
 	    unset params["$node_name"]
 	    ;;
 	esac
@@ -435,12 +440,14 @@ setup() {
     done
     on "${NODES[@]}" register-cleanup -t bash -c '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'
 
-    if [ -n "$opt_create_md" -a -n "$have_disks" ]; then
+    if [ -n "$opt_create_md" ]; then
 	for node in "${NODES[@]}"; do
-	    msg=$(on $node drbdadm -- --force create-md "$RESOURCE" 2>&1) || status=$?
-	    if [ -n "$status" ]; then
-		echo "$msg" >&2
-		exit $status
+	    if [ -n "${have_disks[$node]}" ]; then
+		msg=$(on $node drbdadm -- --force create-md "$RESOURCE" 2>&1) || status=$?
+		if [ -n "$status" ]; then
+		    echo "$msg" >&2
+		    exit $status
+		fi
 	    fi
 	done
     fi

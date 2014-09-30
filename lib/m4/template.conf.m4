@@ -6,10 +6,15 @@ resource RESOURCE {
 m4_foreachq(`NODE', m4_quote(NODES),
 `	on HOSTNAME(NODE) {
 m4_foreachq(`VOLUME', m4_quote(VOLUMES),
-`		volume VOLUME {
+`m4_dnl
+m4_define(`a_disk',DISK(NODE))m4_dnl
+m4_define(`a_meta',META(NODE))m4_dnl
+		volume VOLUME {
 			device DEVICE(NODE);
-			disk DISK(NODE);
-			meta-disk m4_default(META(NODE),`internal');
+			disk a_disk;
+m4_ifelse(a_disk, `none', `',
+`			meta-disk m4_default(a_meta,`internal');
+')m4_dnl
 		}
 ')m4_dnl
 m4_ifelse(DRBD_MAJOR_VERSION, `8', `',

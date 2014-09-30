@@ -160,7 +160,7 @@ EOF
 options=`getopt -o h --long resource:,node:,hostname:,device:,disk:,meta:,node-id:,address:,drbd-major-version:,debug,port:,sh-cfg:,help -- "$@"` || usage 1
 eval set -- "$options"
 
-opt_debug=
+declare opt_debug= opt_debug1=
 declare DRBD_MAJOR_VERSION= RESOURCE= opt_sh_cfg=
 declare -A NODE_ID ADDRESS
 opt_port=7789
@@ -172,6 +172,7 @@ while :; do
 	;;
     --debug)
 	opt_debug=1
+	opt_debug1=1
 	;;
     --port)
 	opt_port=$2

@@ -104,6 +104,13 @@ assign_devices() {
     done
 }
 
+define_node_array() {
+    local n = 0
+    for node in "${NODES[@]}"; do
+	NODE[$((n++))]=$node
+    done
+}
+
 defined() {
     declare -p "$1" > /dev/null 2> /dev/null
 }
@@ -242,10 +249,13 @@ for node_name in "${!params[@]}"; do
     "
 done
 
+declare -A NODE
+define_node_array
+
 VOLUMES=(${!DISK*})
 VOLUMES=("${VOLUMES[@]/#DISK}")
 for template in "$@"; do
-    instantiate_template "$template" RESOURCE NODES VOLUMES NODE_ID ADDRESS DRBD_MAJOR_VERSION HOSTNAME ${!DEVICE*} ${!DISK*} ${!META*}
+    instantiate_template "$template" RESOURCE NODE NODES VOLUMES NODE_ID ADDRESS DRBD_MAJOR_VERSION HOSTNAME ${!DEVICE*} ${!DISK*} ${!META*}
 done
 
 if [ -n "$opt_sh_cfg" ]; then

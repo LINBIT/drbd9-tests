@@ -21,8 +21,6 @@ run_job() {
     local job=$1 want_nodes=$2 n status
     local -a nodes
 
-    # FIXME: common timestamp and log directory; log into subdirectories
-
     for ((n = 0; n < want_nodes; n++)); do
 	nodes[${#nodes[@]}]=${NODES[n]}
     done

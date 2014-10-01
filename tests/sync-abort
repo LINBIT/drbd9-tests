@@ -8,15 +8,13 @@ TOP=${0%/*}/..
 setup --disk=10M "$@"
 
 first_node="${NODES[0]}"
-first_volumes=( ${VOLUMES[$first_node]} )
-other_nodes=( $(all_nodes_except "$first_node") )
-other_volumes=( $(all_volumes_except ${first_volumes[@]}) )
+other_volumes=( $(all_volumes_except $(volumes_on $first_node) )
 
 on "$first_node" drbdadm up all
 on "$first_node" drbdadm primary --force all
 event "$first_node" -y 'resource .* role:Primary'
 
-volume_event "${first_volumes[@]}" -y 'device .* disk:UpToDate'
+volume_event $(volumes_on $first_node) -y 'device .* disk:UpToDate'
 
 # Note: this check does NOT wait for the resync to be finished!
 # (This was a mistake in the test, but it turned out that aborting

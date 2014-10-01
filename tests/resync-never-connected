@@ -1,0 +1,50 @@
+#! /bin/bash
+# Pass this script three host names to use as the test nodes.
+
+#
+# Create a chain of 3 nodes: A - B - C
+#
+# Ensure that C gets D_UP_TO_DATE after A was temporarily Primary.
+# Repeatedly.
+#
+# The point of the test is, that A recognises the finished resync
+# from B to C though A was never connected to C. I.e. it does not
+# has a bitmap slot for C allocated.
+#
+# See also https://bugs.linbit/cgi-bin/bugzilla/show_bug.cgi?id=540
+
+TOP=${0%/*}/..
+. $TOP/lib/setup.sh
+
+setup --nodes=3 --disk=10M "$@"
+
+A=${NODES[0]}
+B=${NODES[1]}
+C=${NODES[2]}
+
+on "${NODES[@]}" drbdadm new-resource $RESOURCE
+on "${NODES[@]}" drbdadm new-minor $RESOURCE
+on "${NODES[@]}" drbdadm attach $RESOURCE
+_connect $A:$B $B:$A $B:$C $C:$B
+
+peer_device_event "$A:$B:1" -y 'peer-device .* replication:Established'
+
+_force_primary $A
+_secondary $A
+
+peer_device_event "$A:$B:1" -y 'peer-device .* replication:Established'
+volume_event $B:1 -y 'device .* disk:UpToDate'
+
+volume_event $C:1 -y 'device .* disk:UpToDate'
+
+for ((i=0 ; i < 2 ; i++)); do
+    _primary $A
+    volume_event $C:1 -y 'device .* disk:Outdated'
+    _secondary $A
+    volume_event $C:1 -y 'device .* disk:UpToDate'
+done
+
+#todo write a few bytes while primary. ensure they reach $C
+
+_down
+_rmmod

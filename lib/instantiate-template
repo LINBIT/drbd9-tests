@@ -105,7 +105,7 @@ assign_devices() {
 }
 
 define_node_array() {
-    local n = 0
+    local n=0
     for node in "${NODES[@]}"; do
 	NODE[$((n++))]=$node
     done

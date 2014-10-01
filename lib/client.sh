@@ -450,7 +450,11 @@ _up() {
 
 _wait_connected() {
     debug "$FUNCNAME $*"
-    connection_event "${CONNECTIONS[@]}" -y 'connection .* connection:Connected'
+
+    # By default, use all connections
+    [ $# -ge 1 ] || set -- "${CONNECTIONS[@]}"
+
+    connection_event "$@" -y 'connection .* connection:Connected'
 }
 
 _connect() {

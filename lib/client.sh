@@ -511,6 +511,7 @@ _primary() {
     on "$1" drbdadm primary all
     event "$1" -y 'resource .* role:Primary'
 }
+
 _secondary() {
     debug "$FUNCNAME $*"
 
@@ -520,15 +521,6 @@ _secondary() {
     on "$1" drbdadm secondary all
     event "$1" -y 'resource .* role:Secondary'
 }
-_get_uuid() {
-    debug "$FUNCNAME $*"
-
-    # By default, use the first node
-    [ $# -ge 1 ] || set -- "${NODES[0]}"
-
-    on "$1" drbdadm get-gi all | cut -f1 -d:
-}
-
 
 _initial_resync() {
     debug "$FUNCNAME $*"

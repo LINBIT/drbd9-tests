@@ -431,9 +431,15 @@ _up() {
     # By default, take all nodes up
     [ $# -gt 0 ] || set -- "${NODES[@]}"
 
-    local volumes
+    local -a volumes
+    local node volume device
     for node in "$@"; do
-	volumes=( "${volumes[@]}" ${VOLUMES[$node]} )
+	# Skip diskless volumes
+	for volume in $(volumes_on "$node"); do
+	    device=${params[${volume/:/:DISK}]}
+	    [ "$device" = none ] || \
+		volumes[${#volumes[@]}]=$volume
+	done
     done
 
     on "$@" drbdadm up all

@@ -128,9 +128,9 @@ declare RESOURCE=
 declare -A cfg
 
 setup() {
-    local options
+    local options opt_eval
 
-    options=`getopt -o -svdh --long job:,logdir:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,no-rmmod,help,verbose::,debug::,silent -- "$@"` || setup_usage 1
+    options=`getopt -o -svdh --long job:,logdir:,volume-group:,resource:,node:,device:,disk:,meta:,node-id:,address:,no-create-md,port:,template:,cleanup:,min-nodes:,max-nodes:,nodes:,console:,vconsole,only-setup,no-rmmod,help,verbose::,debug::,silent,eval: -- "$@"` || setup_usage 1
     eval set -- "$options"
 
     declare opt_create_md=1 opt_job= opt_logdir= opt_volume_group=scratch
@@ -255,6 +255,10 @@ setup() {
 	--no-rmmod)
 	    NO_RMMOD=1
 	    ;;
+	--eval)
+	    opt_eval=$2
+	    shift
+	    ;;
 	--)
 	    shift
 	    break
@@ -267,6 +271,10 @@ setup() {
     done
 
     unset_generic_node_params
+
+    if [ -n "$opt_eval" ]; then
+	eval "$opt_eval" || setup_usage 1
+    fi
 
     if [ "$opt_min_nodes" -eq "$opt_max_nodes" ]; then
 	[ ${#NODES[@]} -eq $opt_min_nodes ] ||

@@ -10,15 +10,6 @@ register_cleanup() {
 cleanup() {
     local cleanup status=$? cleanup_status n file line
 
-    if [ $status -ne 0 ]; then
-	( echo
-	echo "Backtrace:"
-	for ((n = 2; n < ${#BASH_SOURCE[@]}; n++)); do
-	    file=${BASH_SOURCE[$n]}
-	    line=${BASH_LINENO[$n - 1]}
-	    sed -ne "${line}s,^[ \\t]*,  $file:$line: ,p" "$file"
-	done ) >&2
-    fi
     set +e
     for ((n = ${#CLEANUP[@]} - 1; n >= 0; n--)); do
 	# Restore the $? variable for each cleanup task
@@ -29,6 +20,20 @@ cleanup() {
     done
 }
 trap cleanup EXIT
+
+backtrace() {
+    local status=$?
+
+    if [ $status -ne 0 ]; then
+	( echo
+	echo "Backtrace:"
+	for ((n = 2; n < ${#BASH_SOURCE[@]}; n++)); do
+	    file=${BASH_SOURCE[$n]}
+	    line=${BASH_LINENO[$n - 1]}
+	    sed -ne "${line}s,^[ \\t]*,  $file:$line: ,p" "$file"
+	done ) >&2
+    fi
+}
 
 tmpdir=$(mktemp -dt)
 register_cleanup 'rm -rf "$tmpdir"'

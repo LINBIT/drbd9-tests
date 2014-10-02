@@ -308,6 +308,7 @@ setup() {
 	ln -s "$DRBD_TEST_JOB" "log/$job_symlink"
     fi
 
+    register_cleanup backtrace
     register_cleanup write_status_file
 
     exec > >(tee -a $DRBD_LOG_DIR/test.log)

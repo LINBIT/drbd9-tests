@@ -196,7 +196,7 @@ setup() {
 	    opt_template=$2
 	    ;;
 	--node)
-	    new_node "$2"
+	    new_node "$2" || setup_usage 1
 	    shift
 	    ;;
 	--disk|--meta)
@@ -260,7 +260,7 @@ setup() {
 	    break
 	    ;;
 	*)
-	    new_node "$1"
+	    new_node "$1" || setup_usage 1
 	    ;;
 	esac
 	shift

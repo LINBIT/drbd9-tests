@@ -17,6 +17,7 @@ new_node() {
     local name
 
     node=$1
+    [ -n "$node" ] || return 1
     DEFINED_NODES[$node]=${#NODES[@]}
     NODES=("${NODES[@]}" "$node")
     param_count=()

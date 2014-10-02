@@ -49,7 +49,7 @@ add_node_param() {
     params["$node:$name$count"]="$value"
 }
 
-unset_all_node_params() {
+unset_generic_node_params() {
     local node_name node
 
     for node_name in "${!params[@]}"; do

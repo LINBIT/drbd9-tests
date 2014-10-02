@@ -266,7 +266,7 @@ setup() {
 	shift
     done
 
-    unset_all_node_params
+    unset_generic_node_params
 
     if [ "$opt_min_nodes" -eq "$opt_max_nodes" ]; then
 	[ ${#NODES[@]} -eq $opt_min_nodes ] ||

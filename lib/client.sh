@@ -143,6 +143,13 @@ on() {
 
 declare -A NEVER_MATCH
 
+check_node() {
+    if [ -z "$1" -o -z "${DEFINED_NODES[$1]}" ]; then
+	echo "Unknown node '$1'" >&2
+	exit 1
+    fi
+}
+
 # Match an event on one or more nodes
 #
 # USAGE: event {node} [... {node}] {logscan options}
@@ -152,13 +159,12 @@ declare -A NEVER_MATCH
 # list of defined nodes; use this to iterate over all nodes.)
 #
 event() {
-    local -a nodes
+    local -a nodes args=("$@")
     local node have_nodes
 
-    verbose "Waiting for event$(printf " %q" "$@")"
-    sync_events node
     while :; do
-	[ -n "${COPROC_PID[$1]}" ] || break
+	[ "${1:0:1}" != - ] || break
+	check_node "$1"
 	have_nodes=1
 	node=$1
 	set -- "$@" \
@@ -167,11 +173,14 @@ event() {
 	    -p .events.pos
 	shift
     done
-    [ -z "$have_nodes" ] || \
-    do_debug logscan -d $DRBD_LOG_DIR -w \
-		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
-		     "${NEVER_MATCH[@]/#/-N}" \
-		     "$@"
+    if [ -n "$have_nodes" ]; then
+	verbose "Waiting for event$(printf " %q" "${args[@]}")"
+	sync_events node
+	do_debug logscan -d $DRBD_LOG_DIR -w \
+			 ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
+			 "${NEVER_MATCH[@]/#/-N}" \
+			 "$@"
+    fi
 }
 
 # Match an event on one or more nodes
@@ -184,15 +193,16 @@ event() {
 # connections.)
 #
 connection_event() {
+    local -a args=("$@")
     local n1 n2 have_connections
 
-    verbose "Waiting for event$(printf " %q" "$@")"
-    sync_events connection
     while :; do
-	[ -n "${CONNECTIONS[$1]}" ] || break
-	have_connections=1
+	[ "${1:0:1}" != - ] || break
 	n1=${1%%:*}
 	n2=${1#*:}
+	check_node "$n1"
+	check_node "$n2"
+	have_connections=1
 	set -- "$@" \
 	    events-$n1 \
 	    --label="$1" \
@@ -201,11 +211,14 @@ connection_event() {
 	    -f "peer:[^ :]*:${cfg[$RESOURCE:$1::peer]}"
 	shift
     done
-    [ -z "$have_connections" ] || \
-    do_debug logscan -d $DRBD_LOG_DIR -w \
-		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
-		     "${NEVER_MATCH[@]/#/-N}" \
-		     "$@"
+    if [ -n "$have_connections" ]; then
+	verbose "Waiting for event$(printf " %q" "${args[@]}")"
+	sync_events connection
+	do_debug logscan -d $DRBD_LOG_DIR -w \
+			 ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
+			 "${NEVER_MATCH[@]/#/-N}" \
+			 "$@"
+    fi
 }
 
 # Match an event on one or more nodes and volumes
@@ -213,14 +226,14 @@ connection_event() {
 # USAGE: volume_event {node:volume} [ ... {node:volume} ] {logscan options}
 #
 volume_event() {
+    local -a args=("$@")
     local node volume have_volumes
 
-    verbose "Waiting for event$(printf " %q" "$@")"
-    sync_events volume
     while :; do
-	[ -n "${DEFINED_NODES[${1%:*}]}" ] || break
-	have_volumes=1
+	[ "${1:0:1}" != - ] || break
 	node=${1%:*}
+	check_node "$node"
+	have_volumes=1
 	volume=${1##*:}
 	set -- "$@" \
 	    events-$node \
@@ -229,11 +242,14 @@ volume_event() {
 	    -f "volume:$volume"
 	shift
     done
-    [ -z "$have_volumes" ] || \
-    do_debug logscan -d $DRBD_LOG_DIR -w \
-		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
-		     "${NEVER_MATCH[@]/#/-N}" \
-		     "$@"
+    if [ -n "$have_volumes" ]; then
+	verbose "Waiting for event$(printf " %q" "${args[@]}")"
+	sync_events volume
+	do_debug logscan -d $DRBD_LOG_DIR -w \
+			 ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
+			 "${NEVER_MATCH[@]/#/-N}" \
+			 "$@"
+    fi
 }
 
 # Match an event on one or more peer devices
@@ -241,13 +257,14 @@ volume_event() {
 # Usage: peer_device_event {node1:node2:volume} [ ... {node1:node2:volume} ] {logscan options}
 #
 peer_device_event() {
+    local -a args=("$@")
     local nodes n1 n2 volume have_peer_devices
 
-    verbose "Waiting for event$(printf " %q" "$@")"
-    sync_events peer_device
     while :; do
+	[ ${1:0:1} != - ] || break
 	nodes=${1%:*}; n1=${nodes%:*}; n2=${nodes#*:}
-	[ -n "${DEFINED_NODES[$n1]}" -a -n "${DEFINED_NODES[$n2]}" ] || break
+	check_node "$n1"
+	check_node "$n2"
 	have_peer_devices=1
 	volume=${1##*:}
 	set -- "$@" \
@@ -259,11 +276,14 @@ peer_device_event() {
 	    -f "volume:$volume"
 	shift
     done
-    [ -z "$have_peer_devices" ] || \
-    do_debug logscan -d $DRBD_LOG_DIR -w \
-		     ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
-		     "${NEVER_MATCH[@]/#/-N}" \
-		     "$@"
+    if [ -n "$have_peer_devices" ]; then
+	verbose "Waiting for event$(printf " %q" "${args[@]}")"
+	sync_events peer_device
+	do_debug logscan -d $DRBD_LOG_DIR -w \
+			 ${opt_silent:+--silent} ${opt_verbose2:+--verbose} \
+			 "${NEVER_MATCH[@]/#/-N}" \
+			 "$@"
+    fi
 }
 
 add_forbidden_patterns() {
@@ -510,7 +530,16 @@ _force_primary() {
 
     on "$1" drbdadm primary --force all
     event "$1" -y 'resource .* role:Primary'
-    volume_event ${VOLUMES[$1]} -y 'device .* disk:UpToDate'
+
+    local -a volumes
+    local volume device
+    # Skip diskless volumes
+    for volume in $(volumes_on "$1"); do
+	device=${params[${volume/:/:DISK}]}
+	[ "$device" = none ] || \
+	    volumes[${#volumes[@]}]=$volume
+    done
+    volume_event ${volumes[@]} -y 'device .* disk:UpToDate'
 }
 
 _primary() {

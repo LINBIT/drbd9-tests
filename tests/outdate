@@ -60,7 +60,7 @@ add_forbidden_patterns \
 	'connection:NetworkFailure'
 
 verbose "* See if node becomes Outdated when disconnecting from the primary."
-_bidir_disconnect "$first_node:$last_node"
+_disconnect_nowait "$first_node:$last_node" "$last_node:$first_node"
 volume_event $(volumes_on $last_node) -y 'device .* disk:Outdated'
 
 verbose "* Turn primary into secondary and see if previously weak nodes become UpToDate."

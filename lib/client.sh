@@ -470,7 +470,7 @@ _bidir_connect() {
     _connect "$@" $(reverse_connections "$@")
 }
 
-_disconnect() {
+_disconnect_nowait() {
     local n1 n2
 
     debug "$FUNCNAME $*"
@@ -480,11 +480,11 @@ _disconnect() {
 	on "$n1" drbdadm disconnect $RESOURCE:${params["$n2:FULL_HOSTNAME"]}
 	unset CONNECTIONS["$connection"]
     done
-    connection_event "$@" -y 'connection .* connection:StandAlone'
 }
 
-_bidir_disconnect() {
-    _disconnect "$@" $(reverse_connections "$@")
+_disconnect() {
+    _disconnect_nowait "$@"
+    connection_event "$@" -y 'connection .* connection:StandAlone'
 }
 
 _force_primary() {

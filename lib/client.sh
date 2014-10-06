@@ -802,3 +802,76 @@ hide_volumes() {
 	}
 	' "${fullnames_volumes[@]}"
 }
+
+# The errexit option is only effective in basic commands, not in boolean
+# expressions or conditionals.  Because of that, we cannot simply assert that a
+# command fails with "! command" or similar.  This limitation of errexit is by
+# design and cannot simply be "fixed" in bash.
+#
+# The _expect_failure() function can be used as a workaround -- unfortunately,
+# this also only works when _expect_failure is used as a basic command.
+#
+try() {
+    set -o errtrace
+    trap 'return $?' ERR
+    trap 'trap - ERR; set +o errtrace' RETURN
+    "$@"
+}
+
+_expect_failure() {
+    local status errexit_on
+
+    if [ $- != ${-/e} ]; then
+	errexit_on=1
+	set +o errexit
+    fi
+    try "$@"
+    status=$?
+    [ -z "$errexit_on" ] || set -o errexit
+    (( !status ))
+}
+
+# Create a background process with an open file descriptor to write to that
+# process.  Returns the file descriptor number in the variable named $1, and
+# the pid of the background process in the variable named $2.  The process
+# and its arguments are defined in $3 ...
+bg_filter() {
+    local wr=$1 pid=$2 fifo n=10 wr_fd
+
+    shift 2
+    while :; do
+	fifo=$(mktemp -u ${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX)
+	! mkfifo "$fifo" 2> /dev/null || break
+	if ! $((n--));  then
+	    ! mkfifo "$fifo" || break
+	    exit 1
+	fi
+    done
+    "$@" < $fifo &
+    exec {wr_fd}> "$fifo"
+    rm -f "$fifo"
+    eval "$wr=\$wr_fd; $pid=$!"
+}
+
+# Expect a command to fail.
+# Prefix standard and error output with '> '.
+expect_failure() {
+    local status=0 out out_pid
+    local errexit_on
+
+    # because writing to the pipe is not line buffered, we will not immediately
+    # see the output.  Also, it makes no sense to keep standard output and
+    # standard error separated -- the result wouldn't be in a reasonable order.
+
+    [ $- = ${-/e} ] || errexit_on=1
+    verbose -n2 "Expecting '$*' to fail"
+    bg_filter out out_pid \
+	sed -e 's:^:> :'
+    set +o errexit
+    eval "_expect_failure \"\$@\" >&$out $stdout_dup>&$out 2>&$out"
+    status=$?
+    eval exec "$out>&-"
+    wait $out_pid
+    [ -z "$errexit_on" ] || set -o errexit
+    (( status ))
+}

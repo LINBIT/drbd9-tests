@@ -1,0 +1,51 @@
+#! /bin/bash
+
+# Pass this script a list of host names to use as the test nodes.
+# Named this way to avoid a conflict with the "drbdmanage" executable.
+
+TOP=${0%/*}/..
+. $TOP/lib/setup.sh
+
+setup --min-nodes 1 "$@"
+
+
+first_node="${NODES[0]}"
+other_nodes="${NODES[@]:1}"
+
+
+result=$(on "$first_node" drbdmanage ping)
+if [[ "x$result" != "xpong" ]] ; then
+        skip_test "no drbdmanage available?"
+fi
+
+
+ignore() {
+	true # ignore things to do
+}
+run_it() {
+	"$@"
+}
+serialize="${serialize:-run_it}"
+
+
+# $ADDRESS is not exported, and gets calculated only in assign_addresses().
+
+on "$first_node" drbdmanage init "$(gethostip -d "$first_node")" --quiet
+
+for h in $other_nodes ; do
+        i="$(gethostip -d "$h")"
+
+        echo -e "\n\n\n=========== host $h ... $i\n\n"
+
+        drbdmanage nn "$h" "$i"
+        $serialize sleep 1
+
+        ssh -oBatchMode=yes "$h" -- $(drbdmanage howto-join "$h") --quiet
+        $serialize sleep 1
+
+        $serialize drbdadm wait-sync .drbdctrl
+        $serialize sleep 1
+done
+
+_down
+_rmmod

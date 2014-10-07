@@ -502,4 +502,5 @@ setup() {
     #if [ "$opt_cleanup" = "success" ]; then
     #	on "${NODES[@]}" cleanup
     #fi
+    date "+%s.%N" > "$DRBD_LOG_DIR/setup.done"
 }

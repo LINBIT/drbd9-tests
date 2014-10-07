@@ -1,4 +1,4 @@
 # The case with two nodes is already covered by reverse-up-2
-[ $MAX_NODES = 2 ] || want_nodes=$MAX_NODES
+[ "$MAX_NODES" = 2 ] || want_nodes="$MAX_NODES"
 
 reverse-up "$@"

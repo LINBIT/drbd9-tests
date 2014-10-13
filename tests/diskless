@@ -69,7 +69,7 @@ for ((n = 0; n < ${#diskful_nodes[@]} - 1; n++)); do
     node=${diskful_nodes[n]}
     _disconnect "$diskless_node:$node"
 done
-expect_failure _disconnect "$diskless_node:${diskful_nodes[-1]}"
+expect_failure _disconnect "$diskless_node:${diskful_nodes[@]:(-1)}"
 _secondary $diskless_node
 connection_event $(all_connections_to "$diskless_node") -y 'connection .* role:Secondary'
 

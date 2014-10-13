@@ -8,7 +8,7 @@ TOP=${0%/*}/..
 setup --min-nodes=3 --disk=10M "$@"
 
 first_node=${NODES[0]}
-last_node=${NODES[-1]}
+last_node=${NODES[@]:(-1)}
 
 # List of connections that form a chain, for example,
 #   ( A:B B:C C:D D:E )

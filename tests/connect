@@ -1,24 +1,23 @@
-#! /bin/bash
+#! /usr/bin/env python
 
 # Pass this script a list of host names to use as the test nodes.
 
-TOP=${0%/*}/..
-. $TOP/lib/setup.sh
+from python import drbdtest
 
-setup "$@"
+resource = drbdtest.setup()
 
-on "${NODES[@]}" drbdadm up all
-connection_event "${CONNECTIONS[@]}" -y 'connection .* role:Secondary'
+resource.nodes.up()
+resource.connections.event(r'connection .* role:Secondary')
 
-add_forbidden_patterns \
-    'connection:Timeout' \
-    'connection:ProtocolError'
+resource.forbidden_patterns.update([
+    r'connection:Timeout',
+    r'connection:ProtocolError',
+])
 
 # Note: this test does not define any devices, so disconnecting does not
 # require a two-phase commit.  The peer of a disconnecting node will only
 # notice a socket close.
 
-on "${NODES[@]}" drbdadm down all
-event "${NODES[@]}" -y 'destroy resource'
+resource.nodes.down()
 
-_rmmod
+resource.nodes.run(['rmmod', 'drbd'])

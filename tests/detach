@@ -38,7 +38,7 @@ on "${other_nodes[@]}" drbdadm detach $RESOURCE/1
 volume_event "${other_nodes[@]/%/:1}" -y 'device .* disk:Diskless'
 
 on "${other_nodes[@]}" drbdadm del-minor $RESOURCE/1
-volume_event "${other_nodes}:1" -y 'destroy device'
+volume_event "${other_nodes[@]/%/:1}" -y 'destroy device'
 
 
 # Part 2, test new-minor & attach

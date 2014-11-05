@@ -5,13 +5,16 @@ set -e
 
 usage() {
     [ $1 -eq 0 ] || exec >&2
-    echo "USAGE: ${0##*/} [--volume-group=volume-group] [--size=size] [--job=job-name] volume-name"
+    echo "USAGE: ${0##*/} [--internal-meta|--external-meta] [--max-peers=N] [--volume-group=volume-group] [--size=size] [--job=job-name] volume-name"
     exit $1
 }
 
-options=`getopt -o h --long volume-group:,size:,job:,help -- "$@"` || usage 1
+options=`getopt -o h --long internal-meta,external-meta,max-peers:,volume-group:,size:,job:,help -- "$@"` || usage 1
 eval set -- "$options"
 
+opt_internal_meta=
+opt_external_meta=
+opt_max_peers=1
 opt_volume_group=
 opt_size=
 opt_job=
@@ -20,6 +23,18 @@ while :; do
     case "$1" in
     -h|--help)
 	usage 0
+	;;
+    --internal-meta)
+	opt_internal_meta=1
+	opt_external_meta=
+	;;
+    --external-meta)
+	opt_internal_meta=
+	opt_external_meta=1
+	;;
+    --max-peers)
+	opt_max_peers=$2
+	shift
 	;;
     --volume-group)
 	opt_volume_group=$2
@@ -47,4 +62,21 @@ opt_name=$1
 
 doit lvcreate --size "$opt_size" --name "$opt_name" "$opt_volume_group" > /dev/null
 register_cleanup -- lvremove -f "$opt_volume_group/$opt_name"
-echo "/dev/$opt_volume_group/$opt_name"
+dev=/dev/$opt_volume_group/$opt_name
+status=0
+if [ -n "$opt_internal_meta" ]; then
+    msg=$(doit drbdmeta -f - v09 "$dev" internal create-md $opt_max_peers 2>&1) || status=$?
+    if [ $status -ne 0 ]; then
+	echo "$msg" >&2
+	exit $status
+    fi
+    # FIXME: Add support for other meta-data versions ...
+elif [ -n "$opt_external_meta" ]; then
+    msg=$(doit drbdmeta -f - v09 "$dev" flex-external create-md $opt_max_peers 2>&1) || status=$?
+    if [ $status -ne 0 ]; then
+	echo "$msg" >&2
+	exit $status
+    fi
+    # FIXME: Add support for other meta-data versions ...
+fi
+echo "$dev"

@@ -137,7 +137,7 @@ setup() {
     declare opt_min_nodes=2 opt_max_nodes=32 opt_only_setup= job_symlink= max_volume=0
     declare opt_template=$TOP/lib/m4/template.conf.m4
     declare -a INSTANTIATE
-    local logfile n
+    local logfile n meta
     RESOURCE=
     NO_RMMOD=
 
@@ -427,7 +427,18 @@ setup() {
 	    if [ ${name:0:4} = DISK -a "$size" = none ]; then
 		device=none
 	    else
+		meta=
+		if [ -n "$opt_create_md" ]; then
+		    if [ ${name:0:4} = DISK -a -z "${params[${name/DISK/META}]}" ]; then
+			meta=--internal-meta
+		    elif [ ${name:0:4} = META -a -z "${params[${name/META/DISK}]}" ]; then
+			meta=--external-meta
+		    fi
+		    [ -z "$meta" ] || meta="$meta --max-peers=$((${#NODES[@]} - 1))"
+		fi
+
 		device=$(on $node create-disk \
+		    $meta \
 		    --job=$opt_job \
 		    --volume-group=$opt_volume_group \
 		    --size=$size $DRBD_TEST_JOB-${disk,,})
@@ -448,18 +459,6 @@ setup() {
 	on -p $node install-config < $DRBD_LOG_DIR/drbd${version}.conf
     done
     on "${NODES[@]}" register-cleanup -t bash -c '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'
-
-    if [ -n "$opt_create_md" ]; then
-	for node in "${NODES[@]}"; do
-	    if [ -n "${have_disks[$node]}" ]; then
-		msg=$(on $node drbdadm -- --force create-md "$RESOURCE" 2>&1) || status=$?
-		if [ -n "$status" ]; then
-		    echo "$msg" >&2
-		    exit $status
-		fi
-	    fi
-	done
-    fi
 
     for n1 in "${NODES[@]}"; do
 	for n2 in "${NODES[@]}"; do

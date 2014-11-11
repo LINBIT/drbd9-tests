@@ -6,7 +6,6 @@ set -e
 CONF=/etc/rsyslog.d/forward.conf
 SERVER=$1
 PORT=$2
-HOSTNAME=$3
 
 status=
 msg=$(ping -c1 -w2 "$SERVER" 2>&1) || status=$?
@@ -19,7 +18,6 @@ fi
 rm -f "$CONF"
 sed -e "s:@PORT@:$PORT:g" \
     -e "s:@SERVER@:$SERVER:g" \
-    -e "s:@HOSTNAME@:$HOSTNAME:g" \
     @DRBD_TEST_DATA@/rsyslog-forward.conf.in \
     > "$CONF"
 register_cleanup -t -- reset-rsyslogd "$CONF"

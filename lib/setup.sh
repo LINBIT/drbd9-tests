@@ -388,7 +388,7 @@ setup() {
     rsyslogd -c5 -i $PWD/run/rsyslogd.pid -f $PWD/run/rsyslog.conf
     register_cleanup kill_rsyslogd
 
-    on "${NODES[@]}" rsyslogd $hostname $RSYSLOGD_PORT $node
+    on "${NODES[@]}" rsyslogd $hostname $RSYSLOGD_PORT
     on "${NODES[@]}" logger "Setting up test job $DRBD_TEST_JOB"
 
     for node in "${NODES[@]}"; do

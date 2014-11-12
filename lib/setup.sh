@@ -52,7 +52,7 @@ cleanup_events() {
     local -a pids
 
     shopt -s nullglob
-    set -- run/events-*.pid
+    set -- run/events-*.pid run/console-*.pid
     if [ $# -gt 0 ]; then
 	pids=( $(cat "$@") )
 	kill "${pids[@]}" 2> /dev/null
@@ -332,6 +332,16 @@ setup() {
 	node=${node_name%%:*}
 	name=${node_name#*:}
 	case "$name" in
+	CONSOLE)
+	    console=${params["$node_name"]}
+	    if ! [ -r "$console" ]; then
+		echo "Cannot read from console $console of node $node" >&2
+		exit 1
+	    fi
+	    verbose -n2 "$node: capturing console $console"
+	    cat "$console" > $DRBD_TEST_JOB/console-$node.log &
+	    echo $! > run/console-$node.pid
+	    ;;
 	VCONSOLE)
 	    # Check if a virtual machine called "$node" exists -- otherwise we
 	    # would loop forever below.
@@ -346,7 +356,7 @@ setup() {
 
 	    screen -S console-$node -p 0 -X logfile $DRBD_LOG_DIR/console-$node.log
 	    screen -S console-$node -p 0 -X log on
-	    verbose -n2 "$node: capturing console $console"
+	    verbose -n2 "$node: capturing console"
 	    register_cleanup end_log_console $node
 	    ;;
 	esac

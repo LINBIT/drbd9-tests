@@ -575,7 +575,6 @@ _initial_resync() {
     # Use unlimited resync bandwidth
     on "${NODES[@]}" drbdadm disk-options --c-min-rate=0 all
 
-    nodes=( $(all_nodes_except "$1") )
     for node in ${NODES[@]}; do
 	peer_devices=( "${peer_devices[@]}" ${PEER_DEVICES[$node]} )
     done

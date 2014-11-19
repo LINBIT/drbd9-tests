@@ -142,8 +142,11 @@ class Collection(object):
     def __iter__(self):
 	return iter(self.members)
 
-    def __getitem__(self, key):
-	return list(self.members)[key]
+    def __getitem__(self, index):
+	if isinstance(index, slice):
+	    return self.__class__(list(self.members)[index])
+	else:
+	    return list(self.members)[index]
 
     def add(self, member):
 	assert issubclass(member.__class__, self.cls) and \

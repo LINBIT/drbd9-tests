@@ -220,6 +220,18 @@ class Nodes(Collection):
 	self.after_down()
 	self.event(r'destroy resource')
 
+    def get_diskful(self):
+	""" Return nodes that have at least one disk. """
+	return Nodes([node for node in self
+	    if any(volume.disk is not None for volume in node.volumes)])
+    diskful = property(get_diskful)
+
+    def get_diskless(self):
+	""" Return nodes that have no disks. """
+	return Nodes([node for node in self
+	    if all(volume.disk is None for volume in node.volumes)])
+    diskless = property(get_diskless)
+
 
 class Volumes(Collection):
     def __init__(self, members=[]):
@@ -248,17 +260,14 @@ class Volumes(Collection):
 	    resource = first(self.members).resource
 	    resource.logscan(self, where, *args, **kwargs)
 
-    # FIXME: Once we support diskless volumes, adjust get_diskful() and get_diskless()!
-
     def get_diskful(self):
 	""" Return volumes that have a disk. """
-	return self
+	return Volumes([_ for _ in self if _.disk is not None])
     diskful = property(get_diskful)
 
     def get_diskless(self):
 	""" Return volumes that do not have a disk. """
-	return self
-	return Volumes()
+	return Volumes([_ for _ in self if _.disk is None])
     diskless = property(get_diskless)
 
     def fio(self, section, jobfile=None):
@@ -383,11 +392,21 @@ class Resource(object):
 	self.num_volumes += 1
 	return volume
 
-    def add_disk(self, size, meta_size=None):
-	""" Create and add a new disk on all nodes. """
+    def add_disk(self, size, meta_size=None, diskful_nodes=None):
+	"""
+	Create and add a new disk on some or all nodes.
+
+	Keyword arguments:
+	size -- size of the data device
+	meta_size -- size of the meta-data device or None for internal meta-data
+	diskful_nodes -- nodes which shall have a local lower-level device (defaults to all nodes)
+	"""
 	volume = self.next_volume()
 	for node in self.nodes:
-	    node.add_disk(volume, size, meta_size)
+	    if diskful_nodes is None or node in diskful_nodes:
+		node.add_disk(volume, size, meta_size)
+	    else:
+		node.add_disk(volume)
 
     @staticmethod
     def m4_define(name, value):
@@ -566,7 +585,7 @@ class Resource(object):
 
 
 class Volume(object):
-    def __init__(self, node, volume, size, meta_size=None, minor=None,
+    def __init__(self, node, volume, size=None, meta_size=None, minor=None,
 		 max_peers=None):
 	if volume is None:
 	    volume = node.resource.next_volume()
@@ -577,15 +596,16 @@ class Volume(object):
 	self.node = node
 	if max_peers is None:
 	    max_peers = len(node.resource.nodes) - 1
+	self.disk = None
+	self.meta = None
 	if size:
-		self.disk = self.create_disk(size,
-			'%s-disk%d' % (self.node.resource.name, volume),
-			None if meta_size else '--internal-meta', max_peers)
-	if meta_size:
+	    self.disk = self.create_disk(size,
+		    '%s-disk%d' % (self.node.resource.name, volume),
+		    None if meta_size else '--internal-meta', max_peers)
+	    if meta_size:
 		self.meta = self.create_disk(meta_size,
 			'%s-meta%d' % (self.node.resource.name, volume),
 			'--external-meta', max_peers)
-	# FIXME: destroy disks when this object is destroyed?
 
     def get_resource(self):
 	return self.node.resource
@@ -711,7 +731,13 @@ class Node(exxe.Exxe):
 	self.minors += 1
 	return minor
 
-    def add_disk(self, volume, size, meta_size=None):
+    def add_disk(self, volume, size=None, meta_size=None):
+	"""
+	Keyword arguments:
+	volume -- volume number of the new disk
+	size -- size of the data device or None for a diskless node
+	meta_size -- size of the meta-data device
+	"""
 	self.disks.append(Volume(self, volume, size, meta_size))
 	self.config_changed = True
 

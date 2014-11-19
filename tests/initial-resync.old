@@ -1,0 +1,31 @@
+#! /bin/bash
+
+# Pass this script a list of host names to use as the test nodes.
+
+TOP=${0%/*}/..
+. $TOP/lib/setup.sh
+
+setup --disk=10M "$@"
+
+verbose "* Bring up the first node, make it primary, and write defined data onto all volumes."
+first_node=${NODES[0]}
+_up "$first_node"
+_force_primary "$first_node"
+_fio --section=write $(volumes_on $first_node)
+
+verbose "* Make the first node secondary again to allow read access on the other nodes."
+on "$first_node" drbdadm secondary all
+
+verbose "* Bring up all other nodes as well, wait until they have all the data, and verify the data received."
+_up $(all_nodes_except "$first_node")
+_initial_resync "$first_node"
+for volume in $(all_volumes_except $(volumes_on $first_node)); do
+    node=${volume%:*}
+    on "$node" drbdadm primary all
+    _fio --section=verify $volume
+    on "$node" drbdadm secondary all
+done
+
+verbose "* Shut down and clean up."
+_down
+_rmmod

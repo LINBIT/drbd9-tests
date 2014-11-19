@@ -1,31 +1,32 @@
-#! /bin/bash
+#! /usr/bin/env python
 
 # Pass this script a list of host names to use as the test nodes.
 
-TOP=${0%/*}/..
-. $TOP/lib/setup.sh
+from python import drbdtest
+from python.drbdtest import verbose
 
-setup --disk=10M "$@"
+resource = drbdtest.setup()
+first_node = resource.nodes[0]
+other_nodes = resource.nodes.difference([first_node])
 
-verbose "* Bring up the first node, make it primary, and write defined data onto all volumes."
-first_node=${NODES[0]}
-_up "$first_node"
-_force_primary "$first_node"
-_fio --section=write $(volumes_on $first_node)
+resource.add_disk('10M')
 
-verbose "* Make the first node secondary again to allow read access on the other nodes."
-on "$first_node" drbdadm secondary all
+verbose('* Bring up the first node, make it primary, and write defined data onto all volumes.')
+first_node.up()
+first_node.primary(force=True)
+first_node.volumes.fio(section='write')
 
-verbose "* Bring up all other nodes as well, wait until they have all the data, and verify the data received."
-_up $(all_nodes_except "$first_node")
-_initial_resync "$first_node"
-for volume in $(all_volumes_except $(volumes_on $first_node)); do
-    node=${volume%:*}
-    on "$node" drbdadm primary all
-    _fio --section=verify $volume
-    on "$node" drbdadm secondary all
-done
+verbose('* Make the first node secondary again to allow read access on the other nodes.')
+first_node.secondary()
 
-verbose "* Shut down and clean up."
-_down
-_rmmod
+verbose('* Bring up all other nodes as well, wait until they have all the data, and verify the data received.')
+other_nodes.up()
+resource.initial_resync(first_node)
+for node in other_nodes:
+    node.primary()
+    node.volumes.diskful.fio(section='verify')
+    node.secondary()
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.nodes.run(['rmmod', 'drbd'])

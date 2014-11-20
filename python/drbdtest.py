@@ -338,6 +338,18 @@ class Connections(Collection):
 	    resource = first(self.members).resource
 	    resource.logscan(self, where, *args, **kwargs)
 
+    def from_node(self, node):
+	return self.from_nodes([node])
+
+    def from_nodes(self, nodes):
+	return Connections([_ for _ in self if _.nodes[0] in nodes])
+
+    def to_node(self, node):
+	return self.to_nodes([node])
+
+    def to_nodes(self, nodes):
+	return Connections([_ for _ in self if _.nodes[1] in nodes])
+
     def connect(self):
 	for connection in self:
 	    node0, node1 = connection.nodes
@@ -485,17 +497,6 @@ class Resource(object):
     volumes = property(lambda self: self.nodes.volumes)
     connections = property(lambda self: self.nodes.connections)
     peer_devices = property(lambda self: self.nodes.peer_devices)
-
-    def connections_from(self, source_node):
-	return source_node.connections
-
-    def connections_to(self, target_node):
-	connections = Connections()
-	for node in self.nodes:
-	    for connection in node.connections:
-		if connection[1] is target_node:
-		    connections.add(connection)
-	return connections
 
     def cleanup(self):
 	if not skip_cleanup:

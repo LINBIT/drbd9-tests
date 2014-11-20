@@ -1,5 +1,7 @@
 # setup parameters: console
 
+# FIXME: Why are the prefixes missing from output of the target cleanup scripts?
+
 # FIXME: class Collection: Switch to an ordered set?  Right now, the order in
 # which nodes are given on the command line is not preserved.
 
@@ -764,6 +766,8 @@ class Node(exxe.Exxe):
 	size -- size of the data device or None for a diskless node
 	meta_size -- size of the meta-data device
 	"""
+	# FIXME: Volume is not added at the right index (by volume number)
+	# here.  Does that matter?
 	self.disks.append(Volume(self, volume, size, meta_size))
 	self.config_changed = True
 

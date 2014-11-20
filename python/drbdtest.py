@@ -847,6 +847,9 @@ class Node(exxe.Exxe):
     def disconnect(self, node, wait=True):
 	return Connections([Connection(self, node)]).disconnect(wait=wait)
 
+    def fio(self, *args, **kwargs):
+	self.volumes.fio(*args, **kwargs)
+
 
 class Tee(object):
     """ File object that forwards writes and flushes to two other file objects. """

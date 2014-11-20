@@ -413,7 +413,7 @@ class Resource(object):
 	    template = os.path.join(TOP, 'lib', 'm4', 'template.conf.m4')
 	self.template = template
 	self.logdir = logdir
-	self.cls = None
+	self.events_cls = None
 	self.forbidden_patterns = set()
 	self.add_new_posfile('.events.pos')
 	atexit.register(self.cleanup)
@@ -514,12 +514,13 @@ class Resource(object):
 	if isinstance(no, basestring):
 	    no = [no]
 
+	self.sync_events(collection.__class__)
+
 	verbose('Waiting for event ' +
 		' '.join([str(_) for _ in collection]) + ' ' +
 		' '.join(['-y ' + _ for _ in args]) +
 		' '.join(['-n ' + _ for _ in no]))
 
-	self.sync_events(collection.__class__)
 	cmd = ['logscan', '-d', os.environ['DRBD_LOG_DIR'], '-w']
 	if silent:
 	    cmd.append('--silent')
@@ -579,10 +580,10 @@ class Resource(object):
 	    self.add_new_posfile('.events-peer-device-%s:%s.pos' %
 				 (node.name, volume))
 
-    def sync_events(self, cls):
+    def sync_events(self, events_cls):
 	""" Synchronize logcan position tracking files. """
-	if self.cls is not cls:
-	    self.cls = cls
+	if self.events_cls is not events_cls:
+	    self.events_cls = events_cls
 	    cmd = ['logscan', '-d', os.environ['DRBD_LOG_DIR'], '--sync'] + \
 		  self.posfiles()
 	    debug('# ' + ' '.join(pipes.quote(_) for _ in cmd))

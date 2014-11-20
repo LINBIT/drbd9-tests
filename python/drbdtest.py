@@ -101,10 +101,12 @@ class Collection(object):
     def same_resource(self, members):
 	if self.members:
 	    resource = first(self.members).resource
-	    return all([member.resource is resource for member in members])
+	    return all(member.resource is resource for member in members)
 	elif members:
 	    resource = members[0].resource
-	    return all([member.resource is resource for member in members[1:]])
+	    return all(member.resource is resource for member in members[1:])
+	else:
+	    return True
 
     def __len__(self):
 	return len(self.members)

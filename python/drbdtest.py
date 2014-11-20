@@ -453,8 +453,9 @@ class Resource(object):
 		if volume < len(node.disks):
 		    disk = node.disks[volume]
 		    devices[volume][node.name] = '/dev/drbd%d' % disk.minor
-		    disks[volume][node.name] = disk.disk
-		    if hasattr(disk, 'meta'):
+		    disks[volume][node.name] = \
+			    disk.disk if disk.disk is not None else 'none'
+		    if disk.meta is not None:
 			metas[volume][node.name] = disk.meta
 
 	NODE = []

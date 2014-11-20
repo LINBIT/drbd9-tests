@@ -1,38 +1,17 @@
-#! /bin/bash
+#! /usr/bin/env python
 
-TOP=${0%/*}/..
-. $TOP/lib/setup.sh
+# Pass this script a list of host names to use as the test nodes.
 
-# FIXME: "drbdsetup down all" on diskless node often fails ...
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
 
-# Change the node parameters so that the first volume on all but the first two
-# nodes is diskless.
-change_setup() {
-    local n node
+resource = drbdtest.setup(min_nodes=3)
 
-    for ((n = 2; n < ${#NODES[@]}; n++)); do
-	node=${NODES[n]}
-	params[$node:DISK_SIZE1]=none
-    done
-}
+diskful_nodes = resource.nodes[0:2]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
-setup --min-nodes=3 --disk=10M "$@" --eval change_setup
-
-declare -a diskful_nodes diskless_nodes
-for node in "${NODES[@]}"; do
-    if [ ${#diskful_nodes[@]} -lt 2 ]; then
-	diskful_nodes[${#diskful_nodes[@]}]=$node
-    else
-	diskless_nodes[${#diskless_nodes[@]}]=$node
-    fi
-done
-
-# # Resyncs should not occur
-# add_forbidden_patterns \
-# 	'replication:SyncSource' \
-# 	'replication:SyncTarget' \
-
-_up
+resource.up()
 
 # NOTE: drbdadm primary --force currently fails for new data on diskless nodes:
 # drbd doesn't know which node to turn UpToDate.  We could implement a "drbdadm
@@ -40,41 +19,60 @@ _up
 # primary.  Until then, we have to make one of the diskful nodes primary and then
 # secondary again to make it UpToDate.
 
-verbose "* Make up-to-date data available."
-_force_primary "${diskful_nodes[0]}"
-_secondary "${diskful_nodes[0]}"
-diskless_node=${diskless_nodes[0]}
-peer_device_event ${PEER_DEVICES[$diskless_node]} -y 'peer-device .* peer-disk:UpToDate'
+verbose('* Make up-to-date data available.')
+diskful_nodes[0].primary(force=True)
+diskful_nodes[0].secondary()
+
+diskless_node = resource.nodes.diskless[0]  # first diskless node
+diskless_node.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
 
 # FIXME: change _initial_resync so that it works for a subset of nodes, or so
-# that it works in the diskless node case?
+# that it works in the diskless node case, instead of the above?
 
-verbose "* Writing from diskless node."
-diskless_node=${diskless_nodes[0]}
-if [ -z "$BUGx_FIXED" ]; then
-    _primary $diskless_node
-else
-    _force_primary $diskless_node
-fi
-_fio --section=write $(volumes_on $diskless_node)
-_secondary $diskless_node
+verbose('* Writing from diskless node.')
+diskless_node.primary()
+diskless_node.fio(section='write')
+diskless_node.secondary()
 
-verbose "* Verifying on diskful node."
-diskful_node=${diskful_nodes[0]}
-_fio --section=verify $(volumes_on $diskful_node)
+verbose('* Verifying on diskful node.')
+diskful_nodes[0].fio(section='verify')
 
-verbose "* Disconnecting nodes."
-_primary $diskless_node
-for ((n = 0; n < ${#diskful_nodes[@]} - 1; n++)); do
-    node=${diskful_nodes[n]}
-    _disconnect "$diskless_node:$node"
-done
-expect_failure _disconnect "$diskless_node:${diskful_nodes[@]:(-1)}"
-_secondary $diskless_node
-connection_event $(all_connections_to "$diskless_node") -y 'connection .* role:Secondary'
+verbose('* Disconnecting nodes.')
+diskless_node.primary()
+resource.connections. \
+    from_node(diskless_node). \
+    to_nodes(diskful_nodes[:-1]). \
+	disconnect()
+
+try:
+    diskless_node.disconnect(diskful_nodes[-1])
+except CalledProcessError:
+    pass
+else:
+    raise CalledProcessError("'%s'.disconnect('%s') unexpectedly succeeded" %
+	(diskless_node, diskful_nodes[-1]))
+
+try:
+    diskful_nodes[-1].disconnect(diskless_node)
+except CalledProcessError:
+    pass
+else:
+    raise CalledProcessError("'%s'.disconnect('%s') unexpectedly succeeded" %
+	(diskful_nodes[-1], diskless_node))
+
+diskless_node.secondary()
+
+# FIXME: If we don't wait for all nodes to realize that diskless_node has
+# become secondary, drbd will fail with the following error:
+#   State change failed: (-2) Need access to UpToDate data
+# Even this wait often isn't enough to prevent this error, though -- this needs
+# to be debugged.
+resource.connections. \
+    to_node(diskless_node). \
+	event(r'connection .* role:Secondary')
 
 # FIXME: Simulate network outage
 
-verbose "* Shut down and clean up."
-_down
-_rmmod
+verbose('* Shut down and clean up.')
+resource.down()
+resource.nodes.run(['rmmod', 'drbd'])

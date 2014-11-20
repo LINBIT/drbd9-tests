@@ -1,0 +1,80 @@
+#! /bin/bash
+
+TOP=${0%/*}/..
+. $TOP/lib/setup.sh
+
+# FIXME: "drbdsetup down all" on diskless node often fails ...
+
+# Change the node parameters so that the first volume on all but the first two
+# nodes is diskless.
+change_setup() {
+    local n node
+
+    for ((n = 2; n < ${#NODES[@]}; n++)); do
+	node=${NODES[n]}
+	params[$node:DISK_SIZE1]=none
+    done
+}
+
+setup --min-nodes=3 --disk=10M "$@" --eval change_setup
+
+declare -a diskful_nodes diskless_nodes
+for node in "${NODES[@]}"; do
+    if [ ${#diskful_nodes[@]} -lt 2 ]; then
+	diskful_nodes[${#diskful_nodes[@]}]=$node
+    else
+	diskless_nodes[${#diskless_nodes[@]}]=$node
+    fi
+done
+
+# # Resyncs should not occur
+# add_forbidden_patterns \
+# 	'replication:SyncSource' \
+# 	'replication:SyncTarget' \
+
+_up
+
+# NOTE: drbdadm primary --force currently fails for new data on diskless nodes:
+# drbd doesn't know which node to turn UpToDate.  We could implement a "drbdadm
+# uptodate" or similar command that turns a node UpToDate without making in
+# primary.  Until then, we have to make one of the diskful nodes primary and then
+# secondary again to make it UpToDate.
+
+verbose "* Make up-to-date data available."
+_force_primary "${diskful_nodes[0]}"
+_secondary "${diskful_nodes[0]}"
+diskless_node=${diskless_nodes[0]}
+peer_device_event ${PEER_DEVICES[$diskless_node]} -y 'peer-device .* peer-disk:UpToDate'
+
+# FIXME: change _initial_resync so that it works for a subset of nodes, or so
+# that it works in the diskless node case?
+
+verbose "* Writing from diskless node."
+diskless_node=${diskless_nodes[0]}
+if [ -z "$BUGx_FIXED" ]; then
+    _primary $diskless_node
+else
+    _force_primary $diskless_node
+fi
+_fio --section=write $(volumes_on $diskless_node)
+_secondary $diskless_node
+
+verbose "* Verifying on diskful node."
+diskful_node=${diskful_nodes[0]}
+_fio --section=verify $(volumes_on $diskful_node)
+
+verbose "* Disconnecting nodes."
+_primary $diskless_node
+for ((n = 0; n < ${#diskful_nodes[@]} - 1; n++)); do
+    node=${diskful_nodes[n]}
+    _disconnect "$diskless_node:$node"
+done
+expect_failure _disconnect "$diskless_node:${diskful_nodes[@]:(-1)}"
+_secondary $diskless_node
+connection_event $(all_connections_to "$diskless_node") -y 'connection .* role:Secondary'
+
+# FIXME: Simulate network outage
+
+verbose "* Shut down and clean up."
+_down
+_rmmod

@@ -338,6 +338,27 @@ class Connections(Collection):
 	    resource = first(self.members).resource
 	    resource.logscan(self, where, *args, **kwargs)
 
+    def connect(self):
+	for connection in self:
+	    node0, node1 = connection.nodes
+	    node0.run(['drbdadm', 'connect', '%s:%s' %
+		(self.resource.name, node1.hostname)])
+	self.event(r'connection .* connection:Connecting')
+	for connection in self:
+	    node0 = connection.nodes[0]
+	    node0.connections.add(connection)
+
+    def disconnect(self, wait=True):
+	for connection in self:
+	    node0, node1 = connection.nodes
+	    node0.run(['drbdadm', 'disconnect', '%s:%s' %
+		(connection.resource.name, node1.hostname)])
+	if wait:
+	    self.event(r'connection .* connection:StandAlone')
+	for connection in self:
+	    node0, node1 = connection.nodes
+	    node0.connections.remove(connection)
+
 
 class PeerDevices(Collection):
     def __init__(self, members=[]):
@@ -817,6 +838,12 @@ class Node(exxe.Exxe):
     def secondary(self):
 	self.run(['drbdadm', 'secondary', 'all'])
 	self.event(r'resource .* role:Secondary')
+
+    def connect(self, node):
+	return Connections([Connection(self, node)]).connect()
+
+    def disconnect(self, node, wait=True):
+	return Connections([Connection(self, node)]).disconnect(wait=wait)
 
 
 class Tee(object):

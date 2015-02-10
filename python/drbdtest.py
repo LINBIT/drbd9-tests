@@ -164,7 +164,8 @@ class Collection(object):
     def remove(self, member):
         assert issubclass(member.__class__, self.cls) and \
             self.same_resource([member])
-        self.members.remove(member)
+        if member in self.members:
+            self.members.remove(member)
         return self
 
     def extend(self, members):

@@ -482,9 +482,9 @@ class Resource(object):
             Resource.m4_define('NODES', [node.name for node in self.nodes]) + \
             Resource.m4_define('VOLUMES', [str(v) for v in xrange(self.num_volumes)]) + \
             Resource.m4_define_array('NODE',
-                                     {key: value for key, value in enumerate(NODE)}) + \
+                                     dict((key, value) for key, value in enumerate(NODE))) + \
             Resource.m4_define_array('NODE_ID',
-                                     {value: key for key, value in enumerate(NODE)}) + \
+                                     dict((value, key) for key, value in enumerate(NODE))) + \
             ''.join([Resource.m4_define_array('DEVICE%d' % (idx + 1), device)
                     for idx, device in enumerate(devices) if len(device)]) + \
             ''.join([Resource.m4_define_array('DISK%d' % (idx + 1), disk)

@@ -1007,7 +1007,8 @@ def setup(parser=argparse.ArgumentParser(),
     if not silent:
         print('Logging to directory %s' % args.logdir)
 
-    os.makedirs(args.logdir)
+    if not os.access(args.logdir, os.R_OK + os.X_OK + os.W_OK):
+        os.makedirs(args.logdir)
     if job_symlink is not None:
         try:
             os.remove(os.path.join('log', job_symlink))

@@ -1081,3 +1081,22 @@ def setup(parser=argparse.ArgumentParser(),
                         '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'],
                        prepare=True)
     return resource
+
+
+## Python 2.6 compat
+## http://stackoverflow.com/questions/17539985/check-output-error-in-python
+def fake_check_output(*popenargs, **kwargs):
+    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+    output, unused_err = process.communicate()
+    retcode = process.poll()
+    if retcode:
+        cmd = kwargs.get("args")
+        if cmd is None:
+            cmd = popenargs[0]
+        error = subprocess.CalledProcessError(retcode, cmd)
+        error.output = output
+        raise error
+    return output
+
+try: subprocess.check_output
+except: subprocess.check_output = fake_check_output

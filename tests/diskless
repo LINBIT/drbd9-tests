@@ -75,4 +75,4 @@ resource.connections. \
 
 verbose('* Shut down and clean up.')
 resource.down()
-resource.nodes.run(['rmmod', 'drbd'])
+resource.rmmod()

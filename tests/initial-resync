@@ -29,4 +29,4 @@ for node in other_nodes:
 
 verbose('* Shut down and clean up.')
 resource.down()
-resource.nodes.run(['rmmod', 'drbd'])
+resource.rmmod()

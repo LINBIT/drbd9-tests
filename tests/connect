@@ -20,4 +20,4 @@ resource.forbidden_patterns.update([
 
 resource.nodes.down()
 
-resource.nodes.run(['rmmod', 'drbd'])
+resource.rmmod()

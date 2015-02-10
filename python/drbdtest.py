@@ -509,6 +509,10 @@ class Resource(object):
         for node in self.nodes:
             node.cleanup()
 
+    def rmmod(self):
+        self.nodes.run(['rmmod', 'drbd_transport_tcp'])
+        self.nodes.run(['rmmod', 'drbd'])
+
     def logscan(self, collection, where, *args, **kwargs):
         """ Run logscan to scan / wait for events to occur. """
         if args is None:
@@ -1082,7 +1086,6 @@ def setup(parser=argparse.ArgumentParser(),
                         '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'],
                        prepare=True)
     return resource
-
 
 ## Python 2.6 compat
 ## http://stackoverflow.com/questions/17539985/check-output-error-in-python

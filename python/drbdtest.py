@@ -492,11 +492,11 @@ class Resource(object):
             ''.join([Resource.m4_define_array('META%d' % (idx + 1), meta)
                     for idx, meta in enumerate(metas) if len(meta)]) + \
             Resource.m4_define_array(
-                'HOSTNAME', {node.name: node.hostname
-                             for node in self.nodes}) + \
+                'HOSTNAME', dict((node.name, node.hostname)
+                    for node in self.nodes)) + \
             Resource.m4_define_array(
-                'ADDRESS', {node.name: node.addr + ':' + str(node.port)
-                            for node in self.nodes})
+                'ADDRESS', dict((node.name, node.addr + ':' + str(node.port))
+                    for node in self.nodes))
 
     volumes = property(lambda self: self.nodes.volumes)
     connections = property(lambda self: self.nodes.connections)

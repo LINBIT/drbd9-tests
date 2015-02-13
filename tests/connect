@@ -4,7 +4,7 @@
 
 from python import drbdtest
 
-resource = drbdtest.setup()
+resource = drbdtest.setup(max_nodes=5)
 
 resource.nodes.up()
 resource.connections.event(r'connection .* role:Secondary')

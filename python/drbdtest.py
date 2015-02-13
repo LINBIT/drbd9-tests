@@ -966,14 +966,22 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--verbose', type=int)
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
+    parser.add_argument('--report-and-quit', dest='report_n_quit', default=False, action="store_true")
     args = parser.parse_args()
+
+    if nodes is not None:
+        min_nodes = max_nodes = nodes
+
+    if args.report_n_quit:
+        print("min_nodes=%d" % min_nodes)
+        if max_nodes:
+            print("max_nodes=%d" % max_nodes)
+        sys.exit(0)
 
     # FIXME: Python's argparse module does not support parsing interleaved
     # command-line options and arguments, which we would need for the per-node
     # --console option.  Drop support for per-node options for now.
 
-    if nodes is not None:
-        min_nodes = max_nodes = nodes
     if max_nodes is not None and min_nodes == max_nodes and \
        len(args.node) != min_nodes:
         skip_test('Test case requires %s nodes' % min_nodes)

@@ -952,7 +952,7 @@ def setup(parser=argparse.ArgumentParser(),
       nodes, min_nodes, max_nodes
                 -- exact, minimum, and maximum number of test nodes required
     """
-    parser.add_argument('node', nargs='+')
+    parser.add_argument('node', nargs='*')
     parser.add_argument('--job')
     parser.add_argument('--resource')
     parser.add_argument('--logdir')

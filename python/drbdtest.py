@@ -206,6 +206,7 @@ class Nodes(Collection):
                  ]
             resource = first(self.members).resource
             resource.logscan(self, where, *args, **kwargs)
+        return self
 
     def run(self, *args, **kwargs):
         """ Run command on all our nodes. """

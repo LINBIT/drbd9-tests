@@ -966,6 +966,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--verbose', type=int)
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
+    parser.add_argument('--override-max', action="store_true", dest='override_max')
     parser.add_argument('--report-and-quit', dest='report_n_quit', default=False, action="store_true")
     args = parser.parse_args()
 
@@ -987,7 +988,7 @@ def setup(parser=argparse.ArgumentParser(),
         skip_test('Test case requires %s nodes' % min_nodes)
     if len(args.node) < min_nodes:
         skip_test('Test case requires %s or more nodes' % min_nodes)
-    if max_nodes is not None and len(args.node) > max_nodes:
+    if max_nodes is not None and len(args.node) > max_nodes and not args.override_max:
         skip_test('Test case requires %s or fewer nodes' % max_nodes)
 
     global silent

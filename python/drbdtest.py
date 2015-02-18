@@ -1080,6 +1080,7 @@ def setup(parser=argparse.ArgumentParser(),
 
     syslog_port = 5140
     syslog_server(args.node, port=syslog_port,
+                  acc_name=os.path.join(args.logdir, 'syslog.full'),
                   logfile_name=os.path.join(args.logdir, 'syslog-%s'))
     resource.nodes.run(['rsyslogd', socket.gethostname(), str(syslog_port)],
                        prepare=True)

@@ -45,6 +45,9 @@ class SyslogHandler(BaseRequestHandler):
         file = self.logfile()
         file.write(str(message))
         file.flush()
+        if self.server.accumulated:
+            self.server.accumulated.write(str(message))
+            self.server.accumulated.flush()
 
     def logfile(self):
         addr = self.client_address[0]
@@ -85,7 +88,7 @@ class UDPSyslogHandler(SyslogHandler):
 class TCPSyslogServer(Thread, TCPServer):
     """ TCP syslog server thread. """
 
-    def __init__(self, hostnames, logfile_name=None, port=None):
+    def __init__(self, hostnames, logfile_name=None, port=None, accumulated=None):
         Thread.__init__(self)
         self.allow_reuse_address = True
         self.daemon = True
@@ -97,6 +100,7 @@ class TCPSyslogServer(Thread, TCPServer):
             logfile_name = 'syslog-%s'
         self.logfile_name = logfile_name
         self.logfiles = {}
+        self.accumulated = accumulated
 
     def run(self):
         self.serve_forever()
@@ -105,7 +109,7 @@ class TCPSyslogServer(Thread, TCPServer):
 class UDPSyslogServer(Thread, UDPServer):
     """ UDP syslog server thread. """
 
-    def __init__(self, hostnames, logfile_name=None, port=None):
+    def __init__(self, hostnames, logfile_name=None, port=None, accumulated=None):
         Thread.__init__(self)
         self.allow_reuse_address = True
         self.daemon = True
@@ -117,22 +121,28 @@ class UDPSyslogServer(Thread, UDPServer):
             logfile_name = 'syslog-%s'
         self.logfile_name = logfile_name
         self.logfiles = {}
+        self.accumulated = accumulated
 
     def run(self):
         self.serve_forever()
 
 
-def syslog_server(hosts, port=None, logfile_name=None):
+def syslog_server(hosts, port=None, logfile_name=None, acc_name=None):
     """ Start TCP + UDP syslog server. """
 
     hostnames = Hostnames()
     for host in hosts:
         hostnames.add(host)
 
+    if acc_name:
+        acc_file = open(acc_name, 'a')
+
     tcpSyslogServer = TCPSyslogServer(hostnames, port=port,
-                                      logfile_name=logfile_name)
+                                      logfile_name=logfile_name,
+                                      accumulated=acc_file)
     udpSyslogServer = UDPSyslogServer(hostnames, port=port,
-                                      logfile_name=logfile_name)
+                                      logfile_name=logfile_name,
+                                      accumulated=acc_file)
     tcpSyslogServer.start()
     udpSyslogServer.start()
 

@@ -12,23 +12,23 @@ class Hostnames(object):
     """ Mapping from IPv4 / IPv6 addresses to host names. """
 
     def __init__(self):
-	self.hostnames = {}
+        self.hostnames = {}
 
     def add(self, host):
-	for addr in socket.getaddrinfo(host, None):
-	    af, _, _, _, sa = addr
-	    if af in (socket.AF_INET, socket.AF_INET6):
-		try:
-		    previous_host = self.hostnames[sa[0]]
-		    if previous_host != host:
-			raise RuntimeError("Address %s assigned to host %s as well as %s" %
-					   (sa[0], previous_host, host))
-		except KeyError:
-		    pass
-		self.hostnames[sa[0]] = host
+        for addr in socket.getaddrinfo(host, None):
+            af, _, _, _, sa = addr
+            if af in (socket.AF_INET, socket.AF_INET6):
+                try:
+                    previous_host = self.hostnames[sa[0]]
+                    if previous_host != host:
+                        raise RuntimeError("Address %s assigned to host %s as well as %s" %
+                                           (sa[0], previous_host, host))
+                except KeyError:
+                    pass
+                self.hostnames[sa[0]] = host
 
     def __getitem__(self, addr):
-	return self.hostnames.get(addr)
+        return self.hostnames.get(addr)
 
 
 class SyslogHandler(BaseRequestHandler):
@@ -38,88 +38,88 @@ class SyslogHandler(BaseRequestHandler):
     """
 
     def __init__(self, *args, **kwargs):
-	BaseRequestHandler.__init__(self, *args, **kwargs)
+        BaseRequestHandler.__init__(self, *args, **kwargs)
 
     def handle(self, message):
-	message = re.sub(r'^<[0-9]*>(.*\n)$', r'\1', message)
-	file = self.logfile()
-	file.write(str(message))
-	file.flush()
+        message = re.sub(r'^<[0-9]*>(.*\n)$', r'\1', message)
+        file = self.logfile()
+        file.write(str(message))
+        file.flush()
 
     def logfile(self):
-	addr = self.client_address[0]
-	host = self.server.hostnames[addr]
-	if host is not None:
-	    try:
-		logfile = self.server.logfiles[host]
-	    except KeyError:
-		logfile = open(self.server.logfile_name % host, 'a')
-		self.server.logfiles[host] = logfile
-	return logfile
+        addr = self.client_address[0]
+        host = self.server.hostnames[addr]
+        if host is not None:
+            try:
+                logfile = self.server.logfiles[host]
+            except KeyError:
+                logfile = open(self.server.logfile_name % host, 'a')
+                self.server.logfiles[host] = logfile
+        return logfile
 
 
 class TCPSyslogHandler(SyslogHandler):
     """ TCP syslog message handler: multiple messages per TCP "packet". """
 
     def __init__(self, *args, **kwargs):
-	SyslogHandler.__init__(self, *args, **kwargs)
+        SyslogHandler.__init__(self, *args, **kwargs)
 
     def handle(self):
-	# FIXME: Handle partial messages as well.
-	data = self.request.recv(2048)
-	for message in data.splitlines(True):
-	    SyslogHandler.handle(self, message)
+        # FIXME: Handle partial messages as well.
+        data = self.request.recv(2048)
+        for message in data.splitlines(True):
+            SyslogHandler.handle(self, message)
 
 
 class UDPSyslogHandler(SyslogHandler):
     """ UDP syslog message handler: one message per UDP packet. """
 
     def __init__(self, *args, **kwargs):
-	SyslogHandler.__init__(self, *args, **kwargs)
+        SyslogHandler.__init__(self, *args, **kwargs)
 
     def handle(self):
-	data = self.request[0]
-	SyslogHandler.handle(self, data + '\n')
+        data = self.request[0]
+        SyslogHandler.handle(self, data + '\n')
 
 
 class TCPSyslogServer(Thread, TCPServer):
     """ TCP syslog server thread. """
 
     def __init__(self, hostnames, logfile_name=None, port=None):
-	Thread.__init__(self)
-	self.allow_reuse_address = True
-	self.daemon = True
-	if port is None:
-	    port = 514
-	TCPServer.__init__(self, ('', port), TCPSyslogHandler)
-	self.hostnames = hostnames
-	if logfile_name is None:
-	    logfile_name = 'syslog-%s'
-	self.logfile_name = logfile_name
-	self.logfiles = {}
+        Thread.__init__(self)
+        self.allow_reuse_address = True
+        self.daemon = True
+        if port is None:
+            port = 514
+        TCPServer.__init__(self, ('', port), TCPSyslogHandler)
+        self.hostnames = hostnames
+        if logfile_name is None:
+            logfile_name = 'syslog-%s'
+        self.logfile_name = logfile_name
+        self.logfiles = {}
 
     def run(self):
-	self.serve_forever()
+        self.serve_forever()
 
 
 class UDPSyslogServer(Thread, UDPServer):
     """ UDP syslog server thread. """
 
     def __init__(self, hostnames, logfile_name=None, port=None):
-	Thread.__init__(self)
-	self.allow_reuse_address = True
-	self.daemon = True
-	if port is None:
-	    port = 514
-	UDPServer.__init__(self, ('', port), UDPSyslogHandler)
-	self.hostnames = hostnames
-	if logfile_name is None:
-	    logfile_name = 'syslog-%s'
-	self.logfile_name = logfile_name
-	self.logfiles = {}
+        Thread.__init__(self)
+        self.allow_reuse_address = True
+        self.daemon = True
+        if port is None:
+            port = 514
+        UDPServer.__init__(self, ('', port), UDPSyslogHandler)
+        self.hostnames = hostnames
+        if logfile_name is None:
+            logfile_name = 'syslog-%s'
+        self.logfile_name = logfile_name
+        self.logfiles = {}
 
     def run(self):
-	self.serve_forever()
+        self.serve_forever()
 
 
 def syslog_server(hosts, port=None, logfile_name=None):
@@ -127,12 +127,12 @@ def syslog_server(hosts, port=None, logfile_name=None):
 
     hostnames = Hostnames()
     for host in hosts:
-	hostnames.add(host)
+        hostnames.add(host)
 
     tcpSyslogServer = TCPSyslogServer(hostnames, port=port,
-				      logfile_name=logfile_name)
+                                      logfile_name=logfile_name)
     udpSyslogServer = UDPSyslogServer(hostnames, port=port,
-				      logfile_name=logfile_name)
+                                      logfile_name=logfile_name)
     tcpSyslogServer.start()
     udpSyslogServer.start()
 

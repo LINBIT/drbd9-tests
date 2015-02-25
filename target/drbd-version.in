@@ -1,6 +1,7 @@
 #! /bin/bash
 
 export PATH=${PATH#@DRBD_TEST_DATA@:}
+export PATH=${PATH#@DRBD_TEST_DATA@/:}
 
 set -e
 

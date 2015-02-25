@@ -218,7 +218,7 @@ class Nodes(Collection):
         exxe.run(self, *args, **kwargs)
 
     def up(self):
-        self.run(['drbdadm', 'up', 'all'])
+        self.run(['drbdadm', 'up', 'all', '-v'])
         self.after_up()
         self.volumes.diskful.event(r'device .* disk:Inconsistent')
 

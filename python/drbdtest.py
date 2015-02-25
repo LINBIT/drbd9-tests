@@ -615,7 +615,7 @@ class Resource(object):
         self.nodes.down()
 
     def initial_resync(self, sync_from):
-        self.nodes.run(['drbdadm', 'disk-options', '--c-min-rate', '0', 'all'])
+        self.nodes.run(['drbdadm', 'peer-device-options', '--c-min-rate', '0', 'all', '-v'])
         self.peer_devices.event(r'peer-device .* peer-disk:UpToDate',
                                 timeout=300)
 

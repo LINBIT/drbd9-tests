@@ -774,9 +774,9 @@ class Node(exxe.Exxe):
         return self.name
 
     def next_minor(self):
-        minor = self.minors
+        # start with 1, to avoid conflicting with a potentially existing DRBDmanage control volume.
         self.minors += 1
-        return minor
+        return self.minors
 
     def add_disk(self, volume, size=None, meta_size=None):
         """

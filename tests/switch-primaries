@@ -1,0 +1,63 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+import random
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+
+resource.add_disk('4M')
+
+resource.up()
+
+# initial sync
+first = resource.nodes[0]
+others = resource.nodes.difference([first])
+
+first.primary(force=True)
+first.secondary()
+
+first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+
+# switch the primary role around
+# could be done via autopromote, too.
+
+for i in range(40):
+    node = random.choice(resource.nodes)
+    verbose('Loop #%d: node %s' % (i, node))
+    node.primary()
+    node.fio(section='write')
+    node.secondary()
+    resource.nodes.difference( [node] ).\
+        event(r'connection .* role:Primary').\
+        event(r'connection .* role:Secondary')
+
+# If that did work, run again _without_ event checking ... this way the transitions happen faster.
+for i in range(40):
+    node = random.choice(resource.nodes)
+    verbose('Unchecked loop #%d: node %s' % (i, node))
+    node.primary()
+    node.secondary()
+
+# and once more, with implicit transitions via open()
+for i in range(40):
+    node = random.choice(resource.nodes)
+    verbose('open loop #%d: node %s' % (i, node))
+    node.fio(section='write')
+
+
+# Ensure all are still running fine, by causing an event that can be waited for
+resource.connections.from_node(first).disconnect()
+first.primary()
+resource.connections.from_node(first).connect()
+others.event(r'connection .* role:Primary')
+first.secondary()
+
+verbose('* Shut down and clean up.')
+
+resource.down()
+resource.rmmod()

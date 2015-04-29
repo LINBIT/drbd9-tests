@@ -1007,7 +1007,7 @@ def setup(parser=argparse.ArgumentParser(),
     if len(args.node) < min_nodes:
         skip_test('Test case requires %s or more nodes' % min_nodes)
     if max_nodes is not None and len(args.node) > max_nodes and not args.override_max:
-        skip_test('Test case requires %s or fewer nodes' % max_nodes)
+        skip_test('Test case requires %s or fewer nodes; user --override-max if really meant.' % max_nodes)
 
     global silent
     silent = args.silent

@@ -227,6 +227,17 @@ class Nodes(Collection):
         self.after_down()
         self.event(r'destroy resource')
 
+    def attach(self):
+        self.run(['drbdadm', 'attach', 'all', '-v'])
+        self.volumes.diskful.event(r'device .* disk:Attaching')
+        # and some other state ... Inconsistent, UpToDate, ...
+        self.volumes.diskful.event(r'device .* disk:.*')
+
+    def detach(self):
+        self.run(['drbdadm', 'detach', 'all', '-v'])
+        self.volumes.diskful.event(r'device .* disk:Detaching')
+        self.volumes.diskful.event(r'device .* disk:Diskless')
+
     def get_diskful(self):
         """ Return nodes that have at least one disk. """
         return Nodes([node for node in self
@@ -855,6 +866,12 @@ class Node(exxe.Exxe):
 
     def down(self):
         Nodes([self]).down()
+
+    def attach(self):
+        Nodes([self]).attach()
+
+    def detach(self):
+        Nodes([self]).detach()
 
     def event(self, *args, **kwargs):
         return Nodes([self]).event(*args, **kwargs)

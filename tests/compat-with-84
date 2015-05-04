@@ -1,0 +1,70 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+import random
+import time
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+# FIXME later on more nodes
+resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+
+resource.add_disk('4M')
+
+first = resource.nodes[0]
+others = resource.nodes.difference([first])
+another = others[0]
+
+first.run(['rmmod', 'drbd'])
+first.run(['modprobe', 'libcrc32c'])
+first.run(['insmod', '/data/drbd-8.4/drbd/drbd.ko'])
+
+verbose("8.4 is node %s" % first)
+print(first.run(
+            ['cat', '/proc/drbd'],
+            return_stdout=True,
+            prepare=True,
+            prefix=str(first) + ": "))
+
+first.drbd_major_version = 8
+first.config()
+first.config_changed = True
+first.update_config()
+
+# rmmod caused "drbdsetup events" to quit
+first.listen_to_events()
+
+# drbdadm-84 doesn't match the FQDN, set "good" value
+first.run(['hostname', first.hostname])
+
+
+verbose("conf is<<<<< \n%s\n>>>>" %  first.config())
+resource.nodes.run(['true'], prepare=True)
+first.run(['drbdadm', '--', '--force', 'create-md', 'all'])
+
+# we start with 8.4 having valid data.
+first.up()
+first.primary(force=True)
+first.fio(section="write")
+
+
+another.up()
+
+first.secondary()
+# check that the data is correct, even during sync!
+another.fio(section="verify")
+
+# wait for sync to finish, and re-verify
+# this command doesn't work, as the events on 8.4 say "conn-name:peer".
+#   first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+another.volumes.event('device .* disk:UpToDate')
+another.fio(section="verify")
+
+
+verbose('* Shut down and clean up.')
+
+resource.down()
+resource.rmmod()

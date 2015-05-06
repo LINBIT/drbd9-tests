@@ -479,7 +479,9 @@ class Resource(object):
             node.cleanup()
 
     def rmmod(self):
-        self.nodes.run(['rmmod', 'drbd_transport_tcp'])
+        for n in self.nodes:
+            if n.drbd_major_version == 9:
+                n.run(['rmmod', 'drbd_transport_tcp'])
         self.nodes.run(['rmmod', 'drbd'])
 
     def logscan(self, collection, where, *args, **kwargs):

@@ -9,14 +9,21 @@ from python import drbdtest
 from python.drbdtest import verbose
 from subprocess import CalledProcessError
 
-# FIXME later on more nodes
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
-
 resource.add_disk('4M')
+
+
+### FIXME: max_nodes = 3
+### Peer supports protocols 86-101, but multiple connections are only supported in protocol 110 and above
+
+
 
 first = resource.nodes[0]
 others = resource.nodes.difference([first])
-another = others[0]
+second_node = others[0]
+third = None
+if len(others) > 1:
+    third = others[1]
 
 first.run(['rmmod', 'drbd'])
 first.run(['modprobe', 'libcrc32c'])
@@ -30,7 +37,6 @@ print(first.run(
             prefix=str(first) + ": "))
 
 first.drbd_major_version = 8
-first.config()
 first.config_changed = True
 first.update_config()
 
@@ -46,22 +52,61 @@ resource.nodes.run(['true'], prepare=True)
 first.run(['drbdadm', '--', '--force', 'create-md', 'all'])
 
 # we start with 8.4 having valid data.
-first.up()
+# in case we run with 3 nodes we have to tell which one we want.
+first.up(['--peer', second_node.hostname])
 first.primary(force=True)
 first.fio(section="write")
 
 
-another.up()
+verbose(str(second_node) + " connect, check data.")
+second_node.up()
 
 first.secondary()
 # check that the data is correct, even during sync!
-another.fio(section="verify")
+second_node.fio(section="verify")
 
 # wait for sync to finish, and re-verify
 # this command doesn't work, as the events on 8.4 say "conn-name:peer".
 #   first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
-another.volumes.event('device .* disk:UpToDate')
-another.fio(section="verify")
+second_node.volumes.event('device .* disk:UpToDate')
+second_node.fio(section="verify")
+
+
+## Now the other host takes over...
+second_node.fio(section="write")
+first.fio(section="verify")
+
+
+# 8.4 gets stopped, a third node connected
+verbose(str(first) + " with 8.4 gets stopped")
+first.run(['drbdadm', 'down', 'all'])
+### FIXME: cannot work, the 8.4 node has space for only 1 bitmap.
+### TODO: resize LV?
+### if third:
+###     verbose(str(third) + " gets connected")
+###     third.up()
+###     third.fio(section="verify")
+###     third.volumes.event('device .* disk:UpToDate')
+###     third.fio(section="verify")
+
+
+
+verbose(str(first) + " gets reinstalled with DRBD 9...")
+first.run(['rmmod', 'drbd'])
+first.drbd_major_version = 9
+first.config_changed = True
+first.update_config()
+# rmmod caused "drbdsetup events" to quit
+first.listen_to_events()
+
+
+# needed convert v08 to v09
+first.run(['drbdadm', '--', '--force', 'create-md', 'all'])
+
+# check for working upgrade path
+first.up()
+first.fio(section="verify")
+
 
 
 verbose('* Shut down and clean up.')

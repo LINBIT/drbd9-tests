@@ -217,8 +217,8 @@ class Nodes(Collection):
                 ' '.join(pipes.quote(x) for x in args[0]))
         exxe.run(self, *args, **kwargs)
 
-    def up(self):
-        self.run(['drbdadm', 'up', 'all', '-v'])
+    def up(self, extra_options=[]):
+        self.run(['drbdadm', 'up', 'all', '-v'] + extra_options)
         self.after_up()
         self.volumes.diskful.event(r'device .* disk:Inconsistent')
 
@@ -566,8 +566,8 @@ class Resource(object):
             debug('# ' + ' '.join(pipes.quote(_) for _ in cmd))
             subprocess.check_call(cmd)
 
-    def up(self):
-        self.nodes.up()
+    def up(self, extra_options=[]):
+        self.nodes.up(extra_options)
         self.forbidden_patterns.update([
             r'connection:Timeout',
             r'connection:NetworkFailure',
@@ -856,8 +856,8 @@ class Node(exxe.Exxe):
             if self is not node:
                 self.connections.add(Connection(self, node))
 
-    def up(self):
-        Nodes([self]).up()
+    def up(self, extra_options=[]):
+        Nodes([self]).up(extra_options)
 
     def after_down(self):
         for node in self.resource.nodes:

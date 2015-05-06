@@ -218,9 +218,19 @@ class Nodes(Collection):
         exxe.run(self, *args, **kwargs)
 
     def up(self, extra_options=[]):
+        # the order of disk/connection setup isn't strictly defined.
+        # make sure that a defined order is seen, so that event matching works.
         self.run(['drbdadm', 'up', 'all', '-v'] + extra_options)
+
+        # doesn't work either.
+        #   + drbdmeta 1 v08 /dev/scratch/compat-with-84.new-20150504-103023-disk0 internal apply-al
+        #   Device '1' is configured!
+        #   + drbdsetup-84 attach 1 /dev/scratch/compat-with-84.new-20150504-103023-disk0 /dev/scratch/compat-with-84.new-20150504-103023-disk0 internal
+        #   1: Failure: (124) Device is attached to a disk (use detach first)
+        #self.run(['bash', '-c', 'drbdadm up all -v | grep -v " connect " | PATH=/lib/drbd:$PATH bash -x'])
+        #self.volumes.diskful.event(r'device .* disk:Inconsistent')
+        #self.run(['bash', '-c', 'drbdadm up all -v | grep    " connect " | PATH=/lib/drbd:$PATH bash -x'])
         self.after_up()
-        self.volumes.diskful.event(r'device .* disk:Inconsistent')
 
     def down(self):
         self.run(['drbdadm', 'down', 'all'])

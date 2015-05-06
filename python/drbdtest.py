@@ -468,49 +468,6 @@ class Resource(object):
             "".join([name + "(`" + str(key) + "', `" +
                      str(value) + "')\n" for key, value in dict.iteritems()])
 
-    def tmpl_defs(self):
-        devices = []
-        disks = []
-        metas = []
-        for volume in range(self.num_volumes):
-            disks.append({})
-            metas.append({})
-            devices.append({})
-            for node in self.nodes:
-                if volume < len(node.disks):
-                    disk = node.disks[volume]
-                    devices[volume][node.name] = '/dev/drbd%d' % disk.minor
-                    disks[volume][node.name] = \
-                        disk.disk if disk.disk is not None else 'none'
-                    if disk.meta is not None:
-                        metas[volume][node.name] = disk.meta
-
-        NODE = []
-        for node in self.nodes:
-            NODE.append(node.name)
-
-        return \
-            Resource.m4_define('DRBD_MAJOR_VERSION', str(node.drbd_major_version)) + \
-            Resource.m4_define('RESOURCE', self.name) + \
-            Resource.m4_define('NODES', [node.name for node in self.nodes]) + \
-            Resource.m4_define('VOLUMES', [str(v) for v in xrange(self.num_volumes)]) + \
-            Resource.m4_define_array('NODE',
-                                     dict((key, value) for key, value in enumerate(NODE))) + \
-            Resource.m4_define_array('NODE_ID',
-                                     dict((value, key) for key, value in enumerate(NODE))) + \
-            ''.join([Resource.m4_define_array('DEVICE%d' % (idx + 1), device)
-                    for idx, device in enumerate(devices) if len(device)]) + \
-            ''.join([Resource.m4_define_array('DISK%d' % (idx + 1), disk)
-                    for idx, disk in enumerate(disks) if len(disk)]) + \
-            ''.join([Resource.m4_define_array('META%d' % (idx + 1), meta)
-                    for idx, meta in enumerate(metas) if len(meta)]) + \
-            Resource.m4_define_array(
-                'HOSTNAME', dict((node.name, node.hostname)
-                    for node in self.nodes)) + \
-            Resource.m4_define_array(
-                'ADDRESS', dict((node.name, node.addr + ':' + str(node.port))
-                    for node in self.nodes))
-
     volumes = property(lambda self: self.nodes.volumes)
     connections = property(lambda self: self.nodes.connections)
     peer_devices = property(lambda self: self.nodes.peer_devices)
@@ -801,11 +758,54 @@ class Node(exxe.Exxe):
         self.disks.append(Volume(self, volume, size, meta_size))
         self.config_changed = True
 
+    def tmpl_defs(self, resource):
+        devices = []
+        disks = []
+        metas = []
+        for volume in range(resource.num_volumes):
+            disks.append({})
+            metas.append({})
+            devices.append({})
+            for node in resource.nodes:
+                if volume < len(node.disks):
+                    disk = node.disks[volume]
+                    devices[volume][node.name] = '/dev/drbd%d' % disk.minor
+                    disks[volume][node.name] = \
+                        disk.disk if disk.disk is not None else 'none'
+                    if disk.meta is not None:
+                        metas[volume][node.name] = disk.meta
+
+        NODE = []
+        for node in resource.nodes:
+            NODE.append(node.name)
+
+        return \
+            Resource.m4_define('DRBD_MAJOR_VERSION', str(self.drbd_major_version)) + \
+            Resource.m4_define('RESOURCE', resource.name) + \
+            Resource.m4_define('NODES', NODE) + \
+            Resource.m4_define('VOLUMES', [str(v) for v in xrange(resource.num_volumes)]) + \
+            Resource.m4_define_array('NODE',
+                                     dict((key, value) for key, value in enumerate(NODE))) + \
+            Resource.m4_define_array('NODE_ID',
+                                     dict((value, key) for key, value in enumerate(NODE))) + \
+            ''.join([Resource.m4_define_array('DEVICE%d' % (idx + 1), device)
+                    for idx, device in enumerate(devices) if len(device)]) + \
+            ''.join([Resource.m4_define_array('DISK%d' % (idx + 1), disk)
+                    for idx, disk in enumerate(disks) if len(disk)]) + \
+            ''.join([Resource.m4_define_array('META%d' % (idx + 1), meta)
+                    for idx, meta in enumerate(metas) if len(meta)]) + \
+            Resource.m4_define_array(
+                'HOSTNAME', dict((node.name, node.hostname)
+                    for node in resource.nodes)) + \
+            Resource.m4_define_array(
+                'ADDRESS', dict((node.name, node.addr + ':' + str(node.port))
+                    for node in resource.nodes))
+
     def config(self):
         resource = self.resource
         return subprocess.check_output(
             ['m4', '-P', '-I', os.path.join(TOP, 'lib', 'm4'),
-             '-D', 'TMPL_DEFS=' + resource.tmpl_defs(),
+             '-D', 'TMPL_DEFS=' + self.tmpl_defs(resource),
              os.path.join(TOP, 'lib', 'm4', 'preamble.m4'),
              resource.template])
 

@@ -1,0 +1,61 @@
+#! /usr/bin/env python
+#
+#
+# Create a chain of 3 nodes: A - B - C
+#
+# Ensure that C gets D_UP_TO_DATE after A was temporarily Primary.
+# Repeatedly.
+#
+# The point of the test is, that C recognises the finished resync
+# from A to B though C was never connected to A.
+#
+# See also https://bugs.linbit/cgi-bin/bugzilla/show_bug.cgi?id=540
+
+
+import random
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+# FIXME: longer chains?
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+
+resource.add_disk('4M')
+verbose("node chain is:")
+for h in resource.nodes:
+    verbose("   %s" % h)
+
+resource.up()
+
+# TODO FIXME: instead of later on removing all "wrong" connection, don't build
+# them in the first place?
+# Ie. don't make a connection mesh but only define the wanted ones?
+# TODO is disconnecting on one node the same thing as disconnecting both sides?
+for current_host in range(0, len(resource.nodes)-2):
+    for other_host in range(current_host+2, len(resource.nodes)):
+        resource.nodes[current_host].disconnect(
+                resource.nodes[other_host],
+                True)
+
+# now there should be a linear chain.
+first_node = resource.nodes[0]
+others = resource.nodes.difference([first_node])
+last_node = resource.nodes[-1]
+
+# initial sync
+first_node.primary(force=True)
+first_node.secondary()
+
+
+for i in range(10):
+    first_node.fio(section='write')
+    for n in others:
+        n.disks[0].event(r'device .* disk:UpToDate')
+    last_node.fio(section='verify')
+
+
+verbose('* Shut down and clean up.')
+
+resource.down()
+resource.rmmod()

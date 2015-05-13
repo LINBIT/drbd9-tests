@@ -1,0 +1,69 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+import random
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+
+resource.add_disk('4M')
+
+resource.up()
+
+# initial sync
+first = resource.nodes[0]
+others = resource.nodes.difference([first])
+
+first.primary(force=True)
+first.secondary()
+
+first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+
+is_attached = dict((n,1) for n in resource.nodes)
+
+# to make reproduceable for each number of nodes
+random.seed(42 + len(resource.nodes))
+
+for i in range(30):
+    node = random.choice(resource.nodes)
+    is_a = is_attached[node]
+    is_attached[node] = 1 - is_a
+    verbose('Loop #%d: node %s was %d now %d' % (i, node, is_a, is_attached[node]))
+    if is_a == 1:
+        node.detach()
+    else:
+        node.attach()
+
+# Now with going Primary from time to time
+for i in range(30):
+    node = random.choice(resource.nodes)
+    is_a = is_attached[node]
+    is_attached[node] = 1 - is_a
+    verbose('Loop #%d: node %s was %d now %d' % (i, node, is_a, is_attached[node]))
+    if is_a == 1:
+        node.detach()
+    else:
+        node.attach()
+        attached_count = sum( is_attached.values() )
+        # await majority to avoid split brains
+        if attached_count > len(resource.nodes):
+            verbose('    doing Primary/Secondary switch on node %s' % (node))
+            node.primary()
+            node.secondary()
+
+
+# Ensure all are still running fine, by causing an event that can be waited for
+resource.connections.from_node(first).disconnect()
+first.primary()
+resource.connections.from_node(first).connect()
+others.event(r'connection .* role:Primary')
+first.secondary()
+
+verbose('* Shut down and clean up.')
+
+resource.down()
+resource.rmmod()

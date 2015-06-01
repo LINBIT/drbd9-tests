@@ -6,7 +6,7 @@ from python import drbdtest
 from python.drbdtest import verbose
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=4)
+resource = drbdtest.setup(min_nodes=3, max_nodes=32)
 
 diskful_nodes = resource.nodes[0:2]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
@@ -23,9 +23,12 @@ verbose('* Make up-to-date data available.')
 diskful_nodes[0].primary(force=True)
 diskful_nodes[0].secondary()
 
-diskless_node = resource.nodes.diskless[0]  # first diskless node
-diskless_node.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
-
+diskful_peer_devices = drbdtest.PeerDevices()
+for diskless_node in resource.nodes.diskless:
+    for volume in diskful_nodes[0].volumes:
+        for node in diskful_nodes:
+            diskful_peer_devices.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, node), volume))
+diskful_peer_devices.event(r'peer-device .* peer-disk:UpToDate')
 # FIXME: change _initial_resync so that it works for a subset of nodes, or so
 # that it works in the diskless node case, instead of the above?
 

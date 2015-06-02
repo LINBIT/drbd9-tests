@@ -44,7 +44,8 @@ class OrderedSet(collections.MutableSet):
         self.items = []
         self.map = {}
         if iterable is not None:
-            self |= iterable
+            for e in iter(iterable):
+                self.add(e)
 
     def __len__(self):
         return len(self.items)
@@ -111,6 +112,20 @@ class OrderedSet(collections.MutableSet):
             self.items.append(key)
         return self.map[key]
     append = add
+
+    def update(self, data):
+        return map(lambda e: self.add(e), data)
+
+    def difference_update(self, delta):
+        for e in delta:
+            self.discard(e)
+        return self
+
+    def difference(self, delta):
+        new = self.copy()
+        for e in delta:
+            new.discard(e)
+        return new
     
     def index(self, key):
         """
@@ -125,9 +140,11 @@ class OrderedSet(collections.MutableSet):
         return self.map[key]
 
     def discard(self, key):
-        raise NotImplementedError(
-            "Cannot remove items from an existing OrderedSet"
-        )
+        self.map.pop(key, None)
+        try:
+            self.items.remove(key)
+        except:
+            pass
 
     def __iter__(self):
         return iter(self.items)

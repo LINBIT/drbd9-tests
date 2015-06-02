@@ -26,6 +26,7 @@ import argparse
 import subprocess
 from subprocess import CalledProcessError
 import atexit
+from ordered_set import OrderedSet
 import exxe
 from syslog import syslog_server
 from cStringIO import StringIO
@@ -96,7 +97,7 @@ class Collection(object):
 
     def __init__(self, cls, members=[]):
         self.cls = cls
-        self.members = set(members)
+        self.members = OrderedSet(members)
         for member in members:
             assert issubclass(member.__class__, self.cls) and \
                 self.same_resource(members)
@@ -435,7 +436,7 @@ class Resource(object):
         self.template = template
         self.logdir = logdir
         self.events_cls = None
-        self.forbidden_patterns = set()
+        self.forbidden_patterns = OrderedSet()
         self.add_new_posfile('.events.pos')
         atexit.register(self.cleanup)
 

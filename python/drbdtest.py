@@ -358,8 +358,7 @@ class Connections(Collection):
                  for __ in ['events-%s' % n0.name,
                             '--label', '%s:%s' % (n0.name, n1.name),
                             '-p', '.events-connection-%s.pos' % n1.name,
-                            '-f', 'local:[^ :]*:%s' % n0.addr_port(),
-                            '-f', 'peer:[^ :]*:%s' % n1.addr_port()]
+                            '-f', 'peer-node-id:%d' % n1.id]
                  ]
             resource = first(self.members).resource
             resource.logscan(self, where, *args, **kwargs)
@@ -413,8 +412,7 @@ class PeerDevices(Collection):
                  for __ in ['events-%s' % n0.name,
                             '--label', '%s:%s:%s' % (n0.name, n1.name, volume),
                             '-p', '.events-peer-device-%s:%s.pos' % (n1.name, volume),
-                            '-f', 'local:[^ :]*:%s' % n0.addr_port(),
-                            '-f', 'peer:[^ :]*:%s' % n1.addr_port(),
+                            '-f', 'peer-node-id:%d' % n1.id,
                             '-f', 'volume:%s' % volume]
                  ]
             resource = first(self.members).resource
@@ -713,6 +711,7 @@ class Node(exxe.Exxe):
             ['gethostip', '-d', name]).strip()
         self.port = port
         self.disks = []  # by volume
+        self.id = len(self.resource.nodes)
         self.resource.nodes.add(self)
         self.resource.posfiles_add_node(self)
         self.minors = 0

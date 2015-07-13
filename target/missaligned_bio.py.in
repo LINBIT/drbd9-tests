@@ -1,0 +1,89 @@
+#!/usr/bin/python
+
+import sys, os
+import ctypes
+from ctypes.util import find_library
+
+class IOVec(ctypes.Structure):
+    _fields_ = [("iov_base", ctypes.c_void_p),
+                ("iov_len", ctypes.c_size_t)]
+
+IOVec4Elem = IOVec * 4
+
+libc = ctypes.CDLL(find_library('c'))
+page_size = libc.getpagesize()
+sect_size = 512
+current_byte = 0
+
+def prepare_buffer(start, size):
+    global current_byte
+    for j in range(0, size / sect_size):
+        libc.memset(start + j * sect_size, current_byte, sect_size)
+        current_byte += 1
+
+def write_pattern(fd, buffer_ptr):
+    #test bios with missaligned start, 4k in size
+    for i in range(1, page_size / sect_size):
+        prepare_buffer(buffer_ptr.value + i * sect_size, page_size)
+        libc.write(fd, buffer_ptr.value + i * sect_size, page_size)
+
+    #test missaligned start 6k bio (aligned end)
+    prepare_buffer(buffer_ptr.value + page_size / 2, page_size + page_size / 2)
+    libc.write(fd, buffer_ptr.value + page_size / 2, page_size + page_size / 2)
+
+    #test missaligned start 9k bio (aligned end)
+    prepare_buffer(buffer_ptr.value + sect_size, page_size * 2 + sect_size)
+    libc.write(fd, buffer_ptr.value + sect_size, page_size * 2 + sect_size)
+
+    #test 2k bio with 3 holes
+    for j in range(0, 4):
+        prepare_buffer(buffer_ptr.value + j * page_size, sect_size)
+    iovecs = IOVec4Elem((buffer_ptr.value,                 sect_size),
+                        (buffer_ptr.value + page_size,     sect_size),
+                        (buffer_ptr.value + page_size * 2, sect_size),
+                        (buffer_ptr.value + page_size * 3, sect_size))
+
+    libc.writev(fd, ctypes.byref(iovecs), 4)
+
+    #mark the end of the test
+    libc.memset(buffer_ptr.value, 255, sect_size)
+    libc.write(fd, buffer_ptr.value, sect_size)
+
+def verify_pattern(fd, buffer_ptr):
+    global current_byte
+    sector = 0
+    while True:
+        libc.read(fd, buffer_ptr.value, sect_size)
+        libc.memset(buffer_ptr.value + page_size, current_byte, sect_size)
+        current_byte += 1
+        r = libc.memcmp(buffer_ptr.value, buffer_ptr.value + page_size, sect_size)
+        if r != 0:
+            libc.memset(buffer_ptr.value + page_size, 255, sect_size)
+            r = libc.memcmp(buffer_ptr.value, buffer_ptr.value + page_size, sect_size)
+            if r == 0:
+                break
+            print r
+            raise Exception('Does not verify')
+        sector += 1
+
+def main():
+    buffer_ptr = ctypes.c_void_p()
+    buffer_size = page_size * 8
+
+    if libc.posix_memalign(ctypes.byref(buffer_ptr), page_size, buffer_size) != 0:
+        raise Exception('ENOMEM')
+
+    fd = os.open(sys.argv[1], os.O_RDWR | os.O_DIRECT)
+    if fd < 0:
+        raise Exception('open failed')
+
+    if sys.argv[2] == "verify":
+        verify_pattern(fd, buffer_ptr)
+    else:
+        write_pattern(fd, buffer_ptr)
+
+    os.close(fd)
+
+
+if __name__ == "__main__":
+    main()

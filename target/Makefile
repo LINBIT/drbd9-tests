@@ -38,6 +38,8 @@ data_scripts := \
 	reset-rsyslogd \
 	rsyslogd \
 	unblock-connection \
+	missaligned_bio.py \
+
 
 extra_files := \
 	rsyslog-forward.conf.in

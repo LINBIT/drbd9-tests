@@ -1,0 +1,98 @@
+#! /usr/bin/env python
+
+# Pass this script a host name to use as the test node.
+
+from python import drbdtest
+import re
+
+
+def get_ref_counts(lines, which):
+    res = {}
+    for l in lines:
+        for name in which.keys():
+            m = re.search(r'^' + name + r'\s+\d+\s+(-?\d+)', l)
+            if m:
+                res[name] = int(m.group(1))
+    return res
+
+def ref_count(node, compare):
+    lines = node.run(['lsmod'], return_stdout=True, prepare=True).split('\n')
+    rc = get_ref_counts(lines, compare)
+    print 'expect %s, found %s' % (compare, rc)
+    if compare != rc:
+        raise Exception('On "%s" wanted %s, got %s!' % (node, compare, rc))
+
+def expect_drbd(node, drbd, transport):
+    ref_count(node, {'drbd': drbd, 'drbd_transport_tcp': transport})
+
+
+resource = drbdtest.setup(nodes=2)
+resource.nodes.up()
+
+node = resource.nodes[0]
+other = resource.nodes[1]
+
+node.primary(force=True)
+
+expect_drbd(node, 2, 1)
+
+# disconnect doesn't remove the "connection"
+node.disconnect(other)
+expect_drbd(node, 2, 1)
+
+# neither does this
+# TODO: get connection info from testsuite
+# node.run(['drbdsetup', 'del-path', resource, 1, c, c])
+# expect_drbd(node, 2, 1)
+
+# but this should
+node.run(['drbdsetup', 'del-peer', resource.name, '1'])
+expect_drbd(node, 2, 0)
+
+# get up again
+# node.connect(other) # doesn't work, drbdadm doesn't recreate the connection data in the kernel
+node.run(['drbdadm', 'adjust', resource.name])
+expect_drbd(node, 2, 1)
+
+# actually use it
+node.volumes.fio(section='write')
+expect_drbd(node, 2, 1)
+
+# change a setting
+node.run(['drbdsetup', 'net-options', resource.name, '1', '--verify-alg=md5'])
+expect_drbd(node, 2, 1)
+
+# change some settings, badly; ignore error
+try:
+    node.run(['drbdsetup', 'net-options', resource.name, '1', '--verify-alg=quaxi-wurstli'])
+except:
+    pass
+expect_drbd(node, 2, 1)
+
+# Now "up" with wrong data
+node.down()
+expect_drbd(node, 1, 0)
+resource.net_options = 'verify-alg quaxi-wurstly;'
+node.config_changed = True
+node.update_config()
+try:
+    node.up()
+except:
+    pass
+# No reference taken, because no valid config
+expect_drbd(node, 2, 0)
+
+
+resource.net_options = 'verify-alg md5;';
+node.config_changed = True
+node.update_config()
+node.run(['drbdadm', 'adjust', resource.name])
+expect_drbd(node, 2, 1)
+
+
+resource.nodes.down()
+# the transport still has a reference...
+expect_drbd(node, 1, 0)
+
+
+resource.rmmod()

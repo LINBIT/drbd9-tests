@@ -1,4 +1,0 @@
-# The case with two nodes is already covered by initial-resync-2
-[ "x$MAX_NODES" = x2 ] || "want_nodes=$MAX_NODES"
-
-initial-resync "$@"

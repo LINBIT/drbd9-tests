@@ -28,4 +28,7 @@ m4_ifelse(DRBD_MAJOR_VERSION, `8', `',
 		hosts m4_join(` ', NODES);
 	}
 ')m4_dnl
+	net {
+		NET
+	}
 }

@@ -427,6 +427,7 @@ Volumes.finish()
 class Resource(object):
     def __init__(self, name, logdir, template=None):
         self.name = name
+        self.net_options = ""
         self.nodes = Nodes()
         self.num_volumes = 0
         if template is None:
@@ -799,6 +800,7 @@ class Node(exxe.Exxe):
             Resource.m4_define('DRBD_MAJOR_VERSION', str(self.drbd_major_version)) + \
             Resource.m4_define('RESOURCE', resource.name) + \
             Resource.m4_define('NODES', NODE) + \
+            Resource.m4_define('NET', resource.net_options) + \
             Resource.m4_define('VOLUMES', [str(v) for v in xrange(resource.num_volumes)]) + \
             Resource.m4_define_array('NODE',
                                      dict((key, value) for key, value in enumerate(NODE))) + \

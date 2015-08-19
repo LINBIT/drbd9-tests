@@ -379,7 +379,7 @@ class Connections(Collection):
         for connection in self:
             node0, node1 = connection.nodes
             node0.run(['drbdadm', 'connect', '%s:%s' %
-                       (self.resource.name, node1.hostname)])
+                       (connection.resource.name, node1.hostname)])
         self.event(r'connection .* connection:Connecting')
         for connection in self:
             node0 = connection.nodes[0]
@@ -661,7 +661,7 @@ class Connection(object):
         self.nodes = (node1, node2)
 
     def get_resource(self):
-        return self[0].resource
+        return self.nodes[0].resource
     resource = property(get_resource)
 
     def __str__(self):

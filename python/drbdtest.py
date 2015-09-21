@@ -215,7 +215,7 @@ class Nodes(Collection):
         if not kwargs.pop('prepare', False):
             self.update_config()
         verbose(' '.join([node.name for node in self]) + ': ' +
-                ' '.join(pipes.quote(x) for x in args[0]))
+                ' '.join(pipes.quote(str(x)) for x in args[0]))
         exxe.run(self, *args, **kwargs)
 
     def up(self, extra_options=[]):
@@ -851,7 +851,7 @@ class Node(exxe.Exxe):
     def run(self, *args, **kwargs):
         if not kwargs.pop('prepare', False):
             self.update_config()
-        verbose(self.name + ': ' + ' '.join(pipes.quote(x) for x in args[0]))
+        verbose(self.name + ': ' + ' '.join(pipes.quote(str(x)) for x in args[0]))
         return super(Node, self).run(*args, **kwargs)
 
     def get_volumes(self):

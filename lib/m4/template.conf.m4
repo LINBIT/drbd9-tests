@@ -31,4 +31,9 @@ m4_ifelse(DRBD_MAJOR_VERSION, `8', `',
 	net {
 		NET
 	}
+
+	disk {
+		disk-flushes no;
+		md-flushes no;
+	}
 }

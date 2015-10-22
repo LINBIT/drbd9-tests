@@ -1,3 +1,0 @@
-want_nodes=2
-
-initial-resync "$@"

@@ -8,7 +8,6 @@
 [global]
 ;thread=1
 bs=4k
-buffered=1
 ioengine=sync
 verify=meta
 verify_interval=4k
@@ -17,6 +16,7 @@ filename=@device@
 [write]
 rw=write
 fill_device=1
+buffered=1
 do_verify=0
 
 [verify]
@@ -24,3 +24,17 @@ stonewall
 create_serialize=0
 rw=read
 do_verify=1
+
+[bench]
+readwrite=randrw
+# rwmixread=0 # must not specify here, else can't be overridden from the command line - see http://www.spinics.net/lists/fio/msg02989.html
+do_verify=0
+buffered=0
+ioengine=libaio
+iodepth=16
+direct=1
+runtime=15
+time_based=1
+overwrite=1
+size=1M
+rw_sequencer=sequential

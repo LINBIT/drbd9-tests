@@ -298,8 +298,13 @@ class Volumes(Collection):
         return Volumes([_ for _ in self if _.disk is None])
     diskless = property(get_diskless)
 
-    def fio(self, section, jobfile=None):
-        """ Run fio, the 'flexible I/O tester'. """
+    def fio(self, section, jobfile=None, return_output=False, fio_extra=None, name=None):
+        """
+            Run fio, the 'flexible I/O tester'.
+
+            fio_extra would get appended to the jobfile;
+            should be a list of strings, eg. ['bs=4k', 'runtime=20'].
+        """
         if jobfile is None:
             jobfile = os.path.join(TOP, 'target', 'write-verify.fio.in')
         template = open(jobfile).read()
@@ -308,9 +313,10 @@ class Volumes(Collection):
             node = volume.node
             n = 0
             while True:
-                prefix = os.path.join(node.resource.logdir, 'fio-%s-%s%s%s' %
+                prefix = os.path.join(node.resource.logdir, 'fio-%s-%s%s%s%s' %
                                       (node.name, volume.volume,
                                        '-%s' % section if section else '',
+                                       '+%s' % name if name else '',
                                        '-%s' % n if n > 0 else ''))
                 if not (os.path.exists(prefix + '.fio') or
                         os.path.exists(prefix + '.log')):
@@ -322,16 +328,37 @@ class Volumes(Collection):
             # parallel reading, we could start read jobs on multiple nodes in
             # parallel.
 
+            result = None
+
             cmd = ['fio']
             if section:
                 cmd.extend(['--section', section])
             cmd.append('-')
+
             jobfile = open(prefix + '.fio', 'w+')
             jobfile.write(job)
+            if fio_extra:
+                for arg in fio_extra:
+                    # let "fio" be the first string, still
+                    cmd.insert(1, "--%s" % arg)
+            #    jobfile.write("\n\n[%s]\n" % section)
+            #    for l in fio_extra:
+            #        jobfile.write("%s\n" % l)
+
+            jobfile.flush()
             jobfile.seek(0)
+
+            if verbosity_level >= 3:
+                sys.stderr.write(jobfile.read())
+                jobfile.seek(0)
+
             logfile = open(prefix + '.log', 'w+')
+            logfile.write("## command: %s\n\N" % cmd)
             try:
                 node.run(cmd, stdin=jobfile, stdout=logfile)
+                if return_output:
+                    logfile.seek(0)
+                    result = FioParser(logfile.readlines())
             except CalledProcessError:
                 logfile.seek(0)
                 sys.stderr.write(logfile.read())
@@ -342,6 +369,8 @@ class Volumes(Collection):
                     sys.stderr.write(logfile.read())
             finally:
                 logfile.close()
+
+            return result
 
 
 class Connections(Collection):
@@ -914,7 +943,29 @@ class Node(exxe.Exxe):
         return Connections([Connection(self, node)]).disconnect(wait=wait)
 
     def fio(self, *args, **kwargs):
-        self.volumes.fio(*args, **kwargs)
+        return self.volumes.fio(*args, **kwargs)
+
+    def fio_bench(self, section="bench", name=None, fio_extra=[], runtime=15):
+        """
+            Runs fio, but with a timelimit instead of sequential until EOF,
+            so that the results have some meaning.
+
+            With a 4M LV a single write pass has too much noise.
+        """
+        return self.fio(
+                section = section,
+                return_output = True,
+                name = name,
+                fio_extra = [ 'runtime=%d' % runtime ] + fio_extra,
+                )
+
+    def net_device_to_peer(self, peer):
+        """Returns the network device this peer is reachable via."""
+        lines = self.run(['ip', '-o', 'route', 'get', peer.addr], return_stdout=True)
+        fields = lines.split(' ')
+        dev = fields[2]
+        assert re.search(r'^eth', dev)
+        return dev
 
 
 class Tee(object):
@@ -1150,3 +1201,80 @@ def fake_check_output(*popenargs, **kwargs):
 
 try: subprocess.check_output
 except: subprocess.check_output = fake_check_output
+
+
+class FioParser():
+    def _unit_to_num(self, string):
+        return { '': 1, 'K': 1e3, 'm': 1e-3, 'u': 1e-6}[string or '']
+
+    def _kv_into_dict(self, dest, string, unit=1.0):
+        # m = re.search(r"^(\S+) +clat \((\w+)\):(?: (\w+)=([\d\.]+),?)+\s*$", l)
+        # grx, re module doesn't support repeated captures
+        # http://stackoverflow.com/questions/9764930/capturing-repeating-subpatterns-in-python-regex
+        for part in string.split(", "):
+            kv = re.search("(\w+)\s*=\s*([\d\.]+)(K|m)?(B|B/s|sec)?", part)
+            #print(part)
+
+            unit2 = unit * self._unit_to_num(kv.group(3))
+            dest[kv.group(1)] = float(kv.group(2)) * unit2
+
+        return
+
+    def __init__(self, data):
+        self.lines = data
+        self.data = dict()
+
+        for i in range(0, len(self.lines)):
+
+            # test-vm-30:   write: io=1008.0KB, bw=67689B/s, iops=16, runt= 15249msec
+            m = re.search(r"^\S+\s+(read|write|\w+)\s*: (io=.*)", self.lines[i])
+            if not m:
+                continue
+
+            # fio returns two lines - one summary line, and one status group with some more data.
+            # get these merged.
+            k = m.group(1).lower()
+            res = self.data.get(k, None)
+
+            if not res:
+                res = StatsDict()
+                self.data[k] = res
+
+            self._kv_into_dict(res, m.group(2))
+
+            # test-vm-32:     clat (usec): min=3, max=990, avg= 5.51, stdev=29.75
+            n = re.search(r"^\S+\s+clat \((\w*)sec\): (.*)", self.lines[i+2])
+            if n:
+                unit = self._unit_to_num(n.group(1))
+                self._kv_into_dict(res, n.group(2), unit)
+
+            print(res)
+
+    def latency(self, what="write"):
+        """returns a dict with min/max/avg/... in sec"""
+        return self.data.get(what, None)
+
+
+class StatsDict(dict):
+    # see also http://stackoverflow.com/questions/4984647/accessing-dict-keys-like-an-attribute-in-python
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
+
+    def Z(self, val):
+        return (val - self.avg) / self.stdev
+
+    def Zmin(self):
+        return self.Z(self.min)
+
+    def Zmax(self):
+        return self.Z(self.max)
+
+
+class Measurement():
+    # writes into the STDOUT file, where a script fetches that afterwards
+
+    def __init__(self, path):
+        self.id = path
+
+    def save(self, name, value):
+        print('<measurement> | %s | %s | %s' % (self.id, name, value))

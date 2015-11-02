@@ -748,7 +748,8 @@ class Node(exxe.Exxe):
         self.id = len(self.resource.nodes)
         self.resource.nodes.add(self)
         self.resource.posfiles_add_node(self)
-        self.minors = 0
+        # start at some higher number, so that there's no collision with DRBDmanage volumes.
+        self.minors = 137
         self.config_changed = True
         self.volume_group = volume_group
         self.connections = Connections()
@@ -788,7 +789,6 @@ class Node(exxe.Exxe):
         return self.name
 
     def next_minor(self):
-        # start with 1, to avoid conflicting with a potentially existing DRBDmanage control volume.
         self.minors += 1
         return self.minors
 

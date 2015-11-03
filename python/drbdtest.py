@@ -28,6 +28,7 @@ from subprocess import CalledProcessError
 import atexit
 from ordered_set import OrderedSet
 import exxe
+
 from syslog import syslog_server
 from cStringIO import StringIO
 
@@ -454,14 +455,11 @@ Volumes.finish()
 
 
 class Resource(object):
-    def __init__(self, name, logdir, template=None):
+    def __init__(self, name, logdir):
         self.name = name
         self.net_options = ""
         self.nodes = Nodes()
         self.num_volumes = 0
-        if template is None:
-            template = os.path.join(TOP, 'lib', 'm4', 'template.conf.m4')
-        self.template = template
         self.logdir = logdir
         self.events_cls = None
         self.forbidden_patterns = OrderedSet()
@@ -494,18 +492,6 @@ class Resource(object):
                 node.add_disk(volume, size, meta_size)
             else:
                 node.add_disk(volume)
-
-    @staticmethod
-    def m4_define(name, value):
-        if not isinstance(value, basestring):
-            value = ", ".join(["`" + v + "'" for v in value])
-        return "m4_define(`" + name + "', `" + str(value) + "')\n"
-
-    @staticmethod
-    def m4_define_array(name, dict):
-        return "m4_define_array(`" + name + "')\n" + \
-            "".join([name + "(`" + str(key) + "', `" +
-                     str(value) + "')\n" for key, value in dict.iteritems()])
 
     volumes = property(lambda self: self.nodes.volumes)
     connections = property(lambda self: self.nodes.connections)
@@ -734,8 +720,60 @@ class PeerDevice(object):
         return PeerDevices([self]).event(*args, **kwargs)
 
 
+class ConfigBlock(object):
+    INDENT = "     "
+
+    all_text = ""
+
+    def __init__(self, parent=None, fh=None, fn=None, t="", dest_fn=None):
+        self.parent = parent
+        self.name = t
+        self.fd = None
+        self.to_var = dest_fn
+
+        if self.parent:
+            self.indent = self.parent.indent + self.INDENT
+            self.to_var = self.parent.to_var
+            self.fd = self.parent.fd
+            self.do_close = False
+        else:
+            if fh:
+                self.fd = fh
+                self.do_close = False
+            elif fn:
+                self.fd = open(fn, "wt")
+                self.do_close = True
+
+            self.indent = ""
+
+    def __enter__(self):
+        self.write_no_indent("%s%s {\n" % (self.indent, self.name))
+        return self
+
+    def __exit__(self, *ignore_exception):
+        self.write_no_indent("%s}\n\n" % self.indent)
+
+        if self.fd and not self.parent and self.do_close:
+            self.fd.close()
+
+    def write_no_indent(self, content):
+        if self.to_var:
+            return self.to_var(content)
+        else:
+            return self.fd.write(content)
+
+    def write(self, data, *args):
+        content = "%s%s%s" % (self.indent, self.INDENT, (data % args))
+        if not content.endswith("\n"):
+            content = content + "\n"
+
+        self.write_no_indent(content)
+
+
 class Node(exxe.Exxe):
-    def __init__(self, resource, name, volume_group, addr=None, port=7789):
+    def __init__(self, resource, name, volume_group,
+            addr=None, port=7789,
+            multi_paths=None):
         super(Node, self).__init__(['ssh', '-l',
                                     'root', name,
                                     'exxe', '--syslog'], prefix='%s: ' % name)
@@ -776,8 +814,22 @@ class Node(exxe.Exxe):
                                 prepare=True)
         self.drbd_major_version = int(re.sub(r'\..*', '', drbd_version))
 
-    def addr_port(self):
-        return '%s:%s' % (self.addr, self.port)
+        self.addrs = [self.addr]
+        if multi_paths:
+            net_2 = self.run(['ip', '-oneline', 'a', 'show', 'label', 'eth0:1'],
+                    return_stdout=True)
+            verbose("got further path %s", net_2)
+            m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', net_2)
+            if not m:
+                raise RuntimeError("%s has no eth0:1", self)
+            self.addrs.append(m.group(1))
+
+        self.run(["bash", "-c", 'iptables -N drbd-test-input && iptables -A INPUT -j drbd-test-input || true'])
+        self.run(["bash", "-c", 'iptables -N drbd-test-output && iptables -A OUTPUT -j drbd-test-output || true'])
+
+
+    def addr_port(self, net_num=0):
+        return '%s:%s' % (self.addrs[net_num], self.port)
 
     def cleanup(self):
         self.config_changed = False
@@ -804,57 +856,72 @@ class Node(exxe.Exxe):
         self.disks.append(Volume(self, volume, size, meta_size))
         self.config_changed = True
 
-    def tmpl_defs(self, resource):
-        devices = []
-        disks = []
-        metas = []
-        for volume in range(resource.num_volumes):
-            disks.append({})
-            metas.append({})
-            devices.append({})
-            for node in resource.nodes:
-                if volume < len(node.disks):
-                    disk = node.disks[volume]
-                    devices[volume][node.name] = '/dev/drbd%d' % disk.minor
-                    disks[volume][node.name] = \
-                        disk.disk if disk.disk is not None else 'none'
-                    if disk.meta is not None:
-                        metas[volume][node.name] = disk.meta
+    def _config_conns_84(self, parent):
+        # no explicit connections for 8.4
+        # done via "address" in "on <host>" section
+        pass
 
-        NODE = []
-        for node in resource.nodes:
-            NODE.append(node.name)
+    def _config_one_host_addr(self, node, block, i):
+        block.write("host %s address %s:%d;" %
+                    (node.name,
+                     node.addrs[i],
+                     node.port))
 
-        return \
-            Resource.m4_define('DRBD_MAJOR_VERSION', str(self.drbd_major_version)) + \
-            Resource.m4_define('RESOURCE', resource.name) + \
-            Resource.m4_define('NODES', NODE) + \
-            Resource.m4_define('NET', resource.net_options) + \
-            Resource.m4_define('VOLUMES', [str(v) for v in xrange(resource.num_volumes)]) + \
-            Resource.m4_define_array('NODE',
-                                     dict((key, value) for key, value in enumerate(NODE))) + \
-            Resource.m4_define_array('NODE_ID',
-                                     dict((value, key) for key, value in enumerate(NODE))) + \
-            ''.join([Resource.m4_define_array('DEVICE%d' % (idx + 1), device)
-                    for idx, device in enumerate(devices) if len(device)]) + \
-            ''.join([Resource.m4_define_array('DISK%d' % (idx + 1), disk)
-                    for idx, disk in enumerate(disks) if len(disk)]) + \
-            ''.join([Resource.m4_define_array('META%d' % (idx + 1), meta)
-                    for idx, meta in enumerate(metas) if len(meta)]) + \
-            Resource.m4_define_array(
-                'HOSTNAME', dict((node.name, node.hostname)
-                    for node in resource.nodes)) + \
-            Resource.m4_define_array(
-                'ADDRESS', dict((node.name, node.addr + ':' + str(node.port))
-                    for node in resource.nodes))
+    def _config_one_connection(self, n1, n2, parent):
+        with ConfigBlock(parent=parent, t="connection") as c:
+            with ConfigBlock(parent=c, t='net') as net:
+                pass
+
+            for i, a1, a2 in zip(xrange(len(n1.addr)), n1.addrs, n2.addrs):
+                with ConfigBlock(parent=c, t='path') as path:
+                    self._config_one_host_addr(n1, path, i)
+                    self._config_one_host_addr(n2, path, i)
+
+    def _config_conns_9(self, parent):
+        for start, n1 in enumerate(self.resource.nodes):
+            for n2 in self.resource.nodes[start + 1:]:
+                self._config_one_connection(n1, n2, parent)
+
+    def config_host(self, node, parent, index):
+        resource = self.resource
+
+        with ConfigBlock(parent=parent, t='on %s' % node.hostname) as N:
+            if self.drbd_major_version == 9:
+                N.write("node-id %d;" % index)
+            else:
+                # 8.4 compat
+                N.write("address %s:%d;" % (node.addr, node.port))
+
+            for index, disk in enumerate(node.disks):
+                with ConfigBlock(parent=N, t='volume %d' % index) as V:
+                    V.write("device /dev/drbd%d;" % disk.minor)
+                    V.write("disk %s;" % (disk.disk or "none"))
+                    if disk.disk:
+                        V.write("meta-disk %s;" % (disk.meta or "internal"))
 
     def config(self):
+        text = ["global { usage-count no; }\n\n"]
+
         resource = self.resource
-        return subprocess.check_output(
-            ['m4', '-P', '-I', os.path.join(TOP, 'lib', 'm4'),
-             '-D', 'TMPL_DEFS=' + self.tmpl_defs(resource),
-             os.path.join(TOP, 'lib', 'm4', 'preamble.m4'),
-             resource.template])
+        with ConfigBlock(dest_fn=lambda x: text.append(x),
+                           t="resource %s" % resource.name) as res:
+
+            with ConfigBlock(parent=res, t='disk') as disk:
+                disk.write("disk-flushes no;")
+                disk.write("md-flushes no;")
+
+            with ConfigBlock(parent=res, t='net') as net:
+                net.write(resource.net_options)
+
+            for index, n in enumerate(resource.nodes):
+                self.config_host(n, parent=res, index=index)
+
+            if self.drbd_major_version == 8:
+                self._config_conns_84(res)
+            else:
+                self._config_conns_9(res)
+
+        return "".join(text)
 
     def update_config(self):
         """ Create or update the configuration file on the node when needed. """
@@ -959,9 +1026,10 @@ class Node(exxe.Exxe):
                 fio_extra = [ 'runtime=%d' % runtime ] + fio_extra,
                 )
 
-    def net_device_to_peer(self, peer):
+    def net_device_to_peer(self, peer, net_num=0):
         """Returns the network device this peer is reachable via."""
-        lines = self.run(['ip', '-o', 'route', 'get', peer.addr], return_stdout=True)
+        lines = self.run(['ip', '-o', 'route', 'get', peer.addrs[net_num]],
+                         return_stdout=True)
         fields = lines.split(' ')
         dev = fields[2]
         assert re.search(r'^eth', dev)
@@ -1029,7 +1097,7 @@ def scan_syslog_files(logdir):
 
 
 def setup(parser=argparse.ArgumentParser(),
-          nodes=None, max_nodes=None, min_nodes=2):
+          nodes=None, max_nodes=None, min_nodes=2, multi_paths=False):
     """
     Test setup.  Returns a resource object.
 
@@ -1046,7 +1114,6 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--cleanup', default='success',
                         choices=['success', 'always', 'never'])
     parser.add_argument('--volume-group', default='scratch')
-    parser.add_argument('--template')
     parser.add_argument('--vconsole', action='store_true')
     parser.add_argument('--silent', action='store_true')
     parser.add_argument('-v', action='count', dest='verbose')
@@ -1123,11 +1190,11 @@ def setup(parser=argparse.ArgumentParser(),
 
     Cleanup(args.cleanup)
     resource = Resource(args.resource,
-                        logdir=args.logdir,
-                        template=args.template)
+                        logdir=args.logdir)
 
     for node in args.node:
-        Node(resource, node, args.volume_group)
+        Node(resource, node, args.volume_group,
+                multi_paths=multi_paths)
 
     if args.vconsole:
         for node in args.node:

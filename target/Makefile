@@ -23,7 +23,6 @@ data_libs := \
 	drbd-test.sh
 
 data_scripts := \
-	block-connection \
 	cleanup \
 	create-disk \
 	disable-faults \

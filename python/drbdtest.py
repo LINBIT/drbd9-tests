@@ -827,6 +827,9 @@ class Node(exxe.Exxe):
         self.run(["bash", "-c", 'iptables -N drbd-test-input && iptables -A INPUT -j drbd-test-input || true'])
         self.run(["bash", "-c", 'iptables -N drbd-test-output && iptables -A OUTPUT -j drbd-test-output || true'])
 
+        # Ensure that added nodes will be reflected in the DRBD configuration file.
+        self.config_changed = True
+
 
     def addr_port(self, net_num=0):
         return '%s:%s' % (self.addrs[net_num], self.port)

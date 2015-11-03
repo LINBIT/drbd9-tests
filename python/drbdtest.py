@@ -1035,6 +1035,45 @@ class Node(exxe.Exxe):
         assert re.search(r'^eth', dev)
         return dev
 
+    @staticmethod
+    def _iptables_cmd_1(chain, sa, sp, da, dp, jump, add_remove):
+        r = ['iptables',
+             add_remove, chain,
+             "-p", "tcp",
+             "--source", sa,
+             "--destination", da]
+        if sp:
+            r.extend(("--source-port", str(sp)))
+        if dp:
+            r.extend(("--destination-port", str(dp)))
+        r.extend(("-j", jump))
+        return r
+
+    def _iptables_cmd(self, node2, jump, path_nr, add_remove):
+        """Returns an array of arrays (for .run) to filter the given path."""
+        r = []
+        r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],  self.port, node2.addrs[path_nr],       None, jump, add_remove))
+        r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],       None, node2.addrs[path_nr], node2.port, jump, add_remove))
+        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr],       None,  self.addrs[path_nr],  self.port, jump, add_remove))
+        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr], node2.port,  self.addrs[path_nr],       None, jump, add_remove))
+        return r
+
+    def block_path(self, other_node, net_number=0):
+        """Uses iptables to block one network path."""
+        verbose("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
+        cmds = self._iptables_cmd(other_node, "DROP", net_number, "-I")
+        for c in cmds:
+            print("%s"% c)
+            self.run(c)
+
+    def unblock_path(self, other_node, net_number=0):
+        """Uses iptables to unblock one network path."""
+        verbose("Unblocking path #%d from %s to %s" % (net_number, self, other_node))
+        cmds = self._iptables_cmd(other_node, "DROP", net_number, "-D")
+        for c in cmds:
+            print("%s" % c)
+            self.run(c)
+
 
 class Tee(object):
     """ File object that forwards writes and flushes to two other file objects. """

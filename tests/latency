@@ -1,0 +1,100 @@
+#! /usr/bin/env python
+## DRBD-TESTSUITE-FLAG: dumpcap=0
+
+# Pass this script two host names to use as the test nodes.
+
+from python import drbdtest
+from python.drbdtest import verbose
+from python.drbdtest import Measurement
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource.add_disk('4M')
+resource.net_options = 'ping-timeout 30; sndbuf-size 4M; rcvbuf-size 4M; ';
+resource.nodes.config_changed = True
+resource.nodes.update_config()
+
+meas_r = Measurement('iops-read')
+meas_w = Measurement('iops')
+
+def report(test, fio):
+    lat = fio.latency("write")
+    if lat:
+        meas_w.save(test, lat.iops)
+        print("%s: write %f IOPs (%s)" % (test, lat.iops, lat))
+
+    lat = fio.latency("read")
+    if lat:
+        meas_r.save(test, lat.iops)
+        print("%s: read  %f IOPs (%s)" % (test, lat.iops, lat))
+
+def r_w_rw(name):
+    n = 'rd-%s' % name
+    r = first.fio_bench(name=n, fio_extra=['rwmixread=100'])
+    report(n, r)
+
+    n = 'wr-%s' % name
+    w = first.fio_bench(name=n, fio_extra=['rwmixread=0'])
+    report(n, w)
+
+    n = 'rw-%s' % name
+    rw = first.fio_bench(name=n, fio_extra=['rwmixread=50'])
+    report(n, rw)
+    return (r, w, rw)
+
+
+first = resource.nodes[0]
+second= resource.nodes[1]
+dev = first.net_device_to_peer(second)
+
+first.up()
+first.primary(force=True)
+second.up()
+
+first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+
+# allocate date, first run without measuring
+first.fio_bench(section="write")
+
+exit
+
+# test connected
+r_w_rw('connected-prot-C-rd')
+
+
+first.run(['drbdsetup', 'net-options', resource.name, '1', '--protocol=A'])
+
+r_w_rw('connected-prot-A')
+
+
+# FIXME: only to the second node?
+first.run(['tc', 'qdisc', 'add', 'dev', dev, 'root', 'netem', 'delay', '50ms'])
+
+r_w_rw('connected-prot-A-delayed')
+
+first.run(['tc', 'qdisc', 'del', 'dev', dev, 'root'])
+
+
+# ensure that no bad things happened in the meantime
+# we use the role switching as unique event
+first.secondary()
+second.primary()
+second.secondary()
+# FIXME: how to check for UpToDate? Would need to store last event?
+# I hope that the forbidden events catch connection loss, as we're reading
+# events for both hosts here.
+#first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+
+
+first.disconnect(second);
+
+# need to be primary, to avoid swinging around?
+first.primary()
+
+r_w_rw('unconnected')
+
+
+verbose('* Shut down and clean up.')
+
+resource.down()
+resource.rmmod()

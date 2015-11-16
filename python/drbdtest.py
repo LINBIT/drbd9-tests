@@ -21,6 +21,7 @@ import sys
 import re
 import time
 import pipes
+import threading
 import socket
 import argparse
 import subprocess
@@ -741,7 +742,8 @@ class ConfigBlock(object):
     INDENT = "     "
 
     _glob = threading.local()
-    _stack = _glob.getattr('stack', ["top"])
+    _glob.stack = ["top"]
+    _stack = _glob.stack
 
     def __init__(self, parent=None, fh=None, fn=None, t="", dest_fn=None):
         self.parent = parent
@@ -752,7 +754,7 @@ class ConfigBlock(object):
         self.fd = None
         self.to_var = dest_fn
 
-        if self.parent:
+        if self.parent != "top":
             self.indent = self.INDENT * len(self._stack)
             self.to_var = self.parent.to_var
             self.fd = self.parent.fd
@@ -767,6 +769,9 @@ class ConfigBlock(object):
 
             self.indent = ""
 
+        # should that be in __enter__()?
+        self._stack.append(self)
+
     def __enter__(self):
         self.write_no_indent("%s%s {\n" % (self.indent, self.name))
         return self
@@ -774,8 +779,10 @@ class ConfigBlock(object):
     def __exit__(self, *ignore_exception):
         self.write_no_indent("%s}\n\n" % self.indent)
 
-        if self.fd and not self.parent and self.do_close:
+        if self.fd and self.do_close:
             self.fd.close()
+
+        assert(self._stack.pop() == self)
 
     def write_no_indent(self, content):
         if self.to_var:
@@ -880,7 +887,7 @@ class Node(exxe.Exxe):
         self.disks.append(Volume(self, volume, size, meta_size))
         self.config_changed = True
 
-    def _config_conns_84(self, parent):
+    def _config_conns_84(self):
         # no explicit connections for 8.4
         # done via "address" in "on <host>" section
         pass
@@ -891,25 +898,25 @@ class Node(exxe.Exxe):
                      node.addrs[i],
                      node.port))
 
-    def _config_one_connection(self, n1, n2, parent):
-        with ConfigBlock(parent=parent, t="connection") as c:
-            with ConfigBlock(parent=c, t='net') as net:
+    def _config_one_connection(self, n1, n2):
+        with ConfigBlock(t="connection"):
+            with ConfigBlock(t='net'):
                 pass
 
             for i, a1, a2 in zip(xrange(len(n1.addr)), n1.addrs, n2.addrs):
-                with ConfigBlock(parent=c, t='path') as path:
+                with ConfigBlock(t='path') as path:
                     self._config_one_host_addr(n1, path, i)
                     self._config_one_host_addr(n2, path, i)
 
-    def _config_conns_9(self, parent):
+    def _config_conns_9(self):
         for start, n1 in enumerate(self.resource.nodes):
             for n2 in self.resource.nodes[start + 1:]:
-                self._config_one_connection(n1, n2, parent)
+                self._config_one_connection(n1, n2)
 
-    def config_host(self, node, parent, index):
+    def config_host(self, node, index):
         resource = self.resource
 
-        with ConfigBlock(parent=parent, t='on %s' % node.hostname) as N:
+        with ConfigBlock(t='on %s' % node.hostname) as N:
             if self.drbd_major_version == 9:
                 N.write("node-id %d;" % index)
             else:
@@ -917,7 +924,7 @@ class Node(exxe.Exxe):
                 N.write("address %s:%d;" % (node.addr, node.port))
 
             for index, disk in enumerate(node.disks):
-                with ConfigBlock(parent=N, t='volume %d' % index) as V:
+                with ConfigBlock(t='volume %d' % index) as V:
                     V.write("device /dev/drbd%d;" % disk.minor)
                     V.write("disk %s;" % (disk.disk or "none"))
                     if disk.disk:
@@ -928,22 +935,22 @@ class Node(exxe.Exxe):
 
         resource = self.resource
         with ConfigBlock(dest_fn=lambda x: text.append(x),
-                           t="resource %s" % resource.name) as res:
+                           t="resource %s" % resource.name):
 
-            with ConfigBlock(parent=res, t='disk') as disk:
+            with ConfigBlock(t='disk') as disk:
                 disk.write("disk-flushes no;")
                 disk.write("md-flushes no;")
 
-            with ConfigBlock(parent=res, t='net') as net:
+            with ConfigBlock(t='net') as net:
                 net.write(resource.net_options)
 
             for index, n in enumerate(resource.nodes):
-                self.config_host(n, parent=res, index=index)
+                self.config_host(n, index=index)
 
             if self.drbd_major_version == 8:
-                self._config_conns_84(res)
+                self._config_conns_84()
             else:
-                self._config_conns_9(res)
+                self._config_conns_9()
 
         return "".join(text)
 

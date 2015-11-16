@@ -720,19 +720,40 @@ class PeerDevice(object):
         return PeerDevices([self]).event(*args, **kwargs)
 
 
+class AsPrimary(object):
+
+    def __init__(self, node, force=False):
+        self.node = node
+        self.force = force
+
+    def __enter__(self):
+        self.node.primary(force=self.force)
+
+    def __exit__(self, *ignore_exception):
+        # Let processes detach correctly... eg. fio causes
+        #   State change failed: (-12) Device is held open by someone
+        # unless /lib/udev/rules.d/{13,60_persistent_storage}*
+        # are patched to exclude DRBD from blkid
+        self.node.secondary()
+
+
 class ConfigBlock(object):
     INDENT = "     "
 
-    all_text = ""
+    _glob = threading.local()
+    _stack = _glob.getattr('stack', ["top"])
 
     def __init__(self, parent=None, fh=None, fn=None, t="", dest_fn=None):
         self.parent = parent
+        if not self.parent:
+            self.parent = self._stack[-1]
+
         self.name = t
         self.fd = None
         self.to_var = dest_fn
 
         if self.parent:
-            self.indent = self.parent.indent + self.INDENT
+            self.indent = self.INDENT * len(self._stack)
             self.to_var = self.parent.to_var
             self.fd = self.parent.fd
             self.do_close = False

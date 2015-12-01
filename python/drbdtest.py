@@ -1425,3 +1425,16 @@ class Measurement():
 
     def save(self, name, value):
         print('<measurement> | %s | %s | %s' % (self.id, name, value))
+
+
+# is assert(), but with non-conflicting name
+def ensure(want, have):
+    if want != have:
+        sys.stderr.write("Wanted '%s', but got '%s'.\n" % (repr(want), repr(have)))
+        raise RuntimeError('assert trigger')
+
+def ensure_subset(smaller, bigger):
+    """compares two dictionaries"""
+    if not all([smaller[k] == bigger[k] for k in smaller.iterkeys()]):
+        sys.stderr.write("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
+        raise RuntimeError('assert trigger')

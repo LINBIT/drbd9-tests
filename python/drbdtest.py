@@ -1177,6 +1177,7 @@ def scan_syslog_files(logdir):
 
 
 def setup(parser=argparse.ArgumentParser(),
+          _node_class=Node, _res_class=Resource,
           nodes=None, max_nodes=None, min_nodes=2, multi_paths=False):
     """
     Test setup.  Returns a resource object.
@@ -1269,11 +1270,11 @@ def setup(parser=argparse.ArgumentParser(),
     tee = Tee(open(os.path.join(args.logdir, 'test.log'), 'w'))
 
     Cleanup(args.cleanup)
-    resource = Resource(args.resource,
+    resource = _res_class(args.resource,
                         logdir=args.logdir)
 
     for node in args.node:
-        Node(resource, node, args.volume_group,
+        _node_class(resource, node, args.volume_group,
                 multi_paths=multi_paths)
 
     if args.vconsole:

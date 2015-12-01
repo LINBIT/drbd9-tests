@@ -723,19 +723,20 @@ class PeerDevice(object):
 
 class AsPrimary(object):
 
-    def __init__(self, node, force=False):
+    def __init__(self, node, res="all", force=False):
         self.node = node
         self.force = force
+        self.res = res
 
     def __enter__(self):
-        self.node.primary(force=self.force)
+        self.node.primary(res=self.res, force=self.force)
 
     def __exit__(self, *ignore_exception):
         # Let processes detach correctly... eg. fio causes
         #   State change failed: (-12) Device is held open by someone
         # unless /lib/udev/rules.d/{13,60_persistent_storage}*
         # are patched to exclude DRBD from blkid
-        self.node.secondary()
+        self.node.secondary(self.res)
 
 
 class ConfigBlock(object):
@@ -1025,17 +1026,17 @@ class Node(exxe.Exxe):
     def event(self, *args, **kwargs):
         return Nodes([self]).event(*args, **kwargs)
 
-    def primary(self, force=False):
+    def primary(self, res="all", force=False):
         if force:
-            self.run(['drbdadm', 'primary', '--force', 'all'])
+            self.run(['drbdadm', 'primary', '--force', res, '-v'])
             self.event(r'resource .* role:Primary')
             self.volumes.diskful.event(r'device .* disk:UpToDate')
         else:
-            self.run(['drbdadm', 'primary', 'all'])
+            self.run(['drbdadm', 'primary', res, '-v'])
             self.event(r'resource .* role:Primary')
 
-    def secondary(self):
-        self.run(['drbdadm', 'secondary', 'all'])
+    def secondary(self, res="all"):
+        self.run(['drbdadm', 'secondary', res])
         self.event(r'resource .* role:Secondary')
 
     def connect(self, node):

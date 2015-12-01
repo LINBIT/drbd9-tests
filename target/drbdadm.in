@@ -7,6 +7,6 @@ verbose=
 [ ${DRBD_TEST_VERBOSE:-0} -lt 3 ] || verbose=-v
 
 drbdadm \
-    -c "@DRBD_TEST_VAR@/$DRBD_TEST_JOB/drbd.conf" \
+    $DRBD_TEST_DRBDADM_OPTIONS \
     $verbose \
     "$@"

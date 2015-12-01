@@ -834,7 +834,7 @@ class Node(exxe.Exxe):
         self.run(['export', 'DRBD_TEST_DATA=%s' % DRBD_TEST_DATA,
                   'DRBD_TEST_JOB=%s' % os.environ['DRBD_TEST_JOB'],
                   'EXXE_IDENT=exxe/%s' % os.environ['DRBD_TEST_JOB'],
-                  'DRBD_TEST_VERBOSE=%s' % verbosity_level],
+                  'DRBD_TEST_VERBOSE=%s' % verbosity_level] + self._extra_environment(),
                  prepare=True)
         self.hostname = self.run(['hostname', '-f'], return_stdout=True,
                                  prepare=True)
@@ -858,6 +858,10 @@ class Node(exxe.Exxe):
         # Ensure that added nodes will be reflected in the DRBD configuration file.
         self.config_changed = True
 
+    def _extra_environment(self):
+        return ['DRBD_TEST_DRBDADM_OPTIONS=%s' %
+                ("-c /var/lib/drbd-test/%s/drbd.conf" %
+                 os.environ['DRBD_TEST_JOB'])]
 
     def addr_port(self, net_num=0):
         return '%s:%s' % (self.addrs[net_num], self.port)

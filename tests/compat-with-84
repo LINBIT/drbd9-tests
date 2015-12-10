@@ -7,74 +7,104 @@ import time
 
 from python import drbdtest
 from python.drbdtest import verbose
+from python.drbdtest import AsPrimary
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
-resource.add_disk('4M')
+resource.add_disk('96M')
 
 
 ### FIXME: max_nodes = 3
 ### Peer supports protocols 86-101, but multiple connections are only supported in protocol 110 and above
 
 
-
 first = resource.nodes[0]
 others = resource.nodes.difference([first])
-second_node = others[0]
+second = others[0]
 third = None
 if len(others) > 1:
     third = others[1]
 
-first.run(['rmmod', 'drbd'])
-first.run(['modprobe', 'libcrc32c'])
-first.run(['insmod', '/data/drbd-8.4/drbd/drbd.ko'])
+for n in [first]:
+# for n in resource.nodes: # for 8.4 only tests
+    n.run(['rmmod', 'drbd'])
+    n.run(['modprobe', 'libcrc32c'])
+    n.run(['insmod', '/data/drbd-8.4/drbd/drbd.ko'])
 
-verbose("8.4 is node %s" % first)
-print(first.run(
-            ['cat', '/proc/drbd'],
-            return_stdout=True,
-            prepare=True,
-            prefix=str(first) + ": "))
+    verbose("8.4 is node %s" % n)
+    print(n.run(
+                ['cat', '/proc/drbd'],
+                return_stdout=True,
+                prepare=True,
+                prefix=str(n) + ": "))
 
-first.drbd_major_version = 8
-first.config_changed = True
-first.update_config()
+    n.drbd_major_version = 8
+    n.config_changed = True
+    n.update_config()
 
-# rmmod caused "drbdsetup events" to quit
-first.listen_to_events()
+    # rmmod caused "drbdsetup events" to quit
+    n.listen_to_events()
 
-# drbdadm-84 doesn't match the FQDN, set "good" value
-first.run(['hostname', first.hostname])
+    # drbdadm-84 doesn't match the FQDN, set "good" value
+    n.run(['hostname', n.hostname])
+    n.run(['drbdadm', '--', '--force', 'create-md', 'all'])
 
 
 verbose("conf is<<<<< \n%s\n>>>>" %  first.config())
 resource.nodes.run(['true'], prepare=True)
-first.run(['drbdadm', '--', '--force', 'create-md', 'all'])
 
 # we start with 8.4 having valid data.
 # in case we run with 3 nodes we have to tell which one we want.
-first.up(['--peer', second_node.hostname])
+first.up(['--peer', second.hostname])
 first.primary(force=True)
 first.fio(section="write")
-
-
-verbose(str(second_node) + " connect, check data.")
-second_node.up()
-
 first.secondary()
-# check that the data is correct, even during sync!
-second_node.fio(section="verify")
 
-# wait for sync to finish, and re-verify
-# this command doesn't work, as the events on 8.4 say "conn-name:peer".
-#   first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
-second_node.volumes.event('device .* disk:UpToDate')
-second_node.fio(section="verify")
+verbose(str(second) + " connect, check data.")
+second.up()
+time.sleep(2)
+# TODO second.volumes.event('device .* disk:UpToDate')
+
+
+# check that the data is correct, even during sync!
+with AsPrimary(second):
+    second.fio(section="verify")
+    # wait for sync to finish, and re-verify
+    # this command doesn't work, as the events on 8.4 say "conn-name:peer".
+    #   first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+    second.volumes.event('device .* disk:UpToDate')
+    second.fio(section="verify")
+
+
+# now run 8.4 diskless a bit
+first.run(['drbdadm', 'detach', 'all'])
+with AsPrimary(first):
+    first.fio(section="write")
+    first.fio(section="write")
+    # time.sleep(10)
+
+first.run(['drbdadm', 'attach', 'all'])
+first.volumes.event('device .* disk:UpToDate')
 
 
 ## Now the other host takes over...
-second_node.fio(section="write")
-first.fio(section="verify")
+with AsPrimary(second):
+    second.fio(section="write")
+with AsPrimary(first):
+    first.fio(section="verify")
+
+
+# and 8.4 gets to be only one serving for a bit
+second.run(['drbdadm', 'detach', 'all'])
+with AsPrimary(second):
+    second.fio(section="write")
+    second.fio(section="write")
+    second.fio(section="write")
+second.run(['drbdadm', 'attach', 'all'])
+second.volumes.event('device .* disk:UpToDate')
+
+with AsPrimary(first):
+    first.fio(section="verify")
 
 
 # 8.4 gets stopped, a third node connected
@@ -89,6 +119,9 @@ first.run(['drbdadm', 'down', 'all'])
 ###     third.volumes.event('device .* disk:UpToDate')
 ###     third.fio(section="verify")
 
+
+# import sys
+# sys.exit(0)
 
 
 verbose(str(first) + " gets reinstalled with DRBD 9...")
@@ -105,11 +138,12 @@ first.run(['drbdadm', '--', '--force', 'create-md', 'all'])
 
 # check for working upgrade path
 first.up()
-first.fio(section="verify")
+with AsPrimary(first):
+    first.fio(section="verify")
 
 
 
 verbose('* Shut down and clean up.')
 
-resource.down()
-resource.rmmod()
+#resource.down()
+#resource.rmmod()

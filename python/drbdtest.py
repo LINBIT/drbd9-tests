@@ -1029,6 +1029,9 @@ class Node(exxe.Exxe):
     def event(self, *args, **kwargs):
         return Nodes([self]).event(*args, **kwargs)
 
+    def asPrimary(self, **kwargs):
+        return AsPrimary(self, **kwargs)
+
     def primary(self, res="all", force=False):
         if force:
             self.run(['drbdadm', 'primary', '--force', res, '-v'])

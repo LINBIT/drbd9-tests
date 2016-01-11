@@ -456,12 +456,13 @@ Volumes.finish()
 
 
 class Resource(object):
-    def __init__(self, name, logdir):
+    def __init__(self, name, logdir, rdma=False):
         self.name = name
         self.net_options = ""
         self.nodes = Nodes()
         self.num_volumes = 0
         self.logdir = logdir
+        self.rdma = rdma
         self.events_cls = None
         self.forbidden_patterns = OrderedSet()
         self.add_new_posfile('.events.pos')
@@ -947,6 +948,8 @@ class Node(exxe.Exxe):
                 disk.write("md-flushes no;")
 
             with ConfigBlock(t='net') as net:
+                if resource.rdma:
+                    net.write("transport rdma;")
                 net.write(resource.net_options)
 
             for index, n in enumerate(resource.nodes):
@@ -1207,6 +1210,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--verbose', type=int)
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
+    parser.add_argument('--rdma', dest='rdma')
     parser.add_argument('--override-max', action="store_true", dest='override_max')
     parser.add_argument('--report-and-quit', dest='report_n_quit', default=False, action="store_true")
     args = parser.parse_args()
@@ -1277,7 +1281,8 @@ def setup(parser=argparse.ArgumentParser(),
 
     Cleanup(args.cleanup)
     resource = _res_class(args.resource,
-                        logdir=args.logdir)
+                        logdir=args.logdir,
+                        rdma=args.rdma)
 
     for node in args.node:
         _node_class(resource, node, args.volume_group,

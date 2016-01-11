@@ -240,9 +240,6 @@ class Nodes(Collection):
         self.after_down()
         self.event(r'destroy resource')
 
-    def adjust(self):
-        self.run(['drbdadm', 'adjust', 'all', '-v'])
-
     def attach(self):
         self.run(['drbdadm', 'attach', 'all', '-v'])
         self.volumes.diskful.event(r'device .* disk:Attaching')
@@ -1008,6 +1005,9 @@ class Node(exxe.Exxe):
         for node in self.resource.nodes:
             if self is not node:
                 self.connections.add(Connection(self, node))
+
+    def adjust(self):
+        self.run(['drbdadm', 'adjust', 'all', '-v'])
 
     def up(self, extra_options=[]):
         Nodes([self]).up(extra_options)

@@ -6,7 +6,7 @@ from python import drbdtest
 
 resource = drbdtest.setup(max_nodes=2, multi_paths=True)
 resource.add_disk('4M')
-resource.net_options = 'ping-timeout 5; ping-int 1;'
+resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
 
 A = resource.nodes[0]
 B = resource.nodes[1]

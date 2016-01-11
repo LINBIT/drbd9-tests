@@ -1,0 +1,46 @@
+#! /usr/bin/env python
+
+# Pass this script a host name to use as the test node.
+
+import time
+
+from python import drbdtest
+from python.drbdtest import verbose
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource.add_disk('4M')
+
+
+# need the second node only to get a network config etc.
+node = resource.nodes[0]
+node.up()
+
+# wait for the initialization to be done
+node.event(r'connection .* connection:Connecting')
+time.sleep(1)
+
+
+# a few tries to make it crash
+for i in (1, 2, 3):
+    verbose("Try %d" % i) 
+
+    node.adjust()
+
+    # try del-path; VM must not crash
+    try:
+        node.run(["drbdadm", "del-path", "all", "-v"])
+    except:
+        pass
+    time.sleep(2)
+
+
+    node.adjust()
+    try:
+        node.run(["drbdadm", "del-peer", "all", "-v"])
+    except:
+        pass
+    time.sleep(2)
+
+
+# delay for some seconds, perhaps we'll still crash
+time.sleep(4)

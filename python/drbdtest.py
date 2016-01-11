@@ -240,6 +240,9 @@ class Nodes(Collection):
         self.after_down()
         self.event(r'destroy resource')
 
+    def adjust(self):
+        self.run(['drbdadm', 'adjust', 'all', '-v'])
+
     def attach(self):
         self.run(['drbdadm', 'attach', 'all', '-v'])
         self.volumes.diskful.event(r'device .* disk:Attaching')

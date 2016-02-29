@@ -374,6 +374,9 @@ class Volumes(Collection):
 
             return result
 
+    def resize(self, size):
+        return [v.resize(size) for v in self if v.disk is not None]
+
 
 class Connections(Collection):
     def __init__(self, members=[]):
@@ -671,6 +674,11 @@ class Volume(object):
 
     def event(self, *args, **kwargs):
         return Volumes([self]).event(*args, **kwargs)
+
+    def resize(self, size):
+        # TODO: metadata-resize?
+        self.node.run(['lvresize', '-L', size,
+                "%s/%s" % (self.node.volume_group, self.disk_lv)])
 
 
 class Connection(object):

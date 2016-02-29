@@ -47,9 +47,8 @@ first = resource.nodes[0]
 second= resource.nodes[1]
 dev = first.net_device_to_peer(second)
 
-first.up()
+resource.up_wait()
 first.primary(force=True)
-second.up()
 
 first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
 

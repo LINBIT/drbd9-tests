@@ -627,13 +627,36 @@ class Resource(object):
 
     def up(self, extra_options=[]):
         self.nodes.up(extra_options)
+        # Because of "initial packet S crossed" an initial NetworkFailure is allowed.
+        # Wait for the connections to be established.
         self.forbidden_patterns.update([
             r'connection:Timeout',
-            r'connection:NetworkFailure',
             r'connection:ProtocolError',
             r'connection:BrokenPipe',
             r'disk:Failed',
             r'peer-disk:Failed'])
+
+    def up_wait(self, extra_options=[]):
+        self.up(extra_options)
+
+        # Each node waits for the other nodes to connect.
+        # As we don't know the order, we have to check for each combination...
+        for n in self.nodes:
+            # need a copy
+            needed = dict([ (peer.name, 1) for peer in self.nodes if n != peer])
+            print("===== needed is %s ====" % needed.keys())
+            while sum(needed.values()) > 0:
+                results = n.event(r'connection .* conn-name:(\S+) connection:Connected')
+                print("===== %s ====" % results)
+                for matches in results:
+                    hostname = matches[0]
+                    # remove domain part
+                    host = hostname.split('.')[0]
+                    needed.pop(host)
+                print("===== needed: %s ====" % needed.keys())
+
+        # Now add that, too.
+        self.forbidden_patterns.append( r'connection:NetworkFailure' )
 
     def down(self):
         self.forbidden_patterns.difference_update([

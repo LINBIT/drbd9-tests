@@ -159,22 +159,22 @@ class Collection(object):
             return list(self.members)[index]
 
     def add(self, member):
-        assert issubclass(member.__class__, self.cls) and \
-            self.same_resource([member])
+        assert issubclass(member.__class__, self.cls)
+        assert self.same_resource([member])
         self.members.add(member)
         return self
 
     def remove(self, member):
-        assert issubclass(member.__class__, self.cls) and \
-            self.same_resource([member])
+        assert issubclass(member.__class__, self.cls)
+        assert self.same_resource([member])
         if member in self.members:
             self.members.remove(member)
         return self
 
     def extend(self, members):
         for member in members:
-            assert issubclass(member.__class__, self.cls) and \
-                self.same_resource(members)
+            assert issubclass(member.__class__, self.cls)
+            assert self.same_resource(members)
         self.members.update(members)
         return self
 

@@ -1,0 +1,38 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+import random
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=3)
+
+resource.add_disk('64M')
+resource.net_options = 'on-congestion pull-ahead; congestion-fill 256k; protocol A;'
+
+resource.up_wait()
+
+# initial sync
+first = resource.nodes[0]
+others = resource.nodes.difference([first])
+
+first.primary(force=True)
+first.secondary()
+resource.initial_resync(first)
+
+for i in (1,2,3):
+
+    # write data
+    with first.asPrimary():
+        first.fio(section='write')
+
+    first.event(r'connection .* connection:Ahead')
+    others.event(r'connection .* connection:Behind')
+
+    resource.nodes.event(r'connection .* connection:Connected')
+
+    with n in others:
+        n.fio(section='verify')

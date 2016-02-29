@@ -183,7 +183,15 @@ class Collection(object):
         for member in members:
             assert issubclass(member.__class__, self.cls) and \
                 self.same_resource(members)
+        # TODO: sort result? manual loop, to keep the original order?
         return self.__class__(self.members.difference(members))
+
+    def pop(self):
+        if len(self) == 0:
+            raise RuntimeError("Can't pop if empty")
+        member = self[0]
+        self.remove(member)
+        return member
 
 
 class Nodes(Collection):

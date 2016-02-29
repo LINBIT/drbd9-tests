@@ -19,6 +19,7 @@ import os
 import errno
 import sys
 import re
+import json
 import time
 import pipes
 import threading
@@ -208,8 +209,8 @@ class Nodes(Collection):
                            '-p', '.events.pos']
                  ]
             resource = first(self.members).resource
-            resource.logscan(self, where, *args, **kwargs)
-        return self
+            return resource.logscan(self, where, *args, **kwargs)
+        return None
 
     def run(self, *args, **kwargs):
         """ Run command on all our nodes. """
@@ -288,7 +289,9 @@ class Volumes(Collection):
                             '-f', 'volume:%s' % volume]
                  ]
             resource = first(self.members).resource
-            resource.logscan(self, where, *args, **kwargs)
+            return resource.logscan(self, where, *args, **kwargs)
+
+        return None
 
     def get_diskful(self):
         """ Return volumes that have a disk. """
@@ -547,7 +550,19 @@ class Resource(object):
         for expr in no:
             cmd.extend(['-n', expr])
         debug('# ' + ' '.join(pipes.quote(_) for _ in cmd + where))
-        subprocess.check_call(cmd + where)
+
+        result = subprocess.check_output(cmd + where)
+        # Keep data in logfiles, too.
+        print(result)
+
+        lines = result.split("\n");
+        match_results = []
+        for l in lines:
+            g = re.match('^Pattern .*? matches .*?; (\[.*)', l)
+            if g:
+                match_results.append([g for g in json.loads(str(g.group(1))) if g != ' '])
+
+        return match_results
 
     def posfiles(self, nodes=None):
         """ List of all logscan position tracking files. """

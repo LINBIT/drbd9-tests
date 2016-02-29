@@ -12,7 +12,7 @@ resource = drbdtest.setup(min_nodes=2, max_nodes=5)
 
 resource.add_disk('4M')
 
-resource.up()
+resource.up_wait()
 
 # initial sync
 first = resource.nodes[0]

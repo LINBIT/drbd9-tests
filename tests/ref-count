@@ -27,7 +27,7 @@ def expect_drbd(node, drbd, transport):
 
 
 resource = drbdtest.setup(nodes=2)
-resource.nodes.up()
+resource.up_wait()
 
 node = resource.nodes[0]
 other = resource.nodes[1]

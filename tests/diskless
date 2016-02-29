@@ -11,7 +11,7 @@ resource = drbdtest.setup(min_nodes=3, max_nodes=5)
 diskful_nodes = resource.nodes[0:2]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
-resource.up()
+resource.up_wait()
 
 # NOTE: drbdadm primary --force currently fails for new data on diskless nodes:
 # drbd doesn't know which node to turn UpToDate.  We could implement a "drbdadm

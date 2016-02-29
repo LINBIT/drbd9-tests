@@ -12,7 +12,7 @@ other_nodes = resource.nodes.difference([first_node])
 resource.add_disk('10M')
 
 verbose('* Bring up the first node, make it primary, and write defined data onto all volumes.')
-first_node.up()
+first_node.up_wait()
 first_node.primary(force=True)
 first_node.volumes.fio(section='write')
 

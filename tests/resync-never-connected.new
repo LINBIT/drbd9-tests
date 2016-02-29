@@ -26,7 +26,7 @@ verbose("node chain is:")
 for h in resource.nodes:
     verbose("   %s" % h)
 
-resource.up()
+resource.up_wait()
 
 # TODO FIXME: instead of later on removing all "wrong" connection, don't build
 # them in the first place?

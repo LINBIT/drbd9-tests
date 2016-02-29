@@ -682,17 +682,21 @@ class Volume(object):
         self.node = node
         if max_peers is None:
             max_peers = len(node.resource.nodes) - 1
+            if max_peers < 1:
+                max_peers = 1
         self.disk = None
         self.meta = None
+        self.disk_lv = None
+        self.meta_lv = None
         if size:
+            self.disk_lv = '%s-disk%d' % (self.node.resource.name, volume)
             self.disk = self.create_disk(
-                size,
-                '%s-disk%d' % (self.node.resource.name, volume),
+                size, self.disk_lv,
                 None if meta_size else '--internal-meta', max_peers)
             if meta_size:
+                self.meta_lv = '%s-meta%d' % (self.node.resource.name, volume)
                 self.meta = self.create_disk(
-                    meta_size,
-                    '%s-meta%d' % (self.node.resource.name, volume),
+                    meta_size, self.meta_lv,
                     '--external-meta', max_peers)
 
     def get_resource(self):

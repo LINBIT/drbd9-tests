@@ -1,0 +1,99 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+# From 3 nodes on, one will only be weakly connected;
+# from 4 nodes on, one will be diskless.
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+
+# In MB; should be a multiple of the PE size, so that there's _really_ a size change ;)
+# Needed to check that the net size is "good".
+size = 8
+step = 8
+
+# Node sets
+diskful_nodes = resource.nodes
+client_nodes = []
+weak_node = None
+
+if len(diskful_nodes) > 3:
+    client_nodes.append( diskful_nodes.pop() )
+
+# don't have the diskless one weakly connected, too!
+if len(resource.nodes) > 2:
+    weak_node = diskful_nodes[-1]
+
+# take a strong one
+first_node = diskful_nodes[0]
+
+
+# Initialization
+resource.add_disk('%dM' % size, diskful_nodes=diskful_nodes)
+resource.up_wait()
+
+# make one node weak
+if weak_node:
+    for n in resource.nodes:
+        if n != weak_node and n != first_node:
+            weak_node.disconnect(n, wait=False)
+            n.block_path(weak_node)
+
+
+verbose('* Initial sync')
+first_node.primary(force=True)
+first_node.secondary()
+
+first_node.fio(section="write")
+
+
+# Now, we want to make *each* of the nodes resize a bit.
+for is_primary in (True, False):
+
+    verbose('* Loop with %s' % (is_primary and "Primary node" or "secondaries"))
+
+    for active_node in resource.nodes:
+        # new values
+        size += step
+        size_str = "%dM" % size
+
+        verbose('* Node %s wants to use %dMB; primary==%s.' % (active_node, size, is_primary))
+
+        # Only if same VG everywhere
+        diskful_nodes.volumes.resize(size_str)
+
+        if is_primary:
+            active_node.primary()
+
+        active_node.run(['drbdadm', 'resize', resource.name])
+
+        if is_primary:
+            active_node.secondary()
+
+        # wait for peers
+        # if len(diskful_nodes) >= 2:
+        #     # without a primary, we won't know which node gets to be syncsource.
+        #     if is_primary:
+        #         obj = active_node
+        #     else:
+        #         obj = resource
+        #     obj.peer_devices.event(r'peer-device .* peer-disk:SyncTarget')
+        #     obj.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+
+        # As we don't know which peers we should ask about being UpToDate, we'll just
+        # write to the device - that should make it UpToDate, too ;)
+        active_node.fio(section="write")
+
+        size_bytes = int(active_node.run(['blockdev', '--getsize64',
+                    '/dev/drbd%d' % (active_node.disks[0].minor)],
+                    return_stdout=True))
+        size_mb = size_bytes / 2.0**20
+        verbose('* Node %s got %3.1fMB.' % (active_node, size_mb))
+
+        # allow 2% difference
+        if size_mb * 1.02 < size:
+            raise RuntimeError("Not resized")
+

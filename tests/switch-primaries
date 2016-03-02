@@ -27,13 +27,13 @@ resource.initial_resync(first)
 
 for i in range(40):
     node = random.choice(resource.nodes)
+    others = resource.nodes.difference( [node] )
     verbose('Loop #%d: node %s' % (i, node))
     node.primary()
     node.fio(section='write')
     node.secondary()
-    resource.nodes.difference( [node] ).\
-        event(r'connection .* role:Primary').\
-        event(r'connection .* role:Secondary')
+    others.event(r'connection .* role:Primary')
+    others.event(r'connection .* role:Secondary')
 
 # If that did work, run again _without_ event checking ... this way the transitions happen faster.
 for i in range(40):

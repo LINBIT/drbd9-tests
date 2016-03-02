@@ -15,8 +15,6 @@ B = resource.nodes[1]
 A.block_path(B, 1)
 
 resource.up_wait()
-# wait until connected
-B.event(r'change connection .* connection:Connected')
 # initial sync
 A.primary(force=True)
 A.secondary()

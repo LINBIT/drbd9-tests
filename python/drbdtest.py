@@ -1073,6 +1073,10 @@ class Node(exxe.Exxe):
     def up(self, extra_options=[]):
         Nodes([self]).up(extra_options)
 
+    def up_wait(self, extra_options=[]):
+        # A single node doesn't know who to wait for...
+        return self.up(extra_options)
+
     def after_down(self):
         for node in self.resource.nodes:
             if self is not node:

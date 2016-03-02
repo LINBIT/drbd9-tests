@@ -90,7 +90,7 @@ node.run(['drbdadm', 'adjust', resource.name])
 expect_drbd(node, 2, 1)
 
 
-resource.nodes.down()
+resource.down()
 # the transport still has a reference...
 expect_drbd(node, 1, 0)
 

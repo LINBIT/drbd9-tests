@@ -206,6 +206,9 @@ class Nodes(Collection):
         cls.connections = Collection.property(Connections, 'connections')
         cls.peer_devices = Collection.property(PeerDevices, 'peer_devices')
 
+    def resource(self):
+        return first(self.members).resource
+
     def event(self, *args, **kwargs):
         """ Wait for an event. """
 
@@ -216,8 +219,7 @@ class Nodes(Collection):
                            '--label', node.name,
                            '-p', '.events.pos']
                  ]
-            resource = first(self.members).resource
-            return resource.logscan(self, where, *args, **kwargs)
+            return self.resource().logscan(self, where, *args, **kwargs)
         return None
 
     def run(self, *args, **kwargs):
@@ -245,6 +247,9 @@ class Nodes(Collection):
         self.after_up()
 
     def down(self):
+        self.resource().forbidden_patterns.difference_update([
+            r'connection:BrokenPipe'
+        ])
         self.run(['drbdadm', 'down', 'all'])
         self.after_down()
         self.event(r'destroy resource')
@@ -659,9 +664,6 @@ class Resource(object):
         self.forbidden_patterns.append( r'connection:NetworkFailure' )
 
     def down(self):
-        self.forbidden_patterns.difference_update([
-            r'connection:BrokenPipe'
-        ])
         self.nodes.down()
 
     def initial_resync(self, sync_from):

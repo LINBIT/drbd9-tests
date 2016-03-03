@@ -327,7 +327,7 @@ class Volumes(Collection):
             jobfile = os.path.join(TOP, 'target', 'write-verify.fio.in')
         template = open(jobfile).read()
         for volume in self:
-            job = re.sub(r'@device@', '/dev/drbd%d' % volume.minor, template)
+            job = re.sub(r'@device@', volume.device(), template)
             node = volume.node
             n = 0
             while True:
@@ -732,6 +732,9 @@ class Volume(object):
         self.node.run(['lvresize', '-L', size,
                 "%s/%s" % (self.node.volume_group, self.disk_lv)])
 
+    def device(self):
+        return '/dev/drbd%d' % self.minor
+
 
 class Connection(object):
     def __init__(self, node1, node2):
@@ -991,7 +994,7 @@ class Node(exxe.Exxe):
 
             for index, disk in enumerate(node.disks):
                 with ConfigBlock(t='volume %d' % index) as V:
-                    V.write("device /dev/drbd%d;" % disk.minor)
+                    V.write("device %s;" % disk.device())
                     V.write("disk %s;" % (disk.disk or "none"))
                     if disk.disk:
                         V.write("meta-disk %s;" % (disk.meta or "internal"))

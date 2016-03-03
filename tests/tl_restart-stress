@@ -1,0 +1,68 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+import exxe
+import random
+import time
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=3)
+
+# Three devics, to have mixed volume entries on the transfer log
+resource.add_disk('64M')
+resource.add_disk('64M')
+resource.add_disk('64M')
+
+resource.net_options = 'ping-timeout 1;'
+
+resource.up_wait()
+
+# initial sync
+first = resource.nodes[0]
+others = resource.nodes.difference([first])
+second = others[0]
+
+first.primary(force=True)
+first.secondary()
+resource.initial_resync(first)
+
+
+first.asPrimary()
+
+write = 'dd if=/dev/zero of=%s bs=4k oflag=direct status=noxfer'
+# needs to run in background
+write_loop = '( while true; do %s; done & ) < /dev/null &> /dev/null &' % write
+
+# try to get at least one write request "on the wire" at all times
+d = 0
+for i in (0,1,2,4):
+    perm_write = [ 'setsid', 
+        'bash', '-c', 
+        write_loop % resource.volumes[d].device(),
+    ]
+
+    first.run(perm_write)
+    d += 1
+    if d >= len(resource.volumes):
+        d = 0
+
+resource.forbidden_patterns.difference_update([
+        r'connection:BrokenPipe',
+        r'connection:NetworkFailure',
+])
+
+
+for i in (1,2,3,4,5,6,7,8,9,10):
+    second.block_path(first)
+    second.event(r'change path .* established:no')
+
+    second.unblock_path(first)
+    second.event(r'change path .* established:yes')
+    second.event(r'connection .* role:Primary')
+    time.sleep(0.1)
+
+second.event(r'device .* disk:UpToDate')

@@ -52,7 +52,7 @@ first.primary(force=True)
 
 first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
 
-# allocate date, first run without measuring
+# allocate data, first run without measuring
 first.fio_bench(section="write")
 
 exit

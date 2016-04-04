@@ -11,28 +11,35 @@ from subprocess import CalledProcessError
 resource = drbdtest.setup(min_nodes=2, max_nodes=3)
 
 resource.add_disk('64M')
-resource.net_options = 'on-congestion pull-ahead; congestion-fill 256k; protocol A;'
+resource.net_options = 'on-congestion pull-ahead; congestion-fill 10k; protocol A;'
 
 resource.up_wait()
+resource.skip_initial_sync()
 
-# initial sync
+
 first = resource.nodes[0]
 others = resource.nodes.difference([first])
-
-first.primary(force=True)
-first.secondary()
-resource.initial_resync(first)
 
 for i in (1,2,3):
 
     # write data
     with first.asPrimary():
-        first.fio(section='write')
+        first.run(["dd",
+                "if=/dev/zero", "of=%s" % resource.volumes[0].device(),
+                "bs=1M", "count=4", "oflag=direct"])
 
-    first.event(r'connection .* connection:Ahead')
-    others.event(r'connection .* connection:Behind')
+        # The replication state will move to "Ahead/Behind" *while*
+        # the first VM is still Primary.
+        #
+        # So we need to check for these events in here; the Secondary
+        # state will come afterwards, anyway.
+        first.peer_devices.event(r'peer-device .* replication:Ahead')
+        others.peer_devices.event(r'peer-device .* replication:Behind')
 
-    resource.nodes.event(r'connection .* connection:Connected')
+        first.peer_devices.event(r'peer-device .* replication:SyncSource')
+        others.peer_devices.event(r'peer-device .* replication:SyncTarget')
+
+        resource.nodes.peer_devices.event(r'peer-device .* replication:Established')
 
     with n in others:
         n.fio(section='verify')

@@ -649,16 +649,13 @@ class Resource(object):
         for n in self.nodes:
             # need a copy
             needed = dict([ (peer.name, 1) for peer in self.nodes if n != peer])
-            print("===== needed is %s ====" % needed.keys())
             while sum(needed.values()) > 0:
                 results = n.event(r'connection .* conn-name:(\S+) connection:Connected')
-                print("===== %s ====" % results)
                 for matches in results:
                     hostname = matches[0]
                     # remove domain part
                     host = hostname.split('.')[0]
                     needed.pop(host)
-                print("===== needed: %s ====" % needed.keys())
 
         # Now add that, too.
         self.forbidden_patterns.append( r'connection:NetworkFailure' )

@@ -3,6 +3,7 @@
 # Pass this script a host name to use as the test node.
 
 import time
+import subprocess
 
 from python import drbdtest
 from python.drbdtest import verbose
@@ -25,21 +26,25 @@ for i in (1, 2, 3):
     verbose("Try %d" % i) 
 
     try:
-        node.up()
+        node.adjust()
     except:
         pass
 
 
     # run these commands again; VM must not crash.
+    # drbdadm is expected to report an error.
+    adm_stat = 0
     try:
         node.run(["drbdadm", "new-path", "all", "-v"])
-    except:
+        raise RuntimeError("drbdadm new-path should've return an error code")
+    except subprocess.CalledProcessError:
         pass
     time.sleep(2)
 
     try:
         node.run(["drbdadm", "new-peer", "all", "-v"])
-    except:
+        raise RuntimeError("drbdadm new-path should've return an error code")
+    except subprocess.CalledProcessError:
         pass
     time.sleep(2)
 

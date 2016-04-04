@@ -478,6 +478,7 @@ class Resource(object):
     def __init__(self, name, logdir, rdma=False):
         self.name = name
         self.net_options = ""
+        self.disk_options = ""
         self.nodes = Nodes()
         self.num_volumes = 0
         self.logdir = logdir
@@ -1006,6 +1007,7 @@ class Node(exxe.Exxe):
             with ConfigBlock(t='disk') as disk:
                 disk.write("disk-flushes no;")
                 disk.write("md-flushes no;")
+                disk.write(resource.disk_options)
 
             with ConfigBlock(t='net') as net:
                 if resource.rdma:

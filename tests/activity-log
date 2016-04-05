@@ -1,0 +1,37 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+import exxe
+import random
+import os
+import time
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=3)
+resource.disk_options = 'al-extents 7;'
+resource.nodes.config_changed = True
+resource.nodes.update_config()
+
+
+# needs to have more AL-extents than the config
+resource.add_disk('1G')
+
+# and during write the number of *active* ALs needs to be high;
+# couldn't reproduce with bs=128k in the VMs, 256k breaks DRBD.
+
+
+resource.up_wait()
+resource.skip_initial_sync()
+
+# initial sync
+first = resource.nodes[0]
+
+with first.asPrimary():
+    first.volumes.fio('write', 
+            jobfile = os.path.join(drbdtest.TOP, 
+                'target', 'many-parallel-IOs.fio.in')
+            )

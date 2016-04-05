@@ -20,15 +20,11 @@ resource.add_disk('64M')
 resource.net_options = 'ping-timeout 1;'
 
 resource.up_wait()
+resource.skip_initial_sync()
 
-# initial sync
 first = resource.nodes[0]
 others = resource.nodes.difference([first])
 second = others[0]
-
-first.primary(force=True)
-first.secondary()
-resource.initial_resync(first)
 
 
 first.asPrimary()

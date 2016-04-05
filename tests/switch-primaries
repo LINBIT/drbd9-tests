@@ -13,14 +13,8 @@ resource = drbdtest.setup(min_nodes=2, max_nodes=5)
 resource.add_disk('4M')
 
 resource.up_wait()
+resource.skip_initial_sync()
 
-# initial sync
-first = resource.nodes[0]
-others = resource.nodes.difference([first])
-
-first.primary(force=True)
-first.secondary()
-resource.initial_resync(first)
 
 # switch the primary role around
 # could be done via autopromote, too.

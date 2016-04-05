@@ -12,15 +12,9 @@ other_node = resource.nodes.difference([first_node])
 resource.add_disk('10M')
 
 verbose('* Bring up the first node, make it primary, and write defined data onto all volumes.')
-first_node.up()
-first_node.primary(force=True)
+resource.up_wait()
+resource.skip_initial_sync()
 
-verbose('* Make the first node secondary again to allow read access on the other nodes.')
-first_node.secondary()
-
-verbose('* Bring up all other nodes as well, wait until they have all the data, and verify the data received.')
-other_node.up()
-resource.initial_resync(first_node)
 dev_name = '/dev/drbd%d' % first_node.disks[0].minor
 first_node.run(['missaligned_bio.py', dev_name, 'write'])
 first_node.run(['missaligned_bio.py', dev_name, 'verify'])

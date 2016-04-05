@@ -20,15 +20,7 @@ resource.up_wait()
 # secondary again to make it UpToDate.
 
 verbose('* Make up-to-date data available.')
-diskful_nodes[0].primary(force=True)
-diskful_nodes[0].secondary()
-
-diskful_peer_devices = drbdtest.PeerDevices()
-for diskless_node in resource.nodes.diskless:
-    for volume in diskful_nodes[0].volumes:
-        for node in diskful_nodes:
-            diskful_peer_devices.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, node), volume))
-diskful_peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+resource.skip_initial_sync();
 # FIXME: change _initial_resync so that it works for a subset of nodes, or so
 # that it works in the diskless node case, instead of the above?
 

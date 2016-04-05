@@ -40,6 +40,3 @@ for i in (1,2,3):
         others.peer_devices.event(r'peer-device .* replication:SyncTarget')
 
         resource.nodes.peer_devices.event(r'peer-device .* replication:Established')
-
-    with n in others:
-        n.fio(section='verify')

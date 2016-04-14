@@ -401,6 +401,7 @@ class Connections(Collection):
     def event(self, *args, **kwargs):
         """ Wait for an event. """
 
+        results = []
         if self.members:
             where = \
                 [__ for n0, n1 in
@@ -411,7 +412,8 @@ class Connections(Collection):
                             '-f', 'peer-node-id:%d' % n1.id]
                  ]
             resource = first(self.members).resource
-            resource.logscan(self, where, *args, **kwargs)
+            results = resource.logscan(self, where, *args, **kwargs)
+        return results
 
     def from_node(self, node):
         return self.from_nodes([node])

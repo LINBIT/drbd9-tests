@@ -521,6 +521,11 @@ class Resource(object):
     connections = property(lambda self: self.nodes.connections)
     peer_devices = property(lambda self: self.nodes.peer_devices)
 
+    def peer_devices_to_peer(self, peer):
+        pds = self.peer_devices
+        return PeerDevices([pd for pd in pds if peer == pd.connection.nodes[1]])
+
+
     def cleanup(self):
         if not skip_cleanup:
             self.nodes.run(['cleanup'], prepare=True, catch=True)
@@ -1196,6 +1201,10 @@ class Node(exxe.Exxe):
             print("%s"% c)
             self.run(c)
 
+    def block_paths(self, net_number=0):
+        for n in self.resource.nodes.difference([self]):
+            self.block_path(n, net_number=net_number)
+
     def unblock_path(self, other_node, net_number=0):
         """Uses iptables to unblock one network path."""
         self.run(['bash', '-c', 'netstat -antp | grep :%d || true' % self.port])
@@ -1206,6 +1215,83 @@ class Node(exxe.Exxe):
         for c in cmds:
             print("%s" % c)
             self.run(c)
+
+    def unblock_paths(self, net_number=0):
+        for n in self.resource.nodes.difference([self]):
+            self.unblock_path(n, net_number=net_number)
+
+
+    def dmesg(self, pattern=None):
+        """Fetches (part of) dmesg; clears it afterwards.
+
+        Returns a list of tuples, containing (string, match object), for each line.
+        If pattern is None, simply returns the list of lines."""
+
+        output = self.run(['dmesg', '-c'], return_stdout=True)
+        lines = output.splitlines()
+        if not pattern:
+            return lines
+
+        result = []
+        for l in lines:
+            m = re.search(pattern, l)
+            if m:
+                verbose("line %s, match %s" % (l, m))
+                result.append( (l, m) )
+
+        return result
+
+    def _drbdsetup_lines(self):
+        output = node.run(['drbdsetup', 'status', '--s', '--v', self.resource.name],
+                return_stdout=True)
+        return output.splitlines()
+
+    def volume_value(self, which=None, volume=0):
+        "Returns one DRBD (or a dict) value via drbdsetup."
+
+        right_volume = False
+        values = {}
+        for l in self._drbdsetup_lines():
+            # Exactly two spaces, else it's a peer-disk
+            vol_m = re.search(r'^  volume:(\d+)', l)
+            if vol_m:
+                 right_volume = (int(re.group(1)) == volume)
+
+            if right_volume:
+                m = re.findall(r'([a-z-]+):(\S+)', l)
+                for (k, v) in m:
+                    values[k] = m
+
+        if which and which in values:
+            return values[which]
+
+        return values
+
+    def peer_disk_value(self, peer, which=None, volume=0):
+        "Returns one DRBD (or a dict) value via drbdsetup."
+
+        right_host = False
+        right_volume = False
+        values = {}
+        for l in self._drbdsetup_lines():
+            # Exactly four spaces for a peer-disk
+            vol_m = re.search(r'^    volume:(\d+)', l)
+            if vol_m:
+                 right_volume = (int(re.group(1)) == volume)
+
+            host_m = re.search(r'^  (\S+) node-id:(\d+)', l)
+            if host_m:
+                 right_host = (re.group(1) == peer)
+
+            if right_host and right_volume:
+                m = re.findall(r'([a-z-]+):(\S+)', l)
+                for (k, v) in m:
+                    values[k] = m
+
+        if which and which in values:
+            return values[which]
+
+        return values
 
 
 class Tee(object):
@@ -1532,4 +1618,14 @@ def ensure_subset(smaller, bigger):
     """compares two dictionaries"""
     if not all([smaller[k] == bigger[k] for k in smaller.iterkeys()]):
         sys.stderr.write("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
+        raise RuntimeError('assert trigger')
+
+def ensure_not(want, have):
+    if want == have:
+        sys.stderr.write("Wanted something but '%s', got '%s'.\n" % (repr(want), repr(have)))
+        raise RuntimeError('assert trigger')
+
+def ensure_not_in_set(search, data):
+    if search in data:
+        sys.stderr.write("Wanted something but '%s', got '%s'.\n" % (repr(search), repr(data)))
         raise RuntimeError('assert trigger')

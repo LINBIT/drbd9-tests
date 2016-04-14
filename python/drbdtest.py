@@ -1610,23 +1610,31 @@ class Measurement():
 
 
 # is assert(), but with non-conflicting name
-def ensure(want, have):
+def ensure(want, have, explanation=None):
     if want != have:
         sys.stderr.write("Wanted '%s', but got '%s'.\n" % (repr(want), repr(have)))
+        if explanation:
+            sys.stderr.write("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
-def ensure_subset(smaller, bigger):
+def ensure_subset(smaller, bigger, explanation=None):
     """compares two dictionaries"""
     if not all([smaller[k] == bigger[k] for k in smaller.iterkeys()]):
         sys.stderr.write("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
+        if explanation:
+            sys.stderr.write("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
-def ensure_not(want, have):
+def ensure_not(want, have, explanation=None):
     if want == have:
         sys.stderr.write("Wanted something but '%s', got '%s'.\n" % (repr(want), repr(have)))
+        if explanation:
+            sys.stderr.write("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
-def ensure_not_in_set(search, data):
+def ensure_not_in_set(search, data, explanation=None):
     if search in data:
         sys.stderr.write("Wanted something but '%s', got '%s'.\n" % (repr(search), repr(data)))
+        if explanation:
+            sys.stderr.write("%s\n" % explanation)
         raise RuntimeError('assert trigger')

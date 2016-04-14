@@ -9,7 +9,7 @@ usage() {
     exit $1
 }
 
-options=`getopt -o h --long internal-meta,external-meta,max-peers:,volume-group:,size:,job:,help -- "$@"` || usage 1
+options=`getopt -o h --long thinpool:,internal-meta,external-meta,max-peers:,volume-group:,size:,job:,help -- "$@"` || usage 1
 eval set -- "$options"
 
 opt_internal_meta=
@@ -18,11 +18,16 @@ opt_max_peers=1
 opt_volume_group=
 opt_size=
 opt_job=
+opt_thinpool=
 
 while :; do
     case "$1" in
     -h|--help)
 	usage 0
+	;;
+    --thinpool)
+	opt_thinpool="$2"
+	shift
 	;;
     --internal-meta)
 	opt_internal_meta=1
@@ -60,7 +65,13 @@ done
 
 opt_name=$1
 
-doit lvcreate --size "$opt_size" --name "$opt_name" "$opt_volume_group" > /dev/null
+if [[ -z "$opt_thinpool" ]] ; then
+	size_and_pool="--size $opt_size $opt_volume_group"
+else
+	size_and_pool="--virtualsize $opt_size --thin $opt_volume_group/$opt_thinpool"
+fi
+
+doit lvcreate $size_and_pool --name "$opt_name" > /dev/null
 register_cleanup -- lvremove -f "$opt_volume_group/$opt_name"
 dev=/dev/$opt_volume_group/$opt_name
 status=0

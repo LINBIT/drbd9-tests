@@ -497,7 +497,7 @@ class Resource(object):
         self.num_volumes += 1
         return volume
 
-    def add_disk(self, size, meta_size=None, diskful_nodes=None):
+    def add_disk(self, size, meta_size=None, diskful_nodes=None, thin=False):
         """
         Create and add a new disk on some or all nodes.
 
@@ -511,7 +511,7 @@ class Resource(object):
         volume = self.next_volume()
         for node in self.nodes:
             if diskful_nodes is None or node in diskful_nodes:
-                node.add_disk(volume, size, meta_size)
+                node.add_disk(volume, size, meta_size, thin=thin)
             else:
                 node.add_disk(volume)
 
@@ -680,7 +680,7 @@ class Resource(object):
 
 class Volume(object):
     def __init__(self, node, volume, size=None, meta_size=None, minor=None,
-                 max_peers=None):
+                 max_peers=None, thin=False):
         if volume is None:
             volume = node.resource.next_volume()
         if minor is None:
@@ -700,12 +700,14 @@ class Volume(object):
             self.disk_lv = '%s-disk%d' % (self.node.resource.name, volume)
             self.disk = self.create_disk(
                 size, self.disk_lv,
-                None if meta_size else '--internal-meta', max_peers)
+                None if meta_size else '--internal-meta', max_peers,
+                thin=thin)
             if meta_size:
                 self.meta_lv = '%s-meta%d' % (self.node.resource.name, volume)
                 self.meta = self.create_disk(
                     meta_size, self.meta_lv,
-                    '--external-meta', max_peers)
+                    '--external-meta', max_peers,
+                    thin=thin)
 
     def get_resource(self):
         return self.node.resource
@@ -721,13 +723,17 @@ class Volume(object):
     def __str__(self):
         return '%s:%s' % (self.node, self.volume)
 
-    def create_disk(self, size, name, meta, max_peers):
+    def create_disk(self, size, name, meta, max_peers, thin=False):
         cmd = ['create-disk']
         if meta:
             cmd.extend([meta, '--max-peers', str(max_peers)])
+        thin_arg = []
+        if thin:
+            thin_arg = ['--thinpool', 'drbdthinpool']
+            
         cmd.extend(['--job', os.environ['DRBD_TEST_JOB'],
-                   '--volume-group', self.node.volume_group, '--size', size,
-                    name])
+                   '--volume-group', self.node.volume_group, '--size', size]
+                   + thin_arg + [name])
         return self.node.run(cmd, return_stdout=True, prepare=True)
 
     def event(self, *args, **kwargs):
@@ -950,7 +956,7 @@ class Node(exxe.Exxe):
         self.minors += 1
         return self.minors
 
-    def add_disk(self, volume, size=None, meta_size=None):
+    def add_disk(self, volume, size=None, meta_size=None, thin=False):
         """
         Keyword arguments:
         volume -- volume number of the new disk
@@ -959,7 +965,7 @@ class Node(exxe.Exxe):
         """
         # FIXME: Volume is not added at the right index (by volume number)
         # here.  Does that matter?
-        self.disks.append(Volume(self, volume, size, meta_size))
+        self.disks.append(Volume(self, volume, size, meta_size, thin=thin))
         self.config_changed = True
 
     def _config_conns_84(self):

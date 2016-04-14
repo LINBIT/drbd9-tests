@@ -43,6 +43,8 @@ for i in range(40):
     node.fio(section='write')
 
 
+first = resource.nodes[0]
+others = resource.nodes.difference( [first] )
 # Ensure all are still running fine, by causing an event that can be waited for
 resource.connections.from_node(first).disconnect()
 first.primary()

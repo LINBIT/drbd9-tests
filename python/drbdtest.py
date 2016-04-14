@@ -652,7 +652,8 @@ class Resource(object):
         node = self.nodes[0]
         # set to remove duplicates ?!!
         res_vols = set([ "%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk])
-        node.run(["drbdadm", "new-current-uuid", "--clear-bitmap" ] + list(res_vols))
+        res_vols = [ "%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk]
+        node.run(["drbdadm", "new-current-uuid", "--clear-bitmap" ] + list([res_vols[0]]))
         # wait for completion
         self.initial_resync(node)
 

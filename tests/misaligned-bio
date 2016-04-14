@@ -16,9 +16,9 @@ resource.up_wait()
 resource.skip_initial_sync()
 
 dev_name = '/dev/drbd%d' % first_node.disks[0].minor
-first_node.run(['missaligned_bio.py', dev_name, 'write'])
-first_node.run(['missaligned_bio.py', dev_name, 'verify'])
-other_node.run(['missaligned_bio.py', dev_name, 'verify'])
+first_node.run(['misaligned_bio.py', dev_name, 'write'])
+first_node.run(['misaligned_bio.py', dev_name, 'verify'])
+other_node.run(['misaligned_bio.py', dev_name, 'verify'])
 
 verbose('* Shut down and clean up.')
 resource.down()

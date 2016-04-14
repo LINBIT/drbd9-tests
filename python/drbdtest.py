@@ -635,12 +635,11 @@ class Resource(object):
 
     def up(self, extra_options=[]):
         self.nodes.up(extra_options)
-        # Because of "initial packet S crossed" an initial NetworkFailure is allowed.
+        # Because of "initial packet S crossed" an initial NetworkFailure and/or BrokenPipe is allowed.
         # Wait for the connections to be established.
         self.forbidden_patterns.update([
             r'connection:Timeout',
             r'connection:ProtocolError',
-            r'connection:BrokenPipe',
             r'disk:Failed',
             r'peer-disk:Failed'])
 
@@ -669,7 +668,9 @@ class Resource(object):
                     needed.pop(host)
 
         # Now add that, too.
-        self.forbidden_patterns.append( r'connection:NetworkFailure' )
+        self.forbidden_patterns.update([
+            r'connection:BrokenPipe',
+            r'connection:NetworkFailure'])
 
     def down(self):
         self.nodes.down()

@@ -1,0 +1,42 @@
+#!/usr/bin/python
+
+import sys
+import os
+import struct
+import fcntl
+
+MAX_SIZE = 256 * 1024
+
+def discard(fd, start, end):
+
+    BLKDISCARD = 0x1277
+    BLKZEROOUT = 0x127f
+    BLKGETSIZE64 = 0x80081272
+
+    pos = start
+    while start < end:
+        size = MAX_SIZE
+        if start + size > end:
+            size = end - start
+
+        range = struct.pack("QQ", start, size)
+        res = fcntl.ioctl(fd, BLKDISCARD, range) 
+        print("discard 0x%08x-0x%08x: %s\n" % (start, size, res))
+
+        start += size
+
+    return True
+
+
+def main():
+    fd = os.open(sys.argv[1], os.O_RDWR | os.O_DIRECT)
+    if fd < 0:
+        raise Exception('open failed')
+
+    discard(fd, int(sys.argv[2]), int(sys.argv[3]))
+
+    os.close(fd)
+
+
+if __name__ == "__main__":
+    main()

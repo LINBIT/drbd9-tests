@@ -1,0 +1,22 @@
+#! /usr/bin/env python
+## DRBD-TESTSUITE-FLAG: dumpcap=0
+
+# Pass this script two host names to use as the test nodes.
+
+from python import drbdtest
+from python.drbdtest import verbose
+from python.drbdtest import Measurement
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+resource.add_disk('16M')
+resource.add_disk('16M')
+resource.add_disk('16M')
+
+resource.up_wait()
+resource.skip_initial_sync()
+
+# needs to write to multipe devices at the same time!!
+# first.fio_bench(section="write")
+
+exit

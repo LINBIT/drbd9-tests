@@ -523,6 +523,8 @@ class Resource(object):
 
     def peer_devices_to_peer(self, peer):
         pds = self.peer_devices
+        for pd in pds:
+            verbose("** %s to %s" % pd.connection.nodes)
         return PeerDevices([pd for pd in pds if peer == pd.connection.nodes[1]])
 
 
@@ -652,8 +654,7 @@ class Resource(object):
         node = self.nodes[0]
         # set to remove duplicates ?!!
         res_vols = set([ "%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk])
-        res_vols = [ "%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk]
-        node.run(["drbdadm", "new-current-uuid", "--clear-bitmap" ] + list([res_vols[0]]))
+        node.run(["drbdadm", "new-current-uuid", "--clear-bitmap" ] + list(res_vols))
         # wait for completion
         self.initial_resync(node)
 
@@ -1170,7 +1171,7 @@ class Node(exxe.Exxe):
         return dev
 
     @staticmethod
-    def _iptables_cmd_1(chain, sa, sp, da, dp, jump, add_remove):
+    def _iptables_cmd_1(chain, sa, sp, da, dp, jump, add_remove, additional_filter=[]):
         r = ['iptables',
              add_remove, chain,
              "-p", "tcp",
@@ -1181,9 +1182,9 @@ class Node(exxe.Exxe):
         if dp:
             r.extend(("--destination-port", str(dp)))
         r.extend(("-j", jump))
-        return r
+        return r + additional_filter
 
-    def _iptables_cmd(self, node2, jump, path_nr, add_remove):
+    def _iptables_cmd(self, node2, jump, path_nr, add_remove, additional_filter=[]):
         """Returns an array of arrays (for .run) to filter the given path."""
         r = []
         r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],  self.port, node2.addrs[path_nr],       None, jump, add_remove))
@@ -1192,12 +1193,12 @@ class Node(exxe.Exxe):
         r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr], node2.port,  self.addrs[path_nr],       None, jump, add_remove))
         return r
 
-    def block_path(self, other_node, net_number=0):
+    def block_path(self, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
         """Uses iptables to block one network path."""
         self.run(['bash', '-c', 'netstat -antp | grep :%d || true' % self.port])
 
         verbose("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
-        cmds = self._iptables_cmd(other_node, "DROP", net_number, "-I")
+        cmds = self._iptables_cmd(other_node, jump_to, net_number, "-I", iptables_filter)
         for c in cmds:
             print("%s"% c)
             self.run(c)

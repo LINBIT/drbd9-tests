@@ -55,7 +55,7 @@ first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
 # allocate data, first run without measuring
 first.fio_bench(section="write")
 
-exit
+# exit
 
 # test connected
 r_w_rw('connected-prot-C-rd')

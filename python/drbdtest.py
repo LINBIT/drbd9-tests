@@ -270,7 +270,7 @@ class Nodes(Collection):
         return Nodes([node for node in self
                       if any(volume.disk is not None
                              for volume in node.volumes)])
-        diskful = property(get_diskful)
+    diskful = property(get_diskful)
 
     def get_diskless(self):
         """ Return nodes that have no disks. """
@@ -684,9 +684,20 @@ class Resource(object):
 
     def initial_resync(self, sync_from):
         self.nodes.run(['drbdadm', 'peer-device-options', '--c-min-rate', '0', 'all', '-v'])
-        self.peer_devices.event(r'peer-device .* peer-disk:UpToDate',
-                                timeout=300)
-
+        # All diskless nodes should see all diskfull nodes as UpToDate
+        diskful_nodes = self.nodes.diskful
+        pds = PeerDevices()
+        for dln in self.nodes.diskless:
+            for v in diskful_nodes[0].volumes:
+                for dfn in diskful_nodes:
+                    pds.add(PeerDevice(Connection(dln, dfn), v))
+        # All diskful nodes should see all other diskfull nodes as UpToDate as well.
+        for n1 in diskful_nodes:
+            for v in diskful_nodes[0].volumes:
+                for n2 in diskful_nodes:
+                    if n1 != n2:
+                        pds.add(PeerDevice(Connection(n1, n2), v))
+        pds.event(r'peer-device .* peer-disk:UpToDate', timeout=300)
 
 class Volume(object):
     def __init__(self, node, volume, size=None, meta_size=None, minor=None,

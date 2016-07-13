@@ -25,6 +25,7 @@ resource.skip_initial_sync();
 # that it works in the diskless node case, instead of the above?
 
 verbose('* Writing from diskless node.')
+diskless_node = resource.nodes.diskless[0]
 diskless_node.primary()
 diskless_node.fio(section='write')
 diskless_node.secondary()

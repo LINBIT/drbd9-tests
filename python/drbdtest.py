@@ -661,18 +661,25 @@ class Resource(object):
     def up_wait(self, extra_options=[]):
         self.up(extra_options)
 
-        # Each node waits for the other nodes to connect.
-        # As we don't know the order, we have to check for each combination...
-        for n in self.nodes:
-            # need a copy
-            needed = dict([ (peer.name, 1) for peer in self.nodes if n != peer])
-            while sum(needed.values()) > 0:
-                results = n.event(r'connection .* conn-name:(\S+) connection:Connected')
-                for matches in results:
-                    hostname = matches[0]
-                    # remove domain part
-                    host = hostname.split('.')[0]
-                    needed.pop(host)
+        ## Each node waits for the other nodes to connect.
+        #c = Connections()
+        #for n1 in self.nodes:
+        #    for n2 in self.nodes:
+        #        if n1 != n2:
+        #            c.add(Connection(n1, n2))
+        #c.event(r'connection .* connection:Connected', timeout=30)
+        # Since we might consume a peer-device event between two connection events,
+        # the commented out code block will cause the following code block to fail.
+        # We would need to save and restore the events position...
+
+        # Wait until all the peer's disks are known
+        pds = PeerDevices()
+        for n1 in self.nodes:
+            for n2 in self.nodes:
+                if n1 != n2:
+                    for v in self.nodes[0].volumes:
+                        pds.add(PeerDevice(Connection(n1, n2), v))
+        pds.event(r'peer-device .* peer-disk:(Inconsistent|Diskless)', timeout=30)
 
         # Now add that, too.
         self.forbidden_patterns.update([

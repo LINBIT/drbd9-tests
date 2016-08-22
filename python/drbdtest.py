@@ -681,6 +681,8 @@ class Resource(object):
                         pds.add(PeerDevice(Connection(n1, n2), v))
         pds.event(r'peer-device .* peer-disk:(Inconsistent|Diskless)', timeout=30)
 
+        self.sync_events(self)
+
         # Now add that, too.
         self.forbidden_patterns.update([
             r'connection:BrokenPipe',

@@ -13,9 +13,6 @@ import time
 size = 8
 step = 8
 
-# Settle time in seconds (should be 0)
-settle_time = 0.5
-
 def verify_size(size_mb = 0):
     common_size = 0
     for n in resource.nodes:
@@ -40,6 +37,9 @@ resource = drbdtest.setup(min_nodes=2, max_nodes=5)
 client_nodes = []
 weak_node = None
 nr_nodes = len(resource.nodes)
+
+# Settle time in seconds (should be 0)
+settle_time = 0.1 * (nr_nodes + 1)
 
 if nr_nodes > 3:
     diskful_nodes = resource.nodes[0:nr_nodes - 1]
@@ -83,8 +83,6 @@ for n in diskful_nodes:
     # Only if same VG everywhere
     diskful_nodes.volumes.resize(size_str)
 
-    time.sleep(settle_time)
-
     n.run(['drbdadm', 'resize', '--assume-clean',
                      '--size=%dM' % (size - 1), resource.name])
 
@@ -92,11 +90,7 @@ for n in diskful_nodes:
     verify_size(size-1)
 
 verbose('* Get rid of the user supplied size')
-for n in diskful_nodes:
-    time.sleep(settle_time)
-    n.run(['drbdadm', 'resize', '--assume-clean', resource.name])
-    time.sleep(settle_time)
-
+diskful_nodes.run(['drbdadm', 'resize', '--assume-clean', resource.name])
 
 verbose('* Resize on each diskfull node once. Testing --assume-clean')
 for n in diskful_nodes:
@@ -106,8 +100,6 @@ for n in diskful_nodes:
     verbose('* Node %s wants to use %dMB;' % (n, size))
 
     diskful_nodes.volumes.resize(size_str)
-
-    time.sleep(settle_time)
 
     n.run(['drbdadm', 'resize', '--assume-clean', resource.name])
 

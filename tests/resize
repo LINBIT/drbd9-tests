@@ -19,14 +19,14 @@ def verify_size(size_mb = 0):
         size_bytes = int(n.run(['blockdev', '--getsize64',
                                 '/dev/drbd%d' % (n.disks[0].minor)],
                                return_stdout=True))
-        if (size_mb):
-            if (size_mb * 2**20 != size_bytes):
+        if size_mb:
+            if size_mb * 2**20 != size_bytes:
                 raise RuntimeError("Expected %dM found %dM on %s" %
                                    (size_mb, size_bytes / 2.0**20, n.name))
-        if (common_size == 0):
+        if common_size == 0:
             common_size = size_bytes
         else:
-            if (size_bytes != common_size):
+            if size_bytes != common_size:
                 raise RuntimeError("Expected %d found %d on %s" %
                                    (common_size, size_bytes, n.name))
 
@@ -106,6 +106,44 @@ for n in diskful_nodes:
     time.sleep(settle_time)
     verify_size()
 
+
+if nr_nodes >= 5:
+    verbose('* Forming a sigma-shaped cluster')
+    #
+    # This tests what the two-phase-commit logic does at node 3
+    # where the prepare (and commit) arrives two times.
+    #
+
+    # keep:
+    #    1
+    #   / \
+    #  0   3--4
+    #   \ /
+    #    2
+    keep = drbdtest.Connections()
+    keep.add(drbdtest.Connection(resource.nodes[0], resource.nodes[1]))
+    keep.add(drbdtest.Connection(resource.nodes[1], resource.nodes[0]))
+    keep.add(drbdtest.Connection(resource.nodes[0], resource.nodes[2]))
+    keep.add(drbdtest.Connection(resource.nodes[2], resource.nodes[0]))
+    keep.add(drbdtest.Connection(resource.nodes[1], resource.nodes[3]))
+    keep.add(drbdtest.Connection(resource.nodes[3], resource.nodes[1]))
+    keep.add(drbdtest.Connection(resource.nodes[2], resource.nodes[3]))
+    keep.add(drbdtest.Connection(resource.nodes[3], resource.nodes[2]))
+    keep.add(drbdtest.Connection(resource.nodes[3], resource.nodes[4]))
+    keep.add(drbdtest.Connection(resource.nodes[4], resource.nodes[3]))
+
+    resource.connections.difference(keep).disconnect()
+
+    size += step
+    size_str = "%dM" % size
+
+    verbose('* Resizing disks to %dMB;' % (size))
+
+    diskful_nodes.volumes.resize(size_str)
+
+    first_node.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+    time.sleep(settle_time)
+    verify_size()
 
 verbose('* Shut down and clean up.')
 resource.down()

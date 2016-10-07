@@ -651,7 +651,7 @@ class Resource(object):
             r'peer-disk:Failed'])
 
     def skip_initial_sync(self):
-        node = self.nodes[0]
+        node = self.nodes.diskful[0]
         # set to remove duplicates ?!!
         res_vols = set([ "%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk])
         node.run(["drbdadm", "new-current-uuid", "--clear-bitmap" ] + list(res_vols))

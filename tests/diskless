@@ -8,7 +8,7 @@ from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=5)
 
-diskful_nodes = resource.nodes[0:2]
+diskful_nodes = resource.nodes[1:]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
 resource.up_wait()
@@ -21,11 +21,93 @@ resource.up_wait()
 
 verbose('* Make up-to-date data available.')
 resource.skip_initial_sync();
-# FIXME: change _initial_resync so that it works for a subset of nodes, or so
-# that it works in the diskless node case, instead of the above?
+
+nfnr = 0
+md5_table = []
+def create_file(node, count):
+    global nfnr, md5_table
+    node.run(['dd', 'if=/dev/urandom', 'of=/mnt/1/f_%d' % (nfnr) , 'bs=4096',
+              'count=%d' % (count), 'conv=fsync'])
+    md5_table.insert(nfnr, node.run(['md5sum', '/mnt/1/f_%d' % (nfnr)], return_stdout=True))
+    nfnr += 1
+
+def verify_files(node):
+    global md5_table
+    node.run(['/bin/bash', '-c', 'echo 1 >/proc/sys/vm/drop_caches'])
+    for fnr, write_md5 in enumerate(md5_table):
+        read_md5 = node.run(['md5sum', '/mnt/1/f_%d' % (fnr)], return_stdout=True)
+        if write_md5 != read_md5:
+            raise RuntimeError("Data corruption found file f_%d" % (fnr))
+
+diskless_node = resource.nodes.diskless[0]
+dev_name = diskless_node.volumes[0].device()
+
+
+verbose('* Test loosing all but one server, and reintegrating them in the same order')
+diskless_node.run(['mkfs', '-t', 'ext4', dev_name])
+diskless_node.run(['mkdir', '-p', '/mnt/1'])
+diskless_node.run(['mount', dev_name, '/mnt/1'])
+create_file(diskless_node, 100);
+
+nr_nodes = len(resource.nodes)
+
+# Disconnect nearly all servers
+for n in resource.nodes.diskful[1:]:
+    n.down()
+    create_file(diskless_node, 100);
+
+# Reintegrate ony by one
+up_so_far=drbdtest.Nodes([resource.nodes.diskful[0]]);
+for n in resource.nodes.diskful[1:]:
+    n.new_resource()
+    n.new_minor()
+    n.new_peer()
+    n.peer_device_options()
+    n.new_path()
+    n.attach()
+
+    # TODO Sometimes to diskles first, sometimes to the others first
+
+    cs = drbdtest.Connections() # Connections from n to all other diskful_nodes
+    for n2 in resource.nodes.diskful.difference([n]):
+        cs.add(drbdtest.Connection(n, n2))
+    cs.connect()
+
+    cs = drbdtest.Connections() # Connections from n to all other diskful_nodes
+    for n2 in up_so_far:
+        cs.add(drbdtest.Connection(n, n2))
+    cs.event(r'connection .* connection:Connected')
+    # n.volumes.event(r'device .* disk:Inconsistent') # Resync began
+
+    create_file(diskless_node, 10);     # Write something during resync
+
+    # Resync finished
+    pds = drbdtest.PeerDevices()
+    #for c in cs: ## Most recent change! Eventually remove # and use c istead of cs[0] in the next line
+    pds.add(drbdtest.PeerDevice(cs[0], n.volumes[0]))
+
+    pds.event(r'peer-device .* replication:Established')
+
+    cs = drbdtest.Connections()
+    cs.add(drbdtest.Connection(n, diskless_node))
+    cs.connect()
+    cs.event(r'connection .* connection:Connected')
+    n.volumes.event(r'device .* disk:UpToDate')
+
+    cs = drbdtest.Connections() # Connections from diskless_node to all other diskful_nodes
+    for n2 in up_so_far:
+        cs.add(drbdtest.Connection(diskless_node, n2))
+    cs.disconnect()
+    verify_files(diskless_node)
+    cs.connect()
+    cs.event(r'connection .* connection:Connected')
+    up_so_far.add(n)
+
+# Early Exit
+diskless_node.run(['umount', '/mnt/1'])
 
 verbose('* Writing from diskless node.')
-diskless_node = resource.nodes.diskless[0]
+
 diskless_node.primary()
 diskless_node.fio(section='write')
 diskless_node.secondary()
@@ -68,6 +150,9 @@ resource.connections. \
 	event(r'connection .* role:Secondary')
 
 # FIXME: Simulate network outage
+
+diskless_node.run(['sleep', '0.5'])
+diskless_node.run(['udevadm', 'settle', '--timeout=2'])
 
 verbose('* Shut down and clean up.')
 resource.down()

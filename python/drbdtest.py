@@ -265,6 +265,25 @@ class Nodes(Collection):
         self.volumes.diskful.event(r'device .* disk:Detaching')
         self.volumes.diskful.event(r'device .* disk:Diskless')
 
+    def new_resource(self):
+        self.run(['drbdadm', 'new-resource', 'all', '-v'])
+        self.event(r'create resource')
+
+    def new_minor(self):
+        self.run(['drbdadm', 'new-minor', 'all', '-v'])
+        self.volumes.event(r'create device')
+
+    def new_peer(self):
+        self.run(['drbdadm', 'new-peer', 'all', '-v'])
+        self.volumes.peer_devices.event(r'create peer-device')
+
+    def peer_device_options(self):
+        self.run(['drbdadm', 'peer-device-options', 'all', '-v'])
+
+    def new_path(self):
+        self.run(['drbdadm', 'new-path', 'all', '-v'])
+        self.connections.event(r'create path')
+
     def get_diskful(self):
         """ Return nodes that have at least one disk. """
         return Nodes([node for node in self
@@ -1138,6 +1157,21 @@ class Node(exxe.Exxe):
 
     def detach(self):
         Nodes([self]).detach()
+
+    def new_resource(self):
+        Nodes([self]).new_resource()
+
+    def new_minor(self):
+        Nodes([self]).new_minor()
+
+    def new_peer(self):
+        Nodes([self]).new_peer()
+
+    def peer_device_options(self):
+        Nodes([self]).peer_device_options()
+
+    def new_path(self):
+        Nodes([self]).new_path()
 
     def event(self, *args, **kwargs):
         return Nodes([self]).event(*args, **kwargs)

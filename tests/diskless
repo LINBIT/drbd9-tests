@@ -73,11 +73,13 @@ for n in resource.nodes.diskful[1:]:
         cs.add(drbdtest.Connection(n, n2))
     cs.connect()
 
-    cs = drbdtest.Connections() # Connections from n to all other diskful_nodes
+    # Wait for the connections to connect and my disk to become Inconsistent. Arbitrary order!
+    regexs = []
     for n2 in up_so_far:
-        cs.add(drbdtest.Connection(n, n2))
-    cs.event(r'connection .* connection:Connected')
-    # n.volumes.event(r'device .* disk:Inconsistent') # Resync began
+        regexs.append('connection .* peer-node-id:%d .* connection:Connected' % (n2.id))
+
+    regexs.append('device .* volume:%d .* disk:Inconsistent' % n.volumes[0].volume)
+    n.event(*regexs)
 
     create_file(diskless_node, 10);     # Write something during resync
 

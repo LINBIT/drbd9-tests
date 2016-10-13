@@ -554,6 +554,8 @@ class Resource(object):
             node.cleanup()
 
     def rmmod(self):
+        if no_rmmod:
+            return
         for n in self.nodes:
             if n.drbd_major_version == 9:
                 # might not even be loaded
@@ -1447,6 +1449,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--rdma', dest='rdma')
     parser.add_argument('--override-max', action="store_true", dest='override_max')
     parser.add_argument('--report-and-quit', dest='report_n_quit', default=False, action="store_true")
+    parser.add_argument('--no-rmmod', action="store_true")
     args = parser.parse_args()
 
     if nodes is not None:
@@ -1490,6 +1493,9 @@ def setup(parser=argparse.ArgumentParser(),
     if args.logdir is None:
         args.logdir = os.path.join('log', args.job)
         job_symlink = re.sub(r'-[^-]*-[^-]*?$', '', args.job) + '-latest'
+
+    global no_rmmod
+    no_rmmod = args.no_rmmod
 
     os.environ['EXXE_TIMEOUT'] = '30'
     os.environ['LOGSCAN_TIMEOUT'] = '30'

@@ -978,8 +978,10 @@ class Node(exxe.Exxe):
                 raise RuntimeError("%s has no eth0:1", self)
             self.addrs.append(m.group(1))
 
-        self.run(["bash", "-c", 'iptables -N drbd-test-input && iptables -A INPUT -j drbd-test-input || true'])
-        self.run(["bash", "-c", 'iptables -N drbd-test-output && iptables -A OUTPUT -j drbd-test-output || true'])
+        self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'])
+        self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'])
+        self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"])
+        self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"])
 
         # Ensure that added nodes will be reflected in the DRBD configuration file.
         self.config_changed = True
@@ -993,6 +995,11 @@ class Node(exxe.Exxe):
         return '%s:%s' % (self.addrs[net_num], self.port)
 
     def cleanup(self):
+        self.run(["iptables", "-D", "INPUT", "-j", "drbd-test-input"])
+        self.run(["iptables", "-D", "OUTPUT", "-j", "drbd-test-output"])
+        self.run(["bash", "-c", 'iptables -F drbd-test-input && iptables -X drbd-test-input || true'])
+        self.run(["bash", "-c", 'iptables -F drbd-test-output && iptables -X drbd-test-output || true'])
+
         self.config_changed = False
         if hasattr(self, 'events'):
             self.events.terminate()

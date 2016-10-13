@@ -933,8 +933,10 @@ class Node(exxe.Exxe):
                                     'exxe', '--syslog'], prefix='%s: ' % name)
         self.resource = resource
         self.name = name
-        self.addr = addr if addr else subprocess.check_output(
-            ['gethostip', '-d', name]).strip()
+        try:
+            self.addr = addr if addr else socket.gethostbyname(name)
+        except:
+            raise RuntimeError('Could not determine IP for host %s' % name)
         self.port = port
         self.disks = []  # by volume
         self.id = len(self.resource.nodes)

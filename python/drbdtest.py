@@ -546,7 +546,6 @@ class Resource(object):
             verbose("** %s to %s" % pd.connection.nodes)
         return PeerDevices([pd for pd in pds if peer == pd.connection.nodes[1]])
 
-
     def cleanup(self):
         if not skip_cleanup:
             self.nodes.run(['cleanup'], prepare=True, catch=True)
@@ -599,7 +598,7 @@ class Resource(object):
         # Keep data in logfiles, too.
         print(result)
 
-        lines = result.split("\n");
+        lines = result.split("\n")
         match_results = []
         for l in lines:
             g = re.match('^Pattern .*? matches .*?; (\[.*)', l)
@@ -674,8 +673,8 @@ class Resource(object):
     def skip_initial_sync(self):
         node = self.nodes.diskful[0]
         # set to remove duplicates ?!!
-        res_vols = set([ "%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk])
-        node.run(["drbdadm", "new-current-uuid", "--clear-bitmap" ] + list(res_vols))
+        res_vols = set(["%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk])
+        node.run(["drbdadm", "new-current-uuid", "--clear-bitmap"] + list(res_vols))
         # wait for completion
         self.initial_resync(node)
 
@@ -729,6 +728,7 @@ class Resource(object):
                         pds.add(PeerDevice(Connection(n1, n2), v))
         pds.event(r'peer-device .* peer-disk:UpToDate', timeout=300)
 
+
 class Volume(object):
     def __init__(self, node, volume, size=None, meta_size=None, minor=None,
                  max_peers=None, thin=False):
@@ -781,7 +781,7 @@ class Volume(object):
         thin_arg = []
         if thin:
             thin_arg = ['--thinpool', 'drbdthinpool']
-            
+
         cmd.extend(['--job', os.environ['DRBD_TEST_JOB'],
                    '--volume-group', self.node.volume_group, '--size', size]
                    + thin_arg + [name])
@@ -793,7 +793,7 @@ class Volume(object):
     def resize(self, size):
         # TODO: metadata-resize?
         self.node.run(['lvresize', '-L', size,
-                "%s/%s" % (self.node.volume_group, self.disk_lv)])
+                       "%s/%s" % (self.node.volume_group, self.disk_lv)])
 
     def device(self):
         return '/dev/drbd%d' % self.minor
@@ -928,8 +928,7 @@ class ConfigBlock(object):
 
 class Node(exxe.Exxe):
     def __init__(self, resource, name, volume_group,
-            addr=None, port=7789,
-            multi_paths=None):
+                 addr=None, port=7789, multi_paths=None):
         super(Node, self).__init__(['ssh', '-l',
                                     'root', name,
                                     'exxe', '--syslog'], prefix='%s: ' % name)
@@ -975,7 +974,7 @@ class Node(exxe.Exxe):
         self.addrs = [self.addr]
         if multi_paths:
             net_2 = self.run(['ip', '-oneline', 'a', 'show', 'label', 'eth0:1'],
-                    return_stdout=True)
+                             return_stdout=True)
             verbose("got further path %s", net_2)
             m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', net_2)
             if not m:
@@ -1076,7 +1075,7 @@ class Node(exxe.Exxe):
 
         resource = self.resource
         with ConfigBlock(dest_fn=lambda x: text.append(x),
-                           t="resource %s" % resource.name):
+                         t="resource %s" % resource.name):
 
             with ConfigBlock(t='disk') as disk:
                 disk.write("disk-flushes no;")
@@ -1220,10 +1219,10 @@ class Node(exxe.Exxe):
             With a 4M LV a single write pass has too much noise.
         """
         return self.fio(
-                section = section,
-                return_output = True,
-                name = name,
-                fio_extra = [ 'runtime=%d' % runtime ] + fio_extra,
+                section=section,
+                return_output=True,
+                name=name,
+                fio_extra=['runtime=%d' % runtime] + fio_extra,
                 )
 
     def net_device_to_peer(self, peer, net_num=0):
@@ -1265,7 +1264,7 @@ class Node(exxe.Exxe):
         verbose("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
         cmds = self._iptables_cmd(other_node, jump_to, net_number, "-I", iptables_filter)
         for c in cmds:
-            print("%s"% c)
+            print(c)
             self.run(c)
 
     def block_paths(self, net_number=0):
@@ -1287,7 +1286,6 @@ class Node(exxe.Exxe):
         for n in self.resource.nodes.difference([self]):
             self.unblock_path(n, net_number=net_number)
 
-
     def dmesg(self, pattern=None):
         """Fetches (part of) dmesg; clears it afterwards.
 
@@ -1304,13 +1302,13 @@ class Node(exxe.Exxe):
             m = re.search(pattern, l)
             if m:
                 verbose("line %s, match %s" % (l, m))
-                result.append( (l, m) )
+                result.append((l, m))
 
         return result
 
     def _drbdsetup_lines(self):
         output = node.run(['drbdsetup', 'status', '--s', '--v', self.resource.name],
-                return_stdout=True)
+                          return_stdout=True)
         return output.splitlines()
 
     def volume_value(self, which=None, volume=0):
@@ -1322,7 +1320,7 @@ class Node(exxe.Exxe):
             # Exactly two spaces, else it's a peer-disk
             vol_m = re.search(r'^  volume:(\d+)', l)
             if vol_m:
-                 right_volume = (int(re.group(1)) == volume)
+                right_volume = (int(re.group(1)) == volume)
 
             if right_volume:
                 m = re.findall(r'([a-z-]+):(\S+)', l)
@@ -1344,11 +1342,11 @@ class Node(exxe.Exxe):
             # Exactly four spaces for a peer-disk
             vol_m = re.search(r'^    volume:(\d+)', l)
             if vol_m:
-                 right_volume = (int(re.group(1)) == volume)
+                right_volume = (int(re.group(1)) == volume)
 
             host_m = re.search(r'^  (\S+) node-id:(\d+)', l)
             if host_m:
-                 right_host = (re.group(1) == peer)
+                right_host = (re.group(1) == peer)
 
             if right_host and right_volume:
                 m = re.findall(r'([a-z-]+):(\S+)', l)
@@ -1521,12 +1519,12 @@ def setup(parser=argparse.ArgumentParser(),
 
     Cleanup(args.cleanup)
     resource = _res_class(args.resource,
-                        logdir=args.logdir,
-                        rdma=args.rdma)
+                          logdir=args.logdir,
+                          rdma=args.rdma)
 
     for node in args.node:
         _node_class(resource, node, args.volume_group,
-                multi_paths=multi_paths)
+                    multi_paths=multi_paths)
 
     if args.vconsole:
         for node in args.node:
@@ -1583,8 +1581,9 @@ def setup(parser=argparse.ArgumentParser(),
                        prepare=True)
     return resource
 
-## Python 2.6 compat
-## http://stackoverflow.com/questions/17539985/check-output-error-in-python
+
+# Python 2.6 compat
+# http://stackoverflow.com/questions/17539985/check-output-error-in-python
 def fake_check_output(*popenargs, **kwargs):
     process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
     output, unused_err = process.communicate()
@@ -1598,13 +1597,15 @@ def fake_check_output(*popenargs, **kwargs):
         raise error
     return output
 
-try: subprocess.check_output
-except: subprocess.check_output = fake_check_output
+try:
+    subprocess.check_output
+except:
+    subprocess.check_output = fake_check_output
 
 
 class FioParser():
     def _unit_to_num(self, string):
-        return { '': 1, 'K': 1e3, 'm': 1e-3, 'u': 1e-6}[string or '']
+        return {'': 1, 'K': 1e3, 'm': 1e-3, 'u': 1e-6}[string or '']
 
     def _kv_into_dict(self, dest, string, unit=1.0):
         # m = re.search(r"^(\S+) +clat \((\w+)\):(?: (\w+)=([\d\.]+),?)+\s*$", l)
@@ -1612,7 +1613,7 @@ class FioParser():
         # http://stackoverflow.com/questions/9764930/capturing-repeating-subpatterns-in-python-regex
         for part in string.split(", "):
             kv = re.search("(\w+)\s*=\s*([\d\.]+)(K|m)?(B|B/s|sec)?", part)
-            #print(part)
+            # print(part)
 
             unit2 = unit * self._unit_to_num(kv.group(3))
             dest[kv.group(1)] = float(kv.group(2)) * unit2
@@ -1687,6 +1688,7 @@ def ensure(want, have, explanation=None):
             sys.stderr.write("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
+
 def ensure_subset(smaller, bigger, explanation=None):
     """compares two dictionaries"""
     if not all([smaller[k] == bigger[k] for k in smaller.iterkeys()]):
@@ -1695,12 +1697,14 @@ def ensure_subset(smaller, bigger, explanation=None):
             sys.stderr.write("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
+
 def ensure_not(want, have, explanation=None):
     if want == have:
         sys.stderr.write("Wanted something but '%s', got '%s'.\n" % (repr(want), repr(have)))
         if explanation:
             sys.stderr.write("%s\n" % explanation)
         raise RuntimeError('assert trigger')
+
 
 def ensure_not_in_set(search, data, explanation=None):
     if search in data:

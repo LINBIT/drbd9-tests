@@ -1438,7 +1438,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--resource')
     parser.add_argument('--logdir')
     parser.add_argument('--cleanup', default='success',
-                        choices=['success', 'always', 'never'])
+                        choices=('success', 'always', 'never'))
     parser.add_argument('--volume-group', default='scratch')
     parser.add_argument('--vconsole', action='store_true')
     parser.add_argument('--silent', action='store_true')
@@ -1446,16 +1446,16 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--verbose', type=int)
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
-    parser.add_argument('--rdma', dest='rdma')
-    parser.add_argument('--override-max', action="store_true", dest='override_max')
-    parser.add_argument('--report-and-quit', dest='report_n_quit', default=False, action="store_true")
+    parser.add_argument('--rdma')
+    parser.add_argument('--override-max', action="store_true")
+    parser.add_argument('--report-and-quit', action="store_true")
     parser.add_argument('--no-rmmod', action="store_true")
     args = parser.parse_args()
 
     if nodes is not None:
         min_nodes = max_nodes = nodes
 
-    if args.report_n_quit:
+    if args.report_and_quit:
         print("min_nodes=%d" % min_nodes)
         if max_nodes:
             print("max_nodes=%d" % max_nodes)

@@ -467,6 +467,10 @@ class Connections(Collection):
             node0, node1 = connection.nodes
             node0.connections.remove(connection)
 
+    def bidir_add(self, node1, node2):
+        self.add(Connection(node1, node2))
+        self.add(Connection(node2, node1))
+
 
 class PeerDevices(Collection):
     def __init__(self, members=[]):

@@ -1,0 +1,88 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=5)
+
+resource.add_disk('10M')
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+def outdate_test():
+    first_node = resource.nodes[0]
+    last_node = resource.nodes[-1]
+    verbose("* Make a node primary and see if volumes on weak nodes become Outdated.")
+    first_node.primary()
+    weak_nodes = resource.nodes.difference(resource.nodes[0:2])
+    weak_nodes.volumes.event(r'device .* disk:Outdated')
+
+    verbose("* Make a node primary and see if volumes on weak nodes become Outdated.")
+    cs = drbdtest.Connections()
+    cs.bidir_add(first_node, last_node)
+    cs.connect()
+    cs.event(r'connection .* connection:Connected')
+
+    verbose("* See if node becomes UpToDate when connecting to the primary.")
+    pds = drbdtest.PeerDevices()
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(first_node, last_node), last_node.volumes[0]))
+    last_node.volumes[0].event(r'device .* disk:UpToDate')
+    pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    verbose("* See if node becomes Outdated when connection to primary is lost.")
+    resource.forbidden_patterns.difference_update([r'connection:NetworkFailure'])
+
+    first_node.block_path(last_node, 0)
+    cs.event(r'connection .* connection:Unconnected')
+    last_node.volumes[0].event(r'device .* disk:Outdated')
+
+    first_node.unblock_path(last_node, 0)
+    last_node.volumes[0].event(r'device .* disk:UpToDate')
+    pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    resource.forbidden_patterns.update([r'connection:NetworkFailure'])
+
+    verbose("* See if node becomes Outdated when disconnecting from the primary.")
+    first_to_last = drbdtest.Connections()
+    first_to_last.add(drbdtest.Connection(first_node, last_node))
+    first_to_last.disconnect(wait=False)
+    last_node.volumes[0].event(r'device .* disk:Outdated')
+
+    first_to_last.connect()
+    last_node.volumes[0].event(r'device .* disk:UpToDate')
+    pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    last_to_first = drbdtest.Connections()
+    last_to_first.add(drbdtest.Connection(last_node, first_node))
+    last_to_first.disconnect(wait=False)
+    last_node.volumes[0].event(r'device .* disk:Outdated')
+
+    last_to_first.connect()
+    last_node.volumes[0].event(r'device .* disk:UpToDate')
+    pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    verbose("* Turn primary into secondary and see if previously weak nodes become UpToDate.")
+    first_node.secondary()
+    weak_nodes.difference([last_node]).volumes.event(r'device .* disk:UpToDate')
+
+
+verbose('* Forming a chain of nodes.')
+chain = drbdtest.Connections()
+for i in range(0, len(resource.nodes) - 1):
+    chain.bidir_add(resource.nodes[i], resource.nodes[i+1])
+
+resource.connections.difference(chain).disconnect()
+
+outdate_test()
+
+resource.nodes[0].run(['sleep', '0.5'])
+resource.nodes[0].run(['udevadm', 'settle', '--timeout=2'])
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

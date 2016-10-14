@@ -1,0 +1,52 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+#
+# This test connects 3 nodes, and makes a write from the Primary not reach the
+# 3rd one, breaking the connection.
+# Then the Primary becomes Secondary; we'd expect the 3rd node to sync from the
+# 2nd node.
+
+
+from python import drbdtest
+from python.drbdtest import verbose
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+A, B, C = resource.nodes
+
+resource.net_options = 'connect-int 1;'
+resource.add_disk('8M')
+
+resource.up_wait()
+resource.skip_initial_sync()
+
+# Now they're connected; so 1), we don't allow new connections
+A.block_path(C, jump_to="REJECT", iptables_filter=["--syn"])
+# and 2) we don't allow the data packets
+#  go far enough into the packet - doesn't matter where,
+#  we'll just write the same byte anyway.
+A.block_path(C, jump_to="REJECT", iptables_filter=['--u32', '400 = 0x40404040'])
+
+# Allow the connection to break...
+resource.forbidden_patterns.difference_update([
+        r'connection:BrokenPipe',
+        r'connection:NetworkFailure',
+])
+
+
+with A.asPrimary():
+    # Write
+    A.run(["write-byte-O_DIRECT", "0x40", resource.volumes[0].device()])
+
+    # So the 3rd node disconnects (iptables!), and goes Outdated
+    C.event('device .* disk:Outdated')
+
+    # Now go secondary again
+
+# and wait for resync
+B.peer_devices.event('peer-device .* replication:SyncSource')
+C.peer_devices.event('peer-device .* replication:SyncTarget')
+C.event('device .* disk:UpToDate')
+
+# Now check for data
+C.run(["grep", "-aq", '@@@@@@@@@@@@@@', resource.volumes[0].device()])

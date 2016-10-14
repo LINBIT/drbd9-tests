@@ -1263,8 +1263,6 @@ class Node(exxe.Exxe):
 
     def block_path(self, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
         """Uses iptables to block one network path."""
-        self.run(['bash', '-c', 'netstat -antp | grep :%d || true' % self.port])
-
         verbose("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
         cmds = self._iptables_cmd(other_node, jump_to, net_number, "-I", iptables_filter)
         for c in cmds:
@@ -1277,9 +1275,6 @@ class Node(exxe.Exxe):
 
     def unblock_path(self, other_node, net_number=0):
         """Uses iptables to unblock one network path."""
-        self.run(['bash', '-c', 'netstat -antp | grep :%d || true' % self.port])
-        self.run(['iptables', '-vnL'])
-
         verbose("Unblocking path #%d from %s to %s" % (net_number, self, other_node))
         cmds = self._iptables_cmd(other_node, "DROP", net_number, "-D")
         for c in cmds:

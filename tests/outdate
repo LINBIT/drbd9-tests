@@ -14,21 +14,36 @@ resource.up_wait()
 verbose('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
-def outdate_test():
+def write_on_node(node):
+    for v in node.volumes:
+        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
+                  'count=1', 'conv=fsync'])
+
+def wait_backward_propagating_resyncs(nodes):
+    for i in range(len(nodes) - 1, 0):
+        rspd = drbdtest.PeerDevice(drbdtest.Connection(nodes[i], nodes[i-1]), nodes[i].volumes[0])
+        rtpd = drbdtest.PeerDevice(drbdtest.Connection(nodes[i-1], nodes[i]), nodes[i].volumes[0])
+        rspd.event(r'peer-device .* replication:SyncSource')
+        rspd.event(r'peer-device .* replication:Established')
+        rtpd.event(r'peer-device .* replication:SyncTarget')
+        rtpd.event(r'peer-device .* replication:Established')
+
+def outdate_test(write_between_actions = False):
     first_node = resource.nodes[0]
     last_node = resource.nodes[-1]
     verbose("* Make a node primary and see if volumes on weak nodes become Outdated.")
     first_node.primary()
     weak_nodes = resource.nodes.difference(resource.nodes[0:2])
     weak_nodes.volumes.event(r'device .* disk:Outdated')
+    if write_between_actions:
+        write_on_node(first_node)
 
-    verbose("* Make a node primary and see if volumes on weak nodes become Outdated.")
+    verbose("* See if node becomes UpToDate when connecting to the primary.")
     cs = drbdtest.Connections()
     cs.bidir_add(first_node, last_node)
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 
-    verbose("* See if node becomes UpToDate when connecting to the primary.")
     pds = drbdtest.PeerDevices()
     pds.add(drbdtest.PeerDevice(drbdtest.Connection(first_node, last_node), last_node.volumes[0]))
     last_node.volumes[0].event(r'device .* disk:UpToDate')
@@ -40,6 +55,9 @@ def outdate_test():
     first_node.block_path(last_node, 0)
     cs.event(r'connection .* connection:Unconnected')
     last_node.volumes[0].event(r'device .* disk:Outdated')
+    if write_between_actions:
+        write_on_node(first_node)
+        wait_backward_propagating_resyncs(weak_nodes)
 
     first_node.unblock_path(last_node, 0)
     last_node.volumes[0].event(r'device .* disk:UpToDate')
@@ -52,6 +70,9 @@ def outdate_test():
     first_to_last.add(drbdtest.Connection(first_node, last_node))
     first_to_last.disconnect(wait=False)
     last_node.volumes[0].event(r'device .* disk:Outdated')
+    if write_between_actions:
+        write_on_node(first_node)
+        wait_backward_propagating_resyncs(weak_nodes)
 
     first_to_last.connect()
     last_node.volumes[0].event(r'device .* disk:UpToDate')
@@ -61,10 +82,20 @@ def outdate_test():
     last_to_first.add(drbdtest.Connection(last_node, first_node))
     last_to_first.disconnect(wait=False)
     last_node.volumes[0].event(r'device .* disk:Outdated')
+    if write_between_actions:
+        write_on_node(first_node)
+        wait_backward_propagating_resyncs(weak_nodes)
 
     last_to_first.connect()
     last_node.volumes[0].event(r'device .* disk:UpToDate')
     pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    first_to_last.disconnect(wait=False)
+    last_to_first.disconnect(wait=False)
+    last_node.volumes[0].event(r'device .* disk:Outdated')
+    if write_between_actions:
+        write_on_node(first_node)
+        wait_backward_propagating_resyncs(weak_nodes)
 
     verbose("* Turn primary into secondary and see if previously weak nodes become UpToDate.")
     first_node.secondary()
@@ -79,6 +110,7 @@ for i in range(0, len(resource.nodes) - 1):
 resource.connections.difference(chain).disconnect()
 
 outdate_test()
+outdate_test(write_between_actions=True)
 
 resource.nodes[0].run(['sleep', '0.5'])
 resource.nodes[0].run(['udevadm', 'settle', '--timeout=2'])

@@ -1266,7 +1266,6 @@ class Node(exxe.Exxe):
         verbose("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
         cmds = self._iptables_cmd(other_node, jump_to, net_number, "-I", iptables_filter)
         for c in cmds:
-            print(c)
             self.run(c)
 
     def block_paths(self, net_number=0):
@@ -1278,7 +1277,6 @@ class Node(exxe.Exxe):
         verbose("Unblocking path #%d from %s to %s" % (net_number, self, other_node))
         cmds = self._iptables_cmd(other_node, "DROP", net_number, "-D")
         for c in cmds:
-            print("%s" % c)
             self.run(c)
 
     def unblock_paths(self, net_number=0):

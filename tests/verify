@@ -49,10 +49,10 @@ def MakeDifference(node, do_changes):
 
     for i in (1, 2, 3, 4):
         while True:
-            byte = random.randrange(start=0, 
+            byte = random.randrange(start=0,
                     stop=16 * 1024 * 1024,
                     step = BLOCK_SIZE)
-            
+
             # unique values, no duplicates
             if byte not in set( [ l[0] for l in blocks ] ):
                 break
@@ -62,12 +62,12 @@ def MakeDifference(node, do_changes):
         # No ' in string, so that "mark a string" in logfile works ;)
         text = ("Writing on {%s} at {%s}; iteration #%d/%s, to offset %d = 0x%x.\n" %
                 (node.name, time.ctime(),
-                 make_difference_counter, i, 
+                 make_difference_counter, i,
                  byte, byte))
         verbose(text)
 
         block = text + make_difference_blob[len(text):]
-    
+
         node.run(["dd",
                 "of=%s" % resource.volumes[0].disk,
                 "seek=%d" % blk_nr,
@@ -112,7 +112,7 @@ def GetDifferenceFromDmesg(node):
         blks.append(byte)
 
         drbdtest.verbose("on node %s found change at sector %d (byte %d, 0x%x)" % (node, sector, byte, byte))
-    
+
     # [4508807.046923] drbd ramdisk/0 drbd28 much: Online verify found 2 4k block out of sync!
     return set(blks)
 
@@ -153,7 +153,7 @@ for with_changes in (0, 1):
         DoSync(first, other)
         for n in resource.nodes:
             CheckContent(n, changed)
-        
+
 
     drbdtest.verbose("*** 2) Secondary verifies against Primary, %s" % w_c_text)
 

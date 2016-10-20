@@ -1,0 +1,175 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+import random
+import re
+import time
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+
+resource.add_disk('16M')
+resource.net_options = 'verify-alg md5;'
+
+resource.up_wait()
+# no sync, we want it to be zeroed out anyway.
+resource.skip_initial_sync()
+
+first = resource.nodes[0]
+others = resource.nodes.difference([first])
+other = others[0]
+
+
+# Make them all NUL
+
+with first.asPrimary():
+    first.run(["dd",
+            "if=/dev/zero", "of=%s" % resource.volumes[0].device(),
+            "bs=1M", "count=4", "oflag=direct"])
+
+
+# Now create differences between the nodes, and test verification.
+
+
+# verify block size. No sense in going smaller.
+BLOCK_SIZE = 4096
+BLOCK_SIZE_2COMPARE = BLOCK_SIZE - 10
+
+make_difference_counter = 0
+make_difference_blob = (("-" * 63) + "\n") * (BLOCK_SIZE/64)
+
+def MakeDifference(node, do_changes):
+    blocks = []
+    if do_changes == 0:
+        return blocks
+
+    for i in (1, 2, 3, 4):
+        while True:
+            byte = random.randrange(start=0, 
+                    stop=16 * 1024 * 1024,
+                    step = BLOCK_SIZE)
+            
+            # unique values, no duplicates
+            if byte not in set( [ l[0] for l in blocks ] ):
+                break
+
+        blk_nr = byte / BLOCK_SIZE
+
+        # No ' in string, so that "mark a string" in logfile works ;)
+        text = ("Writing on {%s} at {%s}; iteration #%d/%s, to offset %d = 0x%x.\n" %
+                (node.name, time.ctime(),
+                 make_difference_counter, i, 
+                 byte, byte))
+        verbose(text)
+
+        block = text + make_difference_blob[len(text):]
+    
+        node.run(["dd",
+                "of=%s" % resource.volumes[0].disk,
+                "seek=%d" % blk_nr,
+                "bs=%d" % BLOCK_SIZE, "count=1", "oflag=direct"],
+                stdin=block)
+
+        blocks.append( (byte, blk_nr, block) )
+
+    return blocks
+
+
+def CheckContent(node, blocks):
+    for blk in blocks:
+        (byte, blk_nr, block) = blk
+
+        content = node.run(["dd",
+                "if=%s" % resource.volumes[0].disk,
+                "skip=%d" % blk_nr,
+                "bs=%d" % BLOCK_SIZE, "count=1", "iflag=direct"],
+                return_stdout=True)
+
+        lines = content.split("\n")
+        verbose("node %s has '%s'\n" % (node, lines[0]))
+
+        # There's a problem with 4kB, only check a bit less.
+        drbdtest.ensure(block[:BLOCK_SIZE_2COMPARE], content[:BLOCK_SIZE_2COMPARE])
+
+    return True
+
+
+def GetDifferenceFromDmesg(node):
+    # Clear after reading, so that the next runs won't see old messages.
+    # grep on host, so that the amount of transferred information is small.
+    #   [4508806.959591] drbd ramdisk/0 drbd28 much: Out of sync: start=40, size=16 (sectors)
+    oos = node.dmesg(r"drbd .* Out of sync:.*start=(\d+),")
+
+    blks = []
+    for (line, match) in oos:
+        sector = int(match.group(1))
+        byte = sector * 512
+
+        blks.append(byte)
+
+        drbdtest.verbose("on node %s found change at sector %d (byte %d, 0x%x)" % (node, sector, byte, byte))
+    
+    # [4508807.046923] drbd ramdisk/0 drbd28 much: Online verify found 2 4k block out of sync!
+    return set(blks)
+
+
+def DoVerify(src_node, dst_node, expected):
+    src_node.run(["drbdadm", "verify", "-v", "%s:%s" % (resource.name, dst_node.name)])
+
+    src_node.peer_devices.event(r'peer-device .* replication:VerifyS')
+    dst_node.peer_devices.event(r'peer-device .* replication:VerifyT')
+
+    src_node.peer_devices.event(r'peer-device .* replication:Established')
+    dst_node.peer_devices.event(r'peer-device .* replication:Established')
+
+    if expected:
+        src_blks = GetDifferenceFromDmesg(src_node)
+        dst_blks = GetDifferenceFromDmesg(dst_node)
+
+        drbdtest.ensure(src_blks, dst_blks)
+        drbdtest.ensure(src_blks, set([ l[0] for l in expected ]))
+
+
+def DoSync(node1, node2):
+    node1.disconnect(node2, wait=True)
+
+    node1.connect(node2)
+    node1.event(r'connection .* connection:Connected')
+    node2.event(r'connection .* connection:Connected')
+
+
+for with_changes in (0, 1):
+    w_c_text = with_changes if "with changes" else "no changes"
+
+    drbdtest.verbose("*** 1) Primary verifies against Secondary, %s" % w_c_text)
+
+    with first.asPrimary():
+        changed = MakeDifference(first, with_changes)
+        DoVerify(first, other, changed)
+        DoSync(first, other)
+        for n in resource.nodes:
+            CheckContent(n, changed)
+        
+
+    drbdtest.verbose("*** 2) Secondary verifies against Primary, %s" % w_c_text)
+
+    with first.asPrimary():
+        changed = MakeDifference(first, with_changes)
+        DoVerify(other, first, changed)
+        DoSync(other, first)
+        for n in resource.nodes:
+            CheckContent(n, changed)
+
+
+    # TODO: which should/would win??
+    # drbdtest.verbose("*** 3) Secondary to Secondary")
+    # with first.asPrimary():
+    #     changed = MakeDifference(first)
+    # DoVerify(first, other, changed)
+    # DoSync(other, first)
+    # for n in resource.nodes:
+    #     CheckContent(n, changed)

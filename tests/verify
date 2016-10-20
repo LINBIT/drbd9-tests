@@ -10,7 +10,7 @@ from python import drbdtest
 from python.drbdtest import verbose
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+resource = drbdtest.setup(min_nodes=2, max_nodes=2)
 
 resource.add_disk('16M')
 resource.net_options = 'verify-alg md5;'
@@ -27,10 +27,8 @@ other = others[0]
 # Make them all NUL
 
 with first.asPrimary():
-    first.run(["dd",
-            "if=/dev/zero", "of=%s" % resource.volumes[0].device(),
-            "bs=1M", "count=4", "oflag=direct"])
-
+    first.run(['/bin/bash', '-c',
+              "dd if=/dev/zero of=%s bs=1M count=16 oflag=sync || true" % resource.volumes[0].device()])
 
 # Now create differences between the nodes, and test verification.
 
@@ -102,14 +100,20 @@ def GetDifferenceFromDmesg(node):
     # Clear after reading, so that the next runs won't see old messages.
     # grep on host, so that the amount of transferred information is small.
     #   [4508806.959591] drbd ramdisk/0 drbd28 much: Out of sync: start=40, size=16 (sectors)
-    oos = node.dmesg(r"drbd .* Out of sync:.*start=(\d+),")
+    oos = node.dmesg(r"drbd .* Out of sync:.*start=(\d+), size=(\d+)")
 
     blks = []
     for (line, match) in oos:
         sector = int(match.group(1))
-        byte = sector * 512
+        length = int(match.group(2))
 
-        blks.append(byte)
+        while True:
+            byte = sector * 512
+            blks.append(byte)
+            sector += BLOCK_SIZE / 512
+            length -= BLOCK_SIZE / 512
+            if length == 0:
+                break
 
         drbdtest.verbose("on node %s found change at sector %d (byte %d, 0x%x)" % (node, sector, byte, byte))
 
@@ -136,10 +140,14 @@ def DoVerify(src_node, dst_node, expected):
 
 def DoSync(node1, node2):
     node1.disconnect(node2, wait=True)
-
+    node1.run(["drbdadm", "new-current-uuid", "%s/0" % resource.name]);
     node1.connect(node2)
     node1.event(r'connection .* connection:Connected')
     node2.event(r'connection .* connection:Connected')
+    node1.peer_devices.event(r'peer-device .* replication:SyncSource')
+    node1.peer_devices.event(r'peer-device .* replication:Established')
+    node2.peer_devices.event(r'peer-device .* replication:SyncTarget')
+    node2.peer_devices.event(r'peer-device .* replication:Established')
 
 
 for with_changes in (0, 1):
@@ -160,7 +168,7 @@ for with_changes in (0, 1):
     with first.asPrimary():
         changed = MakeDifference(first, with_changes)
         DoVerify(other, first, changed)
-        DoSync(other, first)
+        DoSync(first, other)
         for n in resource.nodes:
             CheckContent(n, changed)
 

@@ -5,7 +5,7 @@
 import re
 import socket
 from threading import Thread
-from SocketServer import (BaseRequestHandler, TCPServer, UDPServer)
+from SocketServer import (BaseRequestHandler, ThreadingTCPServer, UDPServer)
 
 
 class Hostnames(object):
@@ -52,12 +52,13 @@ class SyslogHandler(BaseRequestHandler):
     def logfile(self):
         addr = self.client_address[0]
         host = self.server.hostnames[addr]
-        if host is not None:
-            try:
-                logfile = self.server.logfiles[host]
-            except KeyError:
-                logfile = open(self.server.logfile_name % host, 'a')
-                self.server.logfiles[host] = logfile
+        if host is None:
+            host = addr
+        try:
+            logfile = self.server.logfiles[host]
+        except KeyError:
+            logfile = open(self.server.logfile_name % host, 'a')
+            self.server.logfiles[host] = logfile
         return logfile
 
 
@@ -68,11 +69,30 @@ class TCPSyslogHandler(SyslogHandler):
         SyslogHandler.__init__(self, *args, **kwargs)
 
     def handle(self):
-        # FIXME: Handle partial messages as well.
-        data = self.request.recv(2048)
-        for message in data.splitlines(True):
-            SyslogHandler.handle(self, message)
-
+        # NOTE: one TCPServer "request" is one accept().
+        # Once this "handle()" routine returns, the server will shutdown() and
+        # close() the accepted socket.  Doing a tcp handshake for almost every
+        # line of syslog will cause message loss.
+        # So we better loop here until the source stops sending.
+        SyslogHandler.handle(self, "ESTABLISHED\n")
+        part = ''
+        lines = []
+        while True:
+            data = self.request.recv(2048)
+            if not data:
+                break
+            lines = data.splitlines(True)
+            if part:
+                lines[0] = ''.join([part, lines[0]])
+            part = ''
+            for message in lines:
+                if message[-1] != '\n':
+                    part = message
+                    break
+                SyslogHandler.handle(self, message)
+        if part:
+                SyslogHandler.handle(self, part + '\n')
+        SyslogHandler.handle(self, "SHUTDOWN\n")
 
 class UDPSyslogHandler(SyslogHandler):
     """ UDP syslog message handler: one message per UDP packet. """
@@ -85,7 +105,7 @@ class UDPSyslogHandler(SyslogHandler):
         SyslogHandler.handle(self, data + '\n')
 
 
-class TCPSyslogServer(Thread, TCPServer):
+class TCPSyslogServer(Thread, ThreadingTCPServer):
     """ TCP syslog server thread. """
 
     def __init__(self, hostnames, logfile_name=None, port=None, accumulated=None):
@@ -94,7 +114,7 @@ class TCPSyslogServer(Thread, TCPServer):
         self.daemon = True
         if port is None:
             port = 514
-        TCPServer.__init__(self, ('', port), TCPSyslogHandler)
+        ThreadingTCPServer.__init__(self, ('', port), TCPSyslogHandler)
         self.hostnames = hostnames
         if logfile_name is None:
             logfile_name = 'syslog-%s'
@@ -103,7 +123,7 @@ class TCPSyslogServer(Thread, TCPServer):
         self.accumulated = accumulated
 
     def run(self):
-        self.serve_forever()
+        self.serve_forever(poll_interval=5)
 
 
 class UDPSyslogServer(Thread, UDPServer):
@@ -134,6 +154,7 @@ def syslog_server(hosts, port=None, logfile_name=None, acc_name=None):
     for host in hosts:
         hostnames.add(host)
 
+    acc_file = None
     if acc_name:
         acc_file = open(acc_name, 'a')
 

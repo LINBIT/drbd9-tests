@@ -2,8 +2,13 @@
 
 # A very primitive syslog server.
 
+from __future__ import print_function
 import re
 import socket
+import select
+import os
+import sys
+import time
 from threading import Thread
 from SocketServer import (BaseRequestHandler, ThreadingTCPServer, UDPServer)
 
@@ -68,17 +73,25 @@ class TCPSyslogHandler(SyslogHandler):
     def __init__(self, *args, **kwargs):
         SyslogHandler.__init__(self, *args, **kwargs)
 
+    def fetch_more_lines(self):
+        while True:
+            r, w, e = select.select([self.request], [], [], 0.5)
+            if self.server.should_stop():
+                return ""
+            if r:
+                return self.request.recv(2048)
+
     def handle(self):
         # NOTE: one TCPServer "request" is one accept().
         # Once this "handle()" routine returns, the server will shutdown() and
         # close() the accepted socket.  Doing a tcp handshake for almost every
         # line of syslog will cause message loss.
         # So we better loop here until the source stops sending.
-        SyslogHandler.handle(self, "ESTABLISHED\n")
+        SyslogHandler.handle(self, "ESTABLISHED connection from %s\n" % self.client_address[0])
         part = ''
         lines = []
         while True:
-            data = self.request.recv(2048)
+            data = self.fetch_more_lines()
             if not data:
                 break
             lines = data.splitlines(True)
@@ -92,7 +105,7 @@ class TCPSyslogHandler(SyslogHandler):
                 SyslogHandler.handle(self, message)
         if part:
                 SyslogHandler.handle(self, part + '\n')
-        SyslogHandler.handle(self, "SHUTDOWN\n")
+        SyslogHandler.handle(self, "SHUTDOWN connection from %s\n" % self.client_address[0])
 
 class UDPSyslogHandler(SyslogHandler):
     """ UDP syslog message handler: one message per UDP packet. """
@@ -112,6 +125,7 @@ class TCPSyslogServer(Thread, ThreadingTCPServer):
         Thread.__init__(self)
         self.allow_reuse_address = True
         self.daemon = True
+        self.daemon_threads = True
         if port is None:
             port = 514
         ThreadingTCPServer.__init__(self, ('', port), TCPSyslogHandler)
@@ -121,10 +135,21 @@ class TCPSyslogServer(Thread, ThreadingTCPServer):
         self.logfile_name = logfile_name
         self.logfiles = {}
         self.accumulated = accumulated
+        self.__should_stop = False
+
+    def stop(self):
+        self.__should_stop = True
+
+    def should_stop(self):
+        return self.__should_stop
+
+    def shutdown(self):
+        self.stop()
+        ThreadingTCPServer.shutdown(self)
 
     def run(self):
-        self.serve_forever(poll_interval=5)
-
+        self.serve_forever()
+        self.stop()
 
 class UDPSyslogServer(Thread, UDPServer):
     """ UDP syslog server thread. """
@@ -166,6 +191,7 @@ def syslog_server(hosts, port=None, logfile_name=None, acc_name=None):
                                       accumulated=acc_file)
     tcpSyslogServer.start()
     udpSyslogServer.start()
+    return tcpSyslogServer, udpSyslogServer
 
 
 if __name__ == '__main__':
@@ -174,9 +200,23 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('host', nargs='+')
-    parser.add_argument('--port', type=int)
-    parser.add_argument('--logfile-name')
+    parser.add_argument('--port', type=int, default=5140)
+    parser.add_argument('--logfile-name', default='syslog-%s')
+    parser.add_argument('--accumulated', default='syslog.full.txt')
+    parser.add_argument('--logdir', default='.')
     args = parser.parse_args()
 
-    syslog_server(args.host, port=args.port, logfile_name=args.logfile_name)
-    signal.pause()
+    syslog_server(args.host, port=args.port,
+                  acc_name=os.path.join(args.logdir, args.accumulated),
+                  logfile_name=os.path.join(args.logdir, args.logfile_name))
+
+    killed_by_sigint = False
+    try:
+        signal.pause()
+    except KeyboardInterrupt:
+        killed_by_sigint = True
+        print("\nSIGINT, shutting down ...\n", file=sys.stderr)
+    finally:
+        if killed_by_sigint:
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            os.kill(os.getpid(), signal.SIGINT)

@@ -1,0 +1,85 @@
+#! /usr/bin/env python
+
+# This test mimics the way drbdmanage uses DRBD:
+#  * use drbdmeta to explicit set the current-UUID
+#  * set the data as consistent an up-to-date
+#  * Have one diskless node, that becomes primary
+#  * One of the servers joins later
+
+# TO FIX IN DRBD:
+# * This test right now shows that the bitmap does not get initialized, and that
+#   the two servers consider the random garbage as bitmap between the two.
+#   TODO: Assert in the test that out-of-sync is 0
+# * Consider if the new UUID should be created immediately when the 3rd machine
+#   joins
+
+import time
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+
+diskful_nodes = resource.nodes[1:]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+
+diskless_node = resource.nodes.diskless[0]
+
+def write_on_node(node):
+    for v in node.volumes:
+        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
+                  'count=1', 'conv=fsync'])
+
+def pre_existing_test(write_between_actions = False):
+    verbose('* Pretending both servers have up-to-date data.')
+    for n in diskful_nodes:
+        n.run(["/bin/bash", "-c",
+               "dd if=/dev/urandom of=%s seek=2000 bs=4096 || true" % (n.disks[0].disk)])
+        # Preset the bitmap to some randomly set bits...
+
+        n.run(["drbdadm", "create-md", "--force", resource.name])
+        n.run(["drbdmeta", n.disks[0].minor, "v09", n.disks[0].disk, "internal",
+	       "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"]);
+
+    verbose('* Bringing up the diskless and one server, connect them')
+    resource.nodes[1].up()
+    diskless_node.up()
+    cs = drbdtest.Connections()
+    cs.bidir_add(diskless_node, resource.nodes[1])
+    cs.event(r'connection .* connection:Connected')
+    pds = drbdtest.PeerDevices()
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, resource.nodes[1]), diskless_node.volumes[0]))
+    pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    verbose('* Promoting the diskless')
+    diskless_node.primary()
+    if write_between_actions:
+        write_on_node(diskless_node)
+
+    verbose('* Connect the remaining server to the server that is already up')
+    n = resource.nodes[2]
+    n.new_resource()
+    n.new_minor()
+    n.new_peer()
+    n.new_path()
+    n.run(["drbdadm", "peer-device-options", "all"])
+    n.attach()
+    cs = drbdtest.Connections()
+    cs.add(drbdtest.Connection(n, resource.nodes[1]))
+    cs.connect()
+    cs.event(r'connection .* connection:Connected')
+
+    verbose('* Asserting that it goes Outdated now') ## Should become resync target!!!
+    n.volumes[0].event(r'device .* disk:Outdated')
+
+    diskless_node.secondary()
+    cs = resource.connections.to_node(diskless_node);
+    cs.event(r'connection .* role:Secondary')
+
+    verbose('* Shut down and clean up.')
+    resource.down()
+
+pre_existing_test(write_between_actions = True)
+pre_existing_test(write_between_actions = False)
+
+resource.rmmod()

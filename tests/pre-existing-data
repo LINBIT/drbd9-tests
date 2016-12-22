@@ -5,6 +5,11 @@
 #  * set the data as consistent an up-to-date
 #  * Have one diskless node, that becomes primary
 #  * One of the servers joins later
+#
+# Note the server that joins late has node-id 0, that is by intention,
+# and is necessary to tigger an issue I was hunting at the time I wrote
+# the test.
+
 
 # TO FIX IN DRBD:
 # * This test right now shows that the bitmap does not get initialized, and that
@@ -20,7 +25,7 @@ from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 
-diskful_nodes = resource.nodes[1:]
+diskful_nodes = resource.nodes[:2]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
 diskless_node = resource.nodes.diskless[0]
@@ -42,13 +47,13 @@ def pre_existing_test(write_between_actions = False):
 	       "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"]);
 
     verbose('* Bringing up the diskless and one server, connect them')
-    resource.nodes[1].up()
+    resource.nodes.diskful[1].up()
     diskless_node.up()
     cs = drbdtest.Connections()
-    cs.bidir_add(diskless_node, resource.nodes[1])
+    cs.bidir_add(diskless_node, resource.nodes.diskful[1])
     cs.event(r'connection .* connection:Connected')
     pds = drbdtest.PeerDevices()
-    pds.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, resource.nodes[1]), diskless_node.volumes[0]))
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, resource.nodes.diskful[1]), diskless_node.volumes[0]))
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
     verbose('* Promoting the diskless')
@@ -57,7 +62,7 @@ def pre_existing_test(write_between_actions = False):
         write_on_node(diskless_node)
 
     verbose('* Connect the remaining server to the server that is already up')
-    n = resource.nodes[2]
+    n = resource.nodes.diskful[0]
     n.new_resource()
     n.new_minor()
     n.new_peer()
@@ -65,7 +70,7 @@ def pre_existing_test(write_between_actions = False):
     n.run(["drbdadm", "peer-device-options", "all"])
     n.attach()
     cs = drbdtest.Connections()
-    cs.add(drbdtest.Connection(n, resource.nodes[1]))
+    cs.add(drbdtest.Connection(n, resource.nodes.diskful[1]))
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 

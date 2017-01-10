@@ -77,15 +77,14 @@ def pre_existing_test(write_between_actions = False):
     verbose('* Asserting that it goes Outdated now')
     n.volumes[0].event(r'device .* disk:Outdated')
 
-    ## Ensure nothing is out of sync!
-    # Uncomment this block as soon as drbdmeta is fixed...
-    #pds = drbdtest.PeerDevices()
-    #pds.add(drbdtest.PeerDevice(cs[0], diskless_node.volumes[0]))
-    #if not write_between_actions:
-    #    resource.forbidden_patterns.update([r'out-of-sync:[1-9][0-9]*'])
-    #pds.event(r'peer-device .* replication:Established')
-    #if not write_between_actions:
-    #    resource.forbidden_patterns.difference_update([r'out-of-sync:[1-9][0-9]*'])
+    # Ensure nothing is out of sync!
+    pds = drbdtest.PeerDevices()
+    pds.add(drbdtest.PeerDevice(cs[0], diskless_node.volumes[0]))
+    if not write_between_actions:
+        resource.forbidden_patterns.update([r'out-of-sync:[1-9][0-9]*'])
+    pds.event(r'peer-device .* replication:Established')
+    if not write_between_actions:
+        resource.forbidden_patterns.difference_update([r'out-of-sync:[1-9][0-9]*'])
 
     diskless_node.secondary()
     cs = resource.connections.to_node(diskless_node);

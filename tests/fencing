@@ -1,0 +1,70 @@
+#! /usr/bin/env python
+
+# For your convenience, fence handler exit code map:
+# 3  Peer's disk state was already Inconsistent.
+# 4  Peer's disk state was successfully set to Outdated
+#    (or was Outdated tobegin with).
+# 5  Connection to the peer node failed, peer could not be reached.
+# 6  Peer refused to be outdated because the affected resource was in the
+#    primary role.
+# 7  Peer node was successfully fenced off the cluster.
+#    This should never occur unless fencing is set to resource-and-stonith for
+#    the affected resource.
+
+import time
+import random
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+random.seed()
+resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+
+resource.add_disk('10M')
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+def fencing_test_prepare(fencing_mode, handler_exit):
+    verbose('* Testing fencing_mode = %s; handler_exit_code = %d' % (fencing_mode, handler_exit))
+    resource.net_options = 'fencing %s;' % (fencing_mode)
+    resource.handlers = 'fence-peer "exit %d";' % (handler_exit)
+
+    resource.nodes.update_config()
+    resource.nodes.run(['drbdadm', 'adjust', resource.name])
+
+    [n1, n2] = random.sample(resource.nodes, 2)
+
+    n1.down()
+
+    if fencing_mode == "dont-care" or handler_exit == 3 or handler_exit == 4:
+        n2.primary()
+    else:
+        try:
+            n2.primary()
+        except CalledProcessError:
+            pass
+        else:
+            raise RuntimeError("Becoming primary unexpecteldy succeeded")
+        if fencing_mode == "resource-and-stonith":
+            # TODO Add wait event for frozen IO here...
+            pass
+        n2.event(r'call helper .* helper:fence-peer')
+
+    n2.secondary()
+    n1.up()
+
+    cs = drbdtest.Connections()
+    cs.bidir_add(n1, n2)
+    cs.event(r'connection .* connection:Connected')
+
+
+for mode in ["dont-care", "resource-only", "resource-and-stonith"]:
+    for exit_code in range(3, 8):
+        fencing_test_prepare(mode, exit_code)
+
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

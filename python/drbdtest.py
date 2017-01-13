@@ -505,6 +505,7 @@ class Resource(object):
         self.net_options = ""
         self.disk_options = ""
         self.resource_options = ""
+        self.handlers = ""
         self.nodes = Nodes()
         self.num_volumes = 0
         self.logdir = logdir
@@ -1081,6 +1082,9 @@ class Node(exxe.Exxe):
         resource = self.resource
         with ConfigBlock(dest_fn=lambda x: text.append(x),
                          t="resource %s" % resource.name):
+
+            with ConfigBlock(t='handlers') as handlers:
+                handlers.write(resource.handlers)
 
             with ConfigBlock(t='options') as res_options:
                 res_options.write(resource.resource_options)

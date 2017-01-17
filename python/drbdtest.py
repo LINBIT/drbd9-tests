@@ -446,21 +446,28 @@ class Connections(Collection):
     def to_nodes(self, nodes):
         return Connections([_ for _ in self if _.nodes[1] in nodes])
 
-    def connect(self):
+    def connect(self, wait=True):
         for connection in self:
             node0, node1 = connection.nodes
             node0.run(['drbdadm', 'connect', '%s:%s' %
                        (connection.resource.name, node1.hostname)])
-        self.event(r'connection .* connection:Connecting')
+        if wait:
+            self.event(r'connection .* connection:Connecting')
         for connection in self:
             node0 = connection.nodes[0]
             node0.connections.add(connection)
 
-    def disconnect(self, wait=True):
+    def disconnect(self, wait=True, force=False):
         for connection in self:
             node0, node1 = connection.nodes
-            node0.run(['drbdadm', 'disconnect', '%s:%s' %
-                       (connection.resource.name, node1.hostname)])
+            cmdline = ['drbdadm', 'disconnect', '%s:%s' %
+                       (connection.resource.name, node1.hostname)]
+
+            if force:
+                cmdline.insert(2, '--force')
+
+            node0.run(cmdline)
+
         if wait:
             self.event(r'connection .* connection:StandAlone')
         for connection in self:
@@ -1201,14 +1208,16 @@ class Node(exxe.Exxe):
     def asPrimary(self, **kwargs):
         return AsPrimary(self, **kwargs)
 
-    def primary(self, res="all", force=False):
+    def primary(self, res="all", force=False, wait=True):
         if force:
             self.run(['drbdadm', 'primary', '--force', res, '-v'])
-            self.event(r'resource .* role:Primary')
+            if wait:
+                self.event(r'resource .* role:Primary')
             self.volumes.diskful.event(r'device .* disk:UpToDate')
         else:
             self.run(['drbdadm', 'primary', res, '-v'])
-            self.event(r'resource .* role:Primary')
+            if wait:
+                self.event(r'resource .* role:Primary')
 
     def secondary(self, res="all"):
         self.run(['drbdadm', 'secondary', res])

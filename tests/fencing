@@ -26,44 +26,126 @@ resource.up_wait()
 verbose('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
-def fencing_test_prepare(fencing_mode, handler_exit):
-    verbose('* Testing fencing_mode = %s; handler_exit_code = %d' % (fencing_mode, handler_exit))
+#
+# Ideally NetworkFailure and Broken pipe are only allowed while
+# Breaking the connection. But when I re-enable it the next event
+# finds the previous BrokenPipe.. No idea how to call the
+# sync_events method...
+#
+resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
+    r'connection:BrokenPipe'
+])
+
+test_run = 0
+
+def fencing_test(fencing_mode, handler_exit, test_mode):
+    global test_run
+
+    test_run += 1
+    verbose('* Testing fencing = %s; handler_exit = %d; test = %s; case_nr = %d'
+            % (fencing_mode, handler_exit, test_mode, test_run))
     resource.net_options = 'fencing %s;' % (fencing_mode)
-    resource.handlers = 'fence-peer "exit %d";' % (handler_exit)
+
+    if test_mode == "RECONNECT":
+        resource.handlers = 'fence-peer "sleep 30; sexit %d";' % (handler_exit)
+    else:
+        resource.handlers = 'fence-peer "exit %d";' % (handler_exit)
+
+    for n in resource.nodes:
+        n.config_changed = True
 
     resource.nodes.update_config()
-    resource.nodes.run(['drbdadm', 'adjust', resource.name])
+    resource.nodes.run(['drbdadm', 'adjust', '-v', resource.name])
 
     [n1, n2] = random.sample(resource.nodes, 2)
 
-    n1.down()
+    if test_mode == "DOWN":
+        n1.down()
+    else: # FORCE and RECONNECT cases
+        #resource.forbidden_patterns.difference_update([
+        #    r'connection:NetworkFailure',
+        #    r'connection:BrokenPipe'
+        #])
+        n1_to_n2 = drbdtest.Connections()
+        n1_to_n2.add(drbdtest.Connection(n1, n2))
+        n1_to_n2.disconnect(force = True)
 
-    if fencing_mode == "dont-care" or handler_exit == 3 or handler_exit == 4:
+        n2_to_n1 = drbdtest.Connections()
+        n2_to_n1.add(drbdtest.Connection(n2, n1))
+        n2_to_n1.event(r'connection .* connection:Connecting')
+
+        time.sleep(0.1) # to prevent concurrent state change....
+
+        #resource.sync_events(resource)
+        #resource.forbidden_patterns.update([
+        #    r'connection:NetworkFailure',
+        #    r'connection:BrokenPipe'
+        #])
+
+    if fencing_mode == "dont-care":
         n2.primary()
+        n2.secondary()
     else:
-        try:
-            n2.primary()
-        except CalledProcessError:
-            pass
-        else:
-            raise RuntimeError("Becoming primary unexpecteldy succeeded")
-        if fencing_mode == "resource-and-stonith":
-            # TODO Add wait event for frozen IO here...
-            pass
-        n2.event(r'call helper .* helper:fence-peer')
+        if test_mode == "RECONNECT":
+            # I would realy like to make n2 primary first, and call connect
+            # afterwards. But I do not know how; I would need the ability to
+            # background the "drbdadm primary" command.
+            n1_to_n2.connect(wait=False)
+            n2.run(['/bin/bash', '-c', 'drbdadm primary %s' % (resource.name)])
+            if fencing_mode == "resource-and-stonith":
+                n2.event(r'resource .* suspended:yes')
+            n2.event(r'call helper .* helper:fence-peer')
+            n1.event(r'connection .* connection:Connecting')
+            n2.event(r'resource .* role:Primary')
+            n2.secondary()
+        else:  # DOWN and FORCE cases
+            if handler_exit in [3, 4, 5, 7]:
+                n2.primary(res = resource, wait = False)
+                if fencing_mode == "resource-and-stonith":
+                    n2.event(r'resource .* suspended:yes')
+                n2.event(r'call helper .* helper:fence-peer')
+                pds = drbdtest.PeerDevices()
+                pds.add(drbdtest.PeerDevice(drbdtest.Connection(n2, n1), n2.volumes[0]))
+                if handler_exit == 3:
+                    pds.event(r'peer-device .* peer-disk:Inconsistent')
+                else:
+                    pds.event(r'peer-device .* peer-disk:Outdated')
+                n2.event(r'resource .* role:Primary')
+                n2.secondary()
+            else:
+                try:
+                    n2.primary()
+                except CalledProcessError:
+                    pass
+                else:
+                    raise RuntimeError("Becoming primary unexpecteldy succeeded")
+                if fencing_mode == "resource-and-stonith":
+                    n2.event(r'resource .* suspended:yes')
 
-    n2.secondary()
-    n1.up()
+                n2.event(r'call helper .* helper:fence-peer')
 
-    cs = drbdtest.Connections()
-    cs.bidir_add(n1, n2)
-    cs.event(r'connection .* connection:Connected')
+    if test_mode == "DOWN":
+        n1.up()
+    elif test_mode == "FORCE":
+        n1_to_n2.connect()
 
+    if test_mode != "RECONNECT":
+        n1_to_n2 = drbdtest.Connections()
+        n1_to_n2.bidir_add(n1, n2)
+        n1_to_n2.event(r'connection .* connection:Connected')
 
-for mode in ["dont-care", "resource-only", "resource-and-stonith"]:
+for test_mode in ["DOWN", "FORCE"]:
+    fencing_test("dont-care", 0, test_mode)
+
+for test_mode in ["DOWN", "FORCE"]:
+    for fencing_mode in ["resource-only", "resource-and-stonith"]:
+        for exit_code in range(3, 8):
+            fencing_test(fencing_mode, exit_code, test_mode)
+
+for fencing_mode in ["resource-only", "resource-and-stonith"]:
     for exit_code in range(3, 8):
-        fencing_test_prepare(mode, exit_code)
-
+        fencing_test(fencing_mode, exit_code, "RECONNECT")
 
 verbose('* Shut down and clean up.')
 resource.down()

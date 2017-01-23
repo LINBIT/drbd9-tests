@@ -157,6 +157,51 @@ if nr_nodes >= 5:
     time.sleep(settle_time)
     verify_size()
 
-verbose('* Shut down and clean up.')
-resource.down()
+if len(resource.nodes.diskless) >= 1:
+    verbose('* Verify consistency between old resize code an 2pc code')
+    # Resize using 2pc code. The connect of the diskless works only if
+    # some caching members (like peer_device->max_size) in DRBD where
+    # updated correctly by the 2pc code.
+    resource.down()
+
+    two_nodes = diskful_nodes[0:2]
+    two_nodes.up()
+
+    pds = drbdtest.PeerDevices()
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(two_nodes[0], two_nodes[1]), two_nodes[0].volumes[0]))
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(two_nodes[1], two_nodes[0]), two_nodes[1].volumes[0]))
+    pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    # this is part of up_wait, so add it here explicitly:
+    resource.forbidden_patterns.update([
+        r'connection:BrokenPipe',
+        r'connection:NetworkFailure'])
+
+    size += step
+    size_str = "%dM" % size
+    two_nodes.volumes.resize(size_str)
+
+    n = diskful_nodes[0]
+    n.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+
+    diskless_node = resource.nodes.diskless[0]
+    diskless_node.up()
+
+    pds = drbdtest.PeerDevices()
+    for n in two_nodes:
+        pds.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, n), diskless_node.volumes[0]))
+    pds.event(r'peer-device .* replication:Established')
+    # Unfortunately the BrokenPipe comes in after the Established, so do something in order to
+    # see the BrokenPipe...
+    diskless_node.primary()
+    diskless_node.secondary()
+    time.sleep(settle_time)
+
+    verbose('* Shut down and clean up.')
+    diskless_node.down()
+    two_nodes.down()
+else:
+    verbose('* Shut down and clean up.')
+    resource.down()
+
 resource.rmmod()

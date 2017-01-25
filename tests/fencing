@@ -39,16 +39,16 @@ resource.forbidden_patterns.difference_update([
 
 test_run = 0
 
-def fencing_test(fencing_mode, handler_exit, test_mode):
+def prepare(description, fencing_mode, handler_exit, test_mode):
     global test_run
 
     test_run += 1
-    verbose('* Testing fencing = %s; handler_exit = %d; test = %s; case_nr = %d'
-            % (fencing_mode, handler_exit, test_mode, test_run))
-    resource.net_options = 'fencing %s;' % (fencing_mode)
+    verbose('* %s; fencing = %s; handler_exit = %d; test = %s; case_nr = %d'
+            % (description, fencing_mode, handler_exit, test_mode, test_run))
 
+    resource.net_options = 'fencing %s;' % (fencing_mode)
     if test_mode == "RECONNECT":
-        resource.handlers = 'fence-peer "sleep 30; sexit %d";' % (handler_exit)
+        resource.handlers = 'fence-peer "sleep 10; sexit %d";' % (handler_exit)
     else:
         resource.handlers = 'fence-peer "exit %d";' % (handler_exit)
 
@@ -58,10 +58,12 @@ def fencing_test(fencing_mode, handler_exit, test_mode):
     resource.nodes.update_config()
     resource.nodes.run(['drbdadm', 'adjust', '-v', resource.name])
 
-    [n1, n2] = random.sample(resource.nodes, 2)
+def fencing_disconnect(n1, n2, test_mode):
+    n1_to_n2 = drbdtest.Connections()
+    n1_to_n2.add(drbdtest.Connection(n1, n2))
 
     if test_mode == "DOWN":
-        n1.down()
+        n1_to_n2.disconnect()
     else: # FORCE and RECONNECT cases
         #resource.forbidden_patterns.difference_update([
         #    r'connection:NetworkFailure',
@@ -71,17 +73,74 @@ def fencing_test(fencing_mode, handler_exit, test_mode):
         n1_to_n2.add(drbdtest.Connection(n1, n2))
         n1_to_n2.disconnect(force = True)
 
-        n2_to_n1 = drbdtest.Connections()
-        n2_to_n1.add(drbdtest.Connection(n2, n1))
-        n2_to_n1.event(r'connection .* connection:Connecting')
-
-        time.sleep(0.1) # to prevent concurrent state change....
-
         #resource.sync_events(resource)
         #resource.forbidden_patterns.update([
         #    r'connection:NetworkFailure',
         #    r'connection:BrokenPipe'
         #])
+
+def fencing_test1(fencing_mode, handler_exit, test_mode):
+    prepare("Promote before disconnect", fencing_mode, handler_exit, test_mode)
+
+    [n1, n2] = random.sample(resource.nodes, 2)
+
+    n1_to_n2 = drbdtest.Connections()
+    n1_to_n2.add(drbdtest.Connection(n1, n2))
+    pds = drbdtest.PeerDevices()
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(n2, n1), n2.volumes[0]))
+
+    n2.primary()
+
+    fencing_disconnect(n1, n2, test_mode)
+
+    if fencing_mode == "dont-care":
+        pds.event(r'peer-device .* peer-disk:DUnknown')
+    else:
+        if test_mode == "DOWN":
+            pds.event(r'peer-device .* peer-disk:Outdated')
+        else: # test_mode == "FORCE"
+            if fencing_mode == "resource-only" or fencing_mode == "resource-and-stonith":
+                if fencing_mode == "resource-and-stonith":
+                    n2.event(r'resource .* suspended:fencing')
+                n2.event(r'call helper .* helper:fence-peer')
+
+                if test_mode == "RECONNECT":
+                    n1_to_n2.connect()
+                    pds.event(r'peer-device .* peer-disk:UpToDate')
+                else:
+                    if handler_exit in [3, 4, 5, 7]:
+                        if handler_exit == 3:
+                            pds.event(r'peer-device .* peer-disk:Inconsistent')
+                        else:
+                            pds.event(r'peer-device .* peer-disk:Outdated')
+
+                    else: # handler exit 6 case
+                        n2.run(["drbdadm", "resume-io", "%s" % (resource.name)])
+
+                if fencing_mode == "resource-and-stonith":
+                    n2.event(r'resource .* suspended:no')
+
+    n2.secondary()
+
+    if test_mode == "DOWN" or test_mode == "FORCE":
+        n1_to_n2.connect()
+        pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    if test_mode != "RECONNECT":
+        n1_to_n2.event(r'connection .* connection:Connected')
+
+def fencing_test2(fencing_mode, handler_exit, test_mode):
+    prepare("Disconnect before promote", fencing_mode, handler_exit, test_mode)
+
+    [n1, n2] = random.sample(resource.nodes, 2)
+    n1_to_n2 = drbdtest.Connections()
+    n1_to_n2.add(drbdtest.Connection(n1, n2))
+
+    fencing_disconnect(n1, n2, test_mode)
+    n2_to_n1 = drbdtest.Connections()
+    n2_to_n1.add(drbdtest.Connection(n2, n1))
+    n2_to_n1.event(r'connection .* connection:Connecting')
+    time.sleep(0.1) # to prevent concurrent state change....
 
     if fencing_mode == "dont-care":
         n2.primary()
@@ -93,8 +152,6 @@ def fencing_test(fencing_mode, handler_exit, test_mode):
             # background the "drbdadm primary" command.
             n1_to_n2.connect(wait=False)
             n2.run(['/bin/bash', '-c', 'drbdadm primary %s' % (resource.name)])
-            if fencing_mode == "resource-and-stonith":
-                n2.event(r'resource .* suspended:yes')
             n2.event(r'call helper .* helper:fence-peer')
             n1.event(r'connection .* connection:Connecting')
             n2.event(r'resource .* role:Primary')
@@ -102,8 +159,6 @@ def fencing_test(fencing_mode, handler_exit, test_mode):
         else:  # DOWN and FORCE cases
             if handler_exit in [3, 4, 5, 7]:
                 n2.primary(res = resource, wait = False)
-                if fencing_mode == "resource-and-stonith":
-                    n2.event(r'resource .* suspended:yes')
                 n2.event(r'call helper .* helper:fence-peer')
                 pds = drbdtest.PeerDevices()
                 pds.add(drbdtest.PeerDevice(drbdtest.Connection(n2, n1), n2.volumes[0]))
@@ -120,14 +175,15 @@ def fencing_test(fencing_mode, handler_exit, test_mode):
                     pass
                 else:
                     raise RuntimeError("Becoming primary unexpecteldy succeeded")
-                if fencing_mode == "resource-and-stonith":
-                    n2.event(r'resource .* suspended:yes')
+
+                # One would be tempted to expect a
+                # n2.event(r'resource .* suspended:fencing')
+                # here, but that is wrong. Since it is not primary yet, no need to
+                # suspend IO while the handler runs.
 
                 n2.event(r'call helper .* helper:fence-peer')
 
-    if test_mode == "DOWN":
-        n1.up()
-    elif test_mode == "FORCE":
+    if test_mode == "DOWN" or test_mode == "FORCE":
         n1_to_n2.connect()
 
     if test_mode != "RECONNECT":
@@ -135,18 +191,32 @@ def fencing_test(fencing_mode, handler_exit, test_mode):
         n1_to_n2.bidir_add(n1, n2)
         n1_to_n2.event(r'connection .* connection:Connected')
 
-for test_mode in ["DOWN", "FORCE"]:
-    fencing_test("dont-care", 0, test_mode)
+def execute_test_cases(test_func):
+    for test_mode in ["DOWN", "FORCE"]:
+        test_func("dont-care", 0, test_mode)
 
-for test_mode in ["DOWN", "FORCE"]:
+    for test_mode in ["DOWN", "FORCE"]:
+        for fencing_mode in ["resource-only", "resource-and-stonith"]:
+            for exit_code in range(3, 8):
+                test_func(fencing_mode, exit_code, test_mode)
+
     for fencing_mode in ["resource-only", "resource-and-stonith"]:
-        for exit_code in range(3, 8):
-            fencing_test(fencing_mode, exit_code, test_mode)
+        test_func(fencing_mode, 0, "RECONNECT")
 
-for fencing_mode in ["resource-only", "resource-and-stonith"]:
-    for exit_code in range(3, 8):
-        fencing_test(fencing_mode, exit_code, "RECONNECT")
+# main
+
+#If you want to call a specific test firs/only:
+#fencing_test2("resource-only", 0, "RECONNECT")
+#verbose('* Shut down and clean up.')
+#time.sleep(0.1)
+#resource.down()
+#resource.rmmod()
+#exit(0)
+
+execute_test_cases(fencing_test1)
+execute_test_cases(fencing_test2)
 
 verbose('* Shut down and clean up.')
+time.sleep(0.1)
 resource.down()
 resource.rmmod()

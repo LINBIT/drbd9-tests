@@ -53,6 +53,7 @@ nr_nodes = len(resource.nodes)
 
 # Disconnect nearly all servers
 for n in resource.nodes.diskful[1:]:
+    verbose('* taking downing %s' % (n.name))
     n.down()
     create_file(diskless_node, 100);
 
@@ -84,11 +85,7 @@ for n in resource.nodes.diskful[1:]:
     create_file(diskless_node, 10);     # Write something during resync
 
     # Resync finished
-    pds = drbdtest.PeerDevices()
-    #for c in cs: ## Most recent change! Eventually remove # and use c istead of cs[0] in the next line
-    pds.add(drbdtest.PeerDevice(cs[0], n.volumes[0]))
-
-    pds.event(r'peer-device .* replication:Established')
+    n.event(r'response helper .* helper:after-resync-target')
 
     cs = drbdtest.Connections()
     cs.add(drbdtest.Connection(n, diskless_node))
@@ -103,6 +100,8 @@ for n in resource.nodes.diskful[1:]:
     verify_files(diskless_node)
     cs.connect()
     cs.event(r'connection .* connection:Connected')
+    up_so_far.event(r'device .* disk:UpToDate')
+
     up_so_far.add(n)
 
 # Early Exit

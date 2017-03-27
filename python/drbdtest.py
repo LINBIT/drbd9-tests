@@ -595,8 +595,7 @@ class Resource(object):
         cmd = ['logscan', '-d', os.environ['DRBD_LOG_DIR'], '-w']
         if silent:
             cmd.append('--silent')
-        if verbosity_level >= 2:
-            cmd.append('--verbose')
+        cmd.append('--verbose')
         if 'timeout' in kwargs:
             cmd.extend(['--timeout', str(kwargs['timeout'])])
         for expr in self.forbidden_patterns:

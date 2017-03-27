@@ -38,6 +38,8 @@ resource.forbidden_patterns.difference_update([
 ])
 
 test_run = 0
+peer_self_outdated = 0
+peer_fenced = 0
 
 def prepare(description, fencing_mode, handler_exit, test_mode, nodes):
     global test_run
@@ -80,6 +82,9 @@ def fencing_disconnect(n1, n2, test_mode):
         #])
 
 def fencing_test1(fencing_mode, handler_exit, test_mode):
+    global peer_self_outdated
+    global peer_fenced
+
     [n1, n2] = random.sample(resource.nodes, 2)
     prepare("Promote before disconnect", fencing_mode, handler_exit, test_mode, [n1, n2])
 
@@ -99,22 +104,32 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
             pds.event(r'peer-device .* peer-disk:Outdated')
         else: # test_mode == "FORCE"
             if fencing_mode == "resource-only" or fencing_mode == "resource-and-stonith":
+                # When there are more nodes, either the handler triggers or the disconnected node realized
+                # by itself that is needs to be outdated. When the primary and the disconnected are
+                # indirectly connected by a third node, the news about being outdated might be
+                # relayed through that third node.
                 if fencing_mode == "resource-and-stonith":
                     n2.event(r'resource .* suspended:fencing')
-                n2.event(r'call helper .* helper:fence-peer')
+                ev = n2.event(r'(?:call helper .*|change peer-device .* peer-node-id:%d .*) (helper:fence-peer|peer-disk:Outdated)' % n1.id)
 
                 if test_mode == "RECONNECT":
                     n1_to_n2.connect()
                     pds.event(r'peer-device .* peer-disk:UpToDate')
                 else:
-                    if handler_exit in [3, 4, 5, 7]:
-                        if handler_exit == 3:
-                            pds.event(r'peer-device .* peer-disk:Inconsistent')
-                        else:
-                            pds.event(r'peer-device .* peer-disk:Outdated')
+                    if ev[0][0] == 'helper:fence-peer':
+                        peer_fenced += 1
+                        if handler_exit in [3, 4, 5, 7]:
+                            if handler_exit == 3:
+                                pds.event(r'peer-device .* peer-disk:Inconsistent')
+                            else:
+                                pds.event(r'peer-device .* peer-disk:Outdated')
 
-                    else: # handler exit 6 case
-                        n2.run(["drbdadm", "resume-io", "%s" % (resource.name)])
+                        else: # handler exit 6 case
+                            n2.run(["drbdadm", "resume-io", "%s" % (resource.name)])
+                    elif ev[0][0] == 'peer-disk:Outdated':
+                        peer_self_outdated += 1
+                    else:
+                        raise RuntimeError("Regex returned not expected match")
 
                 if fencing_mode == "resource-and-stonith":
                     n2.event(r'resource .* suspended:no')
@@ -215,6 +230,7 @@ def execute_test_cases(test_func):
 execute_test_cases(fencing_test1)
 execute_test_cases(fencing_test2)
 
+verbose('%d times the fence-peer handler was called; %d was quicker outdating itself' % (peer_fenced, peer_self_outdated))
 verbose('* Shut down and clean up.')
 time.sleep(0.1)
 resource.down()

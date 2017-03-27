@@ -108,12 +108,17 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
                 # by itself that is needs to be outdated. When the primary and the disconnected are
                 # indirectly connected by a third node, the news about being outdated might be
                 # relayed through that third node.
+                ev=[['']]
                 if fencing_mode == "resource-and-stonith":
-                    n2.event(r'resource .* suspended:fencing')
-                ev = n2.event(r'(?:call helper .*|change peer-device .* peer-node-id:%d .*) (helper:fence-peer|peer-disk:Outdated)' % n1.id)
+                    ev = n2.event(r'(?:resource .*|change peer-device .* peer-node-id:%d .*) (suspended:fencing|peer-disk:Outdated)' % n1.id)
+
+                if ev[0][0] != 'peer-disk:Outdated':
+                    ev = n2.event(r'(?:call helper .*|change peer-device .* peer-node-id:%d .*) (helper:fence-peer|peer-disk:Outdated)' % n1.id)
 
                 if test_mode == "RECONNECT":
                     n1_to_n2.connect()
+                    if fencing_mode == "resource-and-stonith":
+                        n2.event(r'resource .* suspended:no')
                     pds.event(r'peer-device .* peer-disk:UpToDate')
                 else:
                     if ev[0][0] == 'helper:fence-peer':
@@ -131,8 +136,8 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
                     else:
                         raise RuntimeError("Regex returned not expected match")
 
-                if fencing_mode == "resource-and-stonith":
-                    n2.event(r'resource .* suspended:no')
+                    if fencing_mode == "resource-and-stonith":
+                        n2.event(r'resource .* suspended:no')
 
     n2.secondary()
 
@@ -230,7 +235,8 @@ def execute_test_cases(test_func):
 execute_test_cases(fencing_test1)
 execute_test_cases(fencing_test2)
 
-verbose('%d times the fence-peer handler was called; %d was quicker outdating itself' % (peer_fenced, peer_self_outdated))
+verbose('%d times the fence-peer handler was called' % peer_fenced)
+verbose('%d times the self-outdate of the disconnected node was quicker' % peer_self_outdated)
 verbose('* Shut down and clean up.')
 time.sleep(0.1)
 resource.down()

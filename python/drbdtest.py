@@ -1210,9 +1210,12 @@ class Node(exxe.Exxe):
     def primary(self, res="all", force=False, wait=True):
         if force:
             self.run(['drbdadm', 'primary', '--force', res, '-v'])
+            ev = []
+            if self.volumes.diskful:
+                ev.append(r'device .* disk:UpToDate')
             if wait:
-                self.event(r'resource .* role:Primary')
-            self.volumes.diskful.event(r'device .* disk:UpToDate')
+                ev.append(r'resource .* role:Primary')
+            self.event(*ev)
         else:
             self.run(['drbdadm', 'primary', res, '-v'])
             if wait:

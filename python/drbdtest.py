@@ -1130,7 +1130,13 @@ class Node(exxe.Exxe):
     def listen_to_events(self):
         file = open(os.path.join(self.resource.logdir,
                                  'events-%s' % self.name),
-                    'w')
+                    'a')
+        try:
+            if self.events:
+                self.events.terminate()
+                self.events.wait()
+        except:
+            pass
         self.events = subprocess.Popen(
             ['ssh', '-q', '-l', 'root', self.name,
              'drbdsetup', 'events2', 'all', '--statistics', '--timestamps'],

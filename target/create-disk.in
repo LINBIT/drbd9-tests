@@ -71,11 +71,14 @@ else
 	size_and_pool="--virtualsize $opt_size --thin $opt_volume_group/$opt_thinpool"
 fi
 
+# wipe and zero are not universially supported yet
+# doit lvcreate -Wy -Zy $size_and_pool --name "$opt_name" > /dev/null
 doit lvcreate $size_and_pool --name "$opt_name" > /dev/null
 register_cleanup -- lvremove -f "$opt_volume_group/$opt_name"
 dev=/dev/$opt_volume_group/$opt_name
 status=0
 if [ -n "$opt_internal_meta" ]; then
+    msg=$(doit drbdmeta -f - v09 "$dev" internal wipe-md 2>&1) || status=$?
     msg=$(doit drbdmeta -f - v09 "$dev" internal create-md $opt_max_peers 2>&1) || status=$?
     if [ $status -ne 0 ]; then
 	echo "$msg" >&2

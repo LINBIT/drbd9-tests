@@ -11,6 +11,7 @@
 #    This should never occur unless fencing is set to resource-and-stonith for
 #    the affected resource.
 
+import os
 import time
 import random
 from python import drbdtest
@@ -102,51 +103,73 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
     else:
         if test_mode == "DOWN":
             pds.event(r'peer-device .* peer-disk:Outdated')
-        else: # test_mode == "FORCE"
+        else: # test_mode == "FORCE" or "RECONNECT"
             if fencing_mode == "resource-only" or fencing_mode == "resource-and-stonith":
                 # When there are more nodes, either the handler triggers or the disconnected node realized
                 # by itself that is needs to be outdated. When the primary and the disconnected are
                 # indirectly connected by a third node, the news about being outdated might be
                 # relayed through that third node.
                 ev=[['']]
+                helper_response = ''
                 if fencing_mode == "resource-and-stonith":
                     ev = n2.event(r'(?:resource .*|change peer-device .* peer-node-id:%d .*) (suspended:fencing|peer-disk:Outdated)' % n1.id)
 
+                was_suspended_fencing = False
+                if ev[0][0] == 'suspended:fencing':
+                    was_suspended_fencing = True
+
                 if ev[0][0] != 'peer-disk:Outdated':
-                    ev = n2.event(r'(?:call helper .*|change peer-device .* peer-node-id:%d .*) (helper:fence-peer|peer-disk:Outdated)' % n1.id)
+                    ev = n2.event(r'(?:call helper|change peer-device) .* peer-node-id:%d .* (helper:fence-peer|peer-disk:Outdated)' % n1.id)
+                    if ev[0][0] == 'helper:fence-peer':
+                        ev = n2.event(r'(?:response helper|change peer-device) .* peer-node-id:%d .* (helper:fence-peer status:\d+|peer-disk:Outdated)' % n1.id)
+                        # status is exit code << 8
+                        # 3<<8 ==  768
+                        # 4<<8 == 1024
+                        # 5<<8 == 1280
+                        # 6<<8 == 1536
+                        # 7<<8 == 1792
+                        if ev[0][0].startswith("helper:fence-peer status:"):
+                            # == "helper:fence-peer status:%d" % (handler_exit << 8):
+                            # but that's the test suite not trusting itself...
+                            helper_response = ev[0][0]
+                            if handler_exit in [3,4,5,7]:
+                                peer_fenced += 1
+                                # TODO would be nice to test 3 for Inconsistent, all others for Outdated
+                                # BUT. that thing may "Outdate" itself, and relay that information to us
+                                pds.event(r'peer-device .* (peer-disk:(?:Outdated|Inconsistent))')
+                                if was_suspended_fencing:
+                                    n2.event(r'resource .* suspended:no')
+                                    was_suspended_fencing = False
+
+                if ev[0][0] == 'peer-disk:Outdated':
+                    peer_self_outdated += 1
+                    if was_suspended_fencing:
+                        n2.event(r'resource .* suspended:no')
+                        was_suspended_fencing = False
 
                 if test_mode == "RECONNECT":
                     n1_to_n2.connect()
-                    pds.event(r'peer-device .* peer-disk:UpToDate')
-                    if fencing_mode == "resource-and-stonith":
-                        n2.event(r'resource .* suspended:no')
-                else:
-                    if ev[0][0] == 'helper:fence-peer':
-                        peer_fenced += 1
-                        if handler_exit in [3, 4, 5, 7]:
-                            if handler_exit == 3:
-                                pds.event(r'peer-device .* peer-disk:Inconsistent')
-                            else:
-                                pds.event(r'peer-device .* peer-disk:Outdated')
+                    regex = []
+                    regex.append(r'change peer-device .* peer-node-id:%d .* peer-disk:UpToDate' % n1.id)
+                    if was_suspended_fencing:
+                        regex.append(r'resource .* suspended:no')
+                    n2.event(*regex)
 
-                        else: # handler exit 6 case
+                else: # "FORCE"
+                    if was_suspended_fencing:
+                        if handler_exit == 6:
                             n2.run(["drbdadm", "resume-io", "%s" % (resource.name)])
-                    elif ev[0][0] == 'peer-disk:Outdated':
-                        peer_self_outdated += 1
-                    else:
-                        raise RuntimeError("Regex returned not expected match")
-
-                    if fencing_mode == "resource-and-stonith":
                         n2.event(r'resource .* suspended:no')
+                        was_suspended_fencing = False
 
     n2.secondary()
 
-    if test_mode == "DOWN" or test_mode == "FORCE":
-        n1_to_n2.connect()
-        pds.event(r'peer-device .* peer-disk:UpToDate')
-
     if test_mode != "RECONNECT":
+        n1_to_n2.connect()
+        n1_to_n2 = drbdtest.Connections()
+        n1_to_n2.bidir_add(n1, n2)
         n1_to_n2.event(r'connection .* connection:Connected')
+        pds.event(r'peer-device .* peer-disk:UpToDate')
 
 def fencing_test2(fencing_mode, handler_exit, test_mode):
     [n1, n2] = random.sample(resource.nodes, 2)
@@ -154,6 +177,8 @@ def fencing_test2(fencing_mode, handler_exit, test_mode):
 
     n1_to_n2 = drbdtest.Connections()
     n1_to_n2.add(drbdtest.Connection(n1, n2))
+    pds = drbdtest.PeerDevices()
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(n2, n1), n2.volumes[0]))
 
     fencing_disconnect(n1, n2, test_mode)
     n2_to_n1 = drbdtest.Connections()
@@ -166,25 +191,30 @@ def fencing_test2(fencing_mode, handler_exit, test_mode):
         n2.secondary()
     else:
         if test_mode == "RECONNECT":
-            # I would realy like to make n2 primary first, and call connect
-            # afterwards. But I do not know how; I would need the ability to
-            # background the "drbdadm primary" command.
+	    promote_pid = os.fork()
+	    if promote_pid == 0:
+		n2.primary(wait=False)
+		os._exit(0)
+            # n2.event(r'resource .* suspended:fencing') ??
             n1_to_n2.connect(wait=False)
-            n2.run(['/bin/bash', '-c', 'drbdadm primary %s' % (resource.name)])
-            n2.event(r'call helper .* helper:fence-peer')
             n1.event(r'connection .* connection:Connecting')
+            n2.event(r'call helper .* helper:fence-peer')
+            n2_to_n1.event(r'connection .* connection:Connected')
+
+            pid, status = os.waitpid(promote_pid, 0)
+            if status != 0:
+                raise RuntimeError("Promote to primary failed")
+
+            # n2.event(r'resource .* suspended:no') ??
             n2.event(r'resource .* role:Primary')
             n2.secondary()
         else:  # DOWN and FORCE cases
             if handler_exit in [3, 4, 5, 7]:
-                n2.primary(res = resource, wait = False)
+                n2.primary(wait = False)
                 n2.event(r'call helper .* helper:fence-peer')
-                pds = drbdtest.PeerDevices()
-                pds.add(drbdtest.PeerDevice(drbdtest.Connection(n2, n1), n2.volumes[0]))
-                if handler_exit == 3:
-                    pds.event(r'peer-device .* peer-disk:Inconsistent')
-                else:
-                    pds.event(r'peer-device .* peer-disk:Outdated')
+                # TODO would be nice to test 3 for Inconsistent, all others for Outdated
+                # BUT. that thing may "Outdate" itself, and relay that information to us
+                pds.event(r'peer-device .* peer-disk:(Inconsistent|Outdated)')
                 n2.event(r'resource .* role:Primary')
                 n2.secondary()
             else:
@@ -202,13 +232,12 @@ def fencing_test2(fencing_mode, handler_exit, test_mode):
 
                 n2.event(r'call helper .* helper:fence-peer')
 
-    if test_mode == "DOWN" or test_mode == "FORCE":
-        n1_to_n2.connect()
-
     if test_mode != "RECONNECT":
+        n1_to_n2.connect()
         n1_to_n2 = drbdtest.Connections()
         n1_to_n2.bidir_add(n1, n2)
         n1_to_n2.event(r'connection .* connection:Connected')
+        pds.event(r'peer-device .* peer-disk:UpToDate')
 
 def execute_test_cases(test_func):
     for test_mode in ["DOWN", "FORCE"]:

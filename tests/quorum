@@ -1,0 +1,157 @@
+#! /usr/bin/env python
+#
+# That test covers the quorum mechanism with all nodes having disks:
+#  * on-no-quorum io-error
+#  * Last man standing optimization
+#
+#
+# Remaining TODOs:
+#  * on-no-quroum freeze-io
+#  * quorum-minimum-redundancy
+#  * quorum handling on diskless nodes
+#
+import time
+import random
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+random.seed()
+
+def write_on_node(node):
+    for v in node.volumes:
+        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
+                  'count=1', 'oflag=direct'])
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=5)
+resource.add_disk('10M')
+resource.resource_options = 'quorum majority; on-no-quorum io-error; twopc-timeout 100;'
+
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+partition_a = drbdtest.Nodes(resource.nodes)
+partition_b = drbdtest.Nodes()
+primary_a = random.choice(partition_a)
+secondaries_a = drbdtest.Nodes(partition_a)
+secondaries_a.remove(primary_a)
+verbose('* %s is the primary' % primary_a.name)
+primary_a.primary()
+write_on_node(primary_a)
+
+while len(partition_b) < len(partition_a):
+    moving = random.choice(secondaries_a)
+    verbose('* %s breaks away' % moving.name)
+
+    partition_a.remove(moving)
+    secondaries_a.remove(moving)
+
+    connections_to_cut = resource.connections.from_node(moving)
+    connections_witness = partition_a.connections.to_node(moving)
+
+    # We will break connection when removing nodes from the first partition
+    resource.forbidden_patterns.difference_update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe',
+        r'connection:ProtocolError'
+    ])
+
+    moving.block_paths(jump_to="REJECT")
+    connections_to_cut.disconnect(wait = False, force = True)
+    moving.unblock_paths(jump_to="REJECT")
+
+    try:
+        write_on_node(primary_a)
+    except CalledProcessError:
+        pass # Expect the IO error in case quorum was lost
+
+    connections_to_cut.event(r'connection .* connection:StandAlone')
+    connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|ProtocolError)')
+
+    resource.forbidden_patterns.update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe',
+        r'connection:ProtocolError'
+    ])
+
+    connections_new = partition_b.bidir_connections_to_node(moving)
+    connections_new.connect()
+
+    partition_b.add(moving)
+
+verbose('* Now the partition A lost quorum')
+primary_a.volumes[0].event(r'quorum:no')
+
+moving = primary_a
+moving.secondary()
+primary_b = random.choice(partition_b)
+
+if len(partition_b) == len(partition_a):
+    # The test was run with an even number of nodes...
+    partition_a.remove(moving)
+    secondaries_a.remove(moving)
+
+    connections_disconnect = drbdtest.Connections()
+    for node in partition_a:
+        connections_disconnect.add(drbdtest.Connection(moving, node))
+    connections_disconnect.disconnect()
+
+    connections_new = drbdtest.Connections()
+    connections_witness = drbdtest.Connections()
+    for node_b in partition_b:
+        connections_new.add(drbdtest.Connection(node_b, moving))
+        connections_witness.add(drbdtest.Connection(moving, node_b))
+
+    connections_new.connect()
+    connections_witness.event(r'connection .* connection:Connected')
+
+    moving.volumes[0].event(r'disk:Inconsistent')
+    moving.volumes[0].event(r'disk:UpToDate')
+    partition_b.add(moving)
+else:
+    # Partition b is already bigger than a
+    primary_b.volumes[0].event(r'quorum:yes')
+
+verbose('* %s is the new primary' % primary_b.name)
+primary_b.primary()
+write_on_node(primary_b)
+
+verbose('* Joining the remaining nodes from partition A to partition B')
+# now connect secondaries_a to partition_b
+connections_new = drbdtest.Connections()
+connections_witness = drbdtest.Connections()
+for node_a in partition_a:
+    for node_b in partition_b:
+        connections_new.add(drbdtest.Connection(node_b, node_a))
+        connections_witness.add(drbdtest.Connection(node_a, node_b))
+
+connections_new.connect()
+connections_witness.event(r'connection .* connection:Connected')
+
+# ensure that partition_b sees the just joined disks as D_UP_TO_DATE
+peer_devices = drbdtest.PeerDevices()
+for connection in connections_new:
+    peer_devices.add(drbdtest.PeerDevice(connection, connection[1].volumes[0]))
+
+peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+
+
+for node in partition_a:
+    partition_b.add(node)
+partition_a = drbdtest.Nodes()
+
+verbose('* Verifying the "last man standing" mechanism')
+secondaries_b = drbdtest.Nodes(partition_b)
+secondaries_b.remove(primary_b)
+
+for node_b in secondaries_b:
+    node_b.down()
+    write_on_node(primary_b)
+
+primary_b.secondary()
+primary_b.down()
+
+primary_b.run(['udevadm', 'settle', '--timeout=2'])
+resource.rmmod()

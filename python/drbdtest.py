@@ -284,6 +284,24 @@ class Nodes(Collection):
         self.run(['drbdadm', 'new-path', 'all', '-v'])
         self.connections.event(r'create path')
 
+    def bidir_connections_to_node(self, new_node):
+        cs = Connections()
+        for n in self.members:
+            cs.bidir_add(new_node, n)
+        return cs
+
+    def connections_to_node(self, new_node):
+        cs = Connections()
+        for n in self.members:
+            cs.bidir_add(Connection(n, new_node))
+        return cs
+
+    def connections_from_node(self, new_node):
+        cs = Connections()
+        for n in self.members:
+            cs.bidir_add(Connection(new_node, n))
+        return cs
+
     def get_diskful(self):
         """ Return nodes that have at least one disk. """
         return Nodes([node for node in self
@@ -1293,20 +1311,20 @@ class Node(exxe.Exxe):
         for c in cmds:
             self.run(c)
 
-    def block_paths(self, net_number=0):
+    def block_paths(self, net_number=0, jump_to="DROP"):
         for n in self.resource.nodes.difference([self]):
-            self.block_path(n, net_number=net_number)
+            self.block_path(n, net_number=net_number, jump_to=jump_to)
 
-    def unblock_path(self, other_node, net_number=0):
+    def unblock_path(self, other_node, net_number=0, jump_to="DROP"):
         """Uses iptables to unblock one network path."""
         verbose("Unblocking path #%d from %s to %s" % (net_number, self, other_node))
-        cmds = self._iptables_cmd(other_node, "DROP", net_number, "-D")
+        cmds = self._iptables_cmd(other_node, jump_to, net_number, "-D")
         for c in cmds:
             self.run(c)
 
-    def unblock_paths(self, net_number=0):
+    def unblock_paths(self, net_number=0, jump_to="DROP"):
         for n in self.resource.nodes.difference([self]):
-            self.unblock_path(n, net_number=net_number)
+            self.unblock_path(n, net_number=net_number, jump_to=jump_to)
 
     def dmesg(self, pattern=None):
         """Fetches (part of) dmesg; clears it afterwards.

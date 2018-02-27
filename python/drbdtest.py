@@ -1278,7 +1278,6 @@ class Node(exxe.Exxe):
                          return_stdout=True)
         fields = lines.split(' ')
         dev = fields[2]
-        assert re.search(r'^eth', dev)
         return dev
 
     @staticmethod

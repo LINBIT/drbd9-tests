@@ -67,6 +67,7 @@ for n in resource.nodes.diskful[1:]:
     n.new_path()
     n.attach()
 
+    verbose('* re-integrating %s' % (n.name))
     # TODO Sometimes to diskles first, sometimes to the others first
 
     cs = drbdtest.Connections() # Connections from n to all other diskful_nodes
@@ -92,6 +93,12 @@ for n in resource.nodes.diskful[1:]:
     cs.connect()
     cs.event(r'connection .* connection:Connected')
     n.volumes.event(r'device .* disk:UpToDate')
+
+    # Waiting for the reverse is necessary as well, otherwise the following
+    # disconnect might fail
+    cs = drbdtest.Connections()
+    cs.add(drbdtest.Connection(diskless_node, n))
+    cs.event(r'connection .* connection:Connected')
 
     cs = drbdtest.Connections() # Connections from diskless_node to all other diskful_nodes
     for n2 in up_so_far:

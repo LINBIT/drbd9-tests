@@ -738,8 +738,16 @@ class Resource(object):
             r'connection:BrokenPipe',
             r'connection:NetworkFailure'])
 
-    def down(self):
-        self.nodes.down()
+    def down(self, concurrent=False):
+        # Avoid spurious test failures,
+        # avoid exercising concurrent down on all nodes.
+        # We have a dedicated test for that.
+        # By default, serialize the down() on the nodes.
+        if concurrent:
+            self.nodes.down()
+        else:
+            for node in self.nodes:
+                node.down()
 
     def initial_resync(self, sync_from):
         self.nodes.run(['drbdadm', 'peer-device-options', '--c-min-rate', '0', 'all', '-v'])

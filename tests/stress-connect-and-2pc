@@ -12,4 +12,4 @@ resource.add_disk('4M')
 
 for i in range(20):
     resource.up_wait()
-    resource.down()
+    resource.down(concurrent=True)

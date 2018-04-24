@@ -113,8 +113,11 @@ resource.connections.difference(chain).disconnect()
 outdate_test()
 outdate_test(write_between_actions=True)
 
-resource.nodes[0].run(['sleep', '0.5'])
-resource.nodes[0].run(['udevadm', 'settle', '--timeout=2'])
+try:
+    resource.nodes[0].run(['sleep', '0.5'])
+    resource.nodes[0].run(['udevadm', 'settle', '--timeout=2'])
+except:
+    pass
 
 verbose('* Shut down and clean up.')
 resource.down()

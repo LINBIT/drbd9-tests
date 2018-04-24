@@ -153,5 +153,9 @@ for node_b in secondaries_b:
 primary_b.secondary()
 primary_b.down()
 
-primary_b.run(['udevadm', 'settle', '--timeout=2'])
+try:
+    primary_b.run(['udevadm', 'settle', '--timeout=2'])
+except:
+    pass
+
 resource.rmmod()

@@ -159,8 +159,11 @@ resource.connections. \
 
 # FIXME: Simulate network outage
 
-diskless_node.run(['sleep', '0.5'])
-diskless_node.run(['udevadm', 'settle', '--timeout=2'])
+try:
+    diskless_node.run(['sleep', '0.5'])
+    diskless_node.run(['udevadm', 'settle', '--timeout=2'])
+except:
+    pass
 
 verbose('* Shut down and clean up.')
 resource.down()

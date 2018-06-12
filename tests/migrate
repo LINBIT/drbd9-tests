@@ -1,0 +1,70 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+import time
+
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+def write_on_node(node):
+    for v in node.volumes:
+        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
+                  'count=1', 'conv=fsync'])
+
+resource = drbdtest.setup(min_nodes=4, max_nodes=4)
+resource.net_options = 'allow-two-primaries yes;'
+
+diskful_nodes = resource.nodes[2:]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+
+resource.up_wait()
+
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+diskless_nodes = resource.nodes.diskless
+resource.forbidden_patterns.update([r'peer-disk:(Consistent|Outdated)'])
+
+
+verbose('* Migrate from diskfull to diskless with write on new node')
+
+diskful_nodes[0].primary()
+diskless_nodes[0].primary()
+
+write_on_node(diskless_nodes[0])
+
+diskful_nodes[0].secondary()
+# The above triggers the bug that diskles_node[0] sees the diskful_nodes[0]
+# as Consistent! (All drbd9 before and up to 9.0.14)
+diskless_nodes[0].secondary()
+
+
+verbose('* Migrate from diskless to diskless with write on new node')
+
+diskful_nodes[0].primary() # Just for generating a send state later
+
+diskless_nodes[0].primary() # both diskless primary
+diskless_nodes[1].primary()
+
+write_on_node(diskless_nodes[1]) # One writes something to generate new current UUID
+diskless_nodes[1].secondary() # diskles_node[0] missed to receive new current UUID
+
+diskful_nodes[0].secondary() # Trigger a send state
+# The above triggers the bug that diskles_node[0] sees the diskful_nodes[0]
+# as Consistent! (All drbd9 before and up to 9.0.14)
+diskless_nodes[0].secondary()
+
+
+resource.forbidden_patterns.difference_update([r'peer-disk:(Consistent|Outdated)'])
+try:
+    diskless_node.run(['sleep', '0.5'])
+    diskless_node.run(['udevadm', 'settle', '--timeout=2'])
+except:
+    pass
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()
+

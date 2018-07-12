@@ -34,6 +34,18 @@ import exxe
 from syslog import syslog_server
 from cStringIO import StringIO
 
+#Contants for set_fault_injection
+DF_META_WRITE = 1
+DF_META_READ = 2
+DF_RESYNC_WRITE = 4
+DF_RESYNC_READ = 8
+DF_DATA_WRITE = 16
+DF_DATA_READ = 32
+DF_DATA_READ_AHEAD = 64
+DF_BITMAP_ALLOC = 128
+DF_PEERREQ_ALLOC = 256
+DF_RECEIVE_CURRUPT = 512
+
 TOP = os.getenv('TOP', os.path.join(os.path.dirname(sys.argv[0]), '..'))
 DRBD_TEST_DATA = os.getenv('DRBD_TEST_DATA', '/usr/share/drbd-test')
 
@@ -981,8 +993,7 @@ class Node(exxe.Exxe):
         self.id = len(self.resource.nodes)
         self.resource.nodes.add(self)
         self.resource.posfiles_add_node(self)
-        # start at some higher number, so that there's no collision with DRBDmanage volumes.
-        self.minors = 137
+        self.minors = 0
         self.config_changed = True
         self.volume_group = volume_group
         self.connections = Connections()
@@ -1404,6 +1415,12 @@ class Node(exxe.Exxe):
             return values[which]
 
         return values
+
+    def set_fault_injection(self, volume, faults):
+        self.run(['enable-faults',
+	      '--faults=%d' % (faults),
+              '--rate=100',
+              '--devs=%d' % (1 << volume.minor)])
 
 
 class Tee(object):

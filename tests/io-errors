@@ -1,0 +1,42 @@
+#! /usr/bin/env python
+# Pass this script a list of host names to use as the test nodes.
+
+import time
+import random
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource.add_disk('10M')
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+primary_n = random.choice(resource.nodes)
+secondary_n = resource.nodes.difference([primary_n])[0]
+vol = resource.volumes[0]
+
+resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Failed'])
+secondary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
+
+verbose('* Writing on primary (autopromote) secondary should detach')
+
+primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=1'])
+
+secondary_n.volumes.event(r'device .* disk:Failed')
+primary_n.peer_devices.event(r'peer-device .* peer-disk:Failed')
+secondary_n.volumes.event(r'device .* disk:Diskless')
+primary_n.peer_devices.event(r'peer-device .* peer-disk:Diskless')
+
+verbose('* down/up secondary, check resync')
+secondary_n.down() # That clears the fault injection
+secondary_n.up()
+secondary_n.volumes.event(r'device .* disk:Inconsistent')
+secondary_n.volumes.event(r'device .* disk:UpToDate')
+primary_n.peer_devices.event(r'peer-device .* replication:SyncSource')
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

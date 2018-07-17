@@ -7,6 +7,50 @@ from python import drbdtest
 from python.drbdtest import verbose
 from subprocess import CalledProcessError
 
+def test_writes(fault_type):
+    verbose('* Writing on primary (autopromote) secondary should detach')
+    secondary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
+    primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=1'])
+
+    secondary_n.volumes.event(r'device .* disk:Failed')
+    secondary_n.volumes.event(r'device .* disk:Diskless')
+    primary_n.peer_devices.event(r'peer-device .* peer-disk:Failed')
+    primary_n.peer_devices.event(r'peer-device .* peer-disk:Diskless')
+
+    verbose('* down/up secondary, check resync')
+    secondary_n.disable_fault_injection(vol)
+    secondary_n.down()
+    secondary_n.up()
+    secondary_n.volumes.event(r'device .* disk:Inconsistent')
+    secondary_n.volumes.event(r'device .* disk:UpToDate')
+    primary_n.peer_devices.event(r'peer-device .* replication:SyncSource')
+    primary_n.peer_devices.event(r'peer-device .* replication:Established')
+
+    primary_n.primary()
+    primary_n.secondary()
+    # This primary/secondary seems pointless, but triggers what was fixed with
+    # b5f48453e1b95d7a53bee1820f2ff1d5b23cb6f1 in drbd9
+
+    verbose('* Testing IO error on primary (autopromote), should detach')
+    primary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
+    primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=1'])
+
+    primary_n.volumes.event(r'device .* disk:Failed')
+    primary_n.volumes.event(r'device .* disk:Diskless')
+    secondary_n.volumes.event(r'peer-device .* peer-disk:Failed')
+    secondary_n.volumes.event(r'peer-device .* peer-disk:Diskless')
+
+    verbose('* down/up primary, check resync')
+    primary_n.disable_fault_injection(vol)
+    primary_n.down()
+    primary_n.up()
+    primary_n.volumes.event(r'device .* disk:Inconsistent')
+    primary_n.volumes.event(r'device .* disk:UpToDate')
+    secondary_n.peer_devices.event(r'peer-device .* replication:SyncSource')
+    secondary_n.peer_devices.event(r'peer-device .* replication:Established')
+
+# main
+
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
 resource.add_disk('10M')
 resource.up_wait()
@@ -19,23 +63,11 @@ secondary_n = resource.nodes.difference([primary_n])[0]
 vol = resource.volumes[0]
 
 resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Failed'])
-secondary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
 
-verbose('* Writing on primary (autopromote) secondary should detach')
+for fault_type in [drbdtest.DF_DATA_WRITE, drbdtest.DF_META_WRITE]:
+    test_writes(fault_type)
 
-primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=1'])
-
-secondary_n.volumes.event(r'device .* disk:Failed')
-primary_n.peer_devices.event(r'peer-device .* peer-disk:Failed')
-secondary_n.volumes.event(r'device .* disk:Diskless')
-primary_n.peer_devices.event(r'peer-device .* peer-disk:Diskless')
-
-verbose('* down/up secondary, check resync')
-secondary_n.down() # That clears the fault injection
-secondary_n.up()
-secondary_n.volumes.event(r'device .* disk:Inconsistent')
-secondary_n.volumes.event(r'device .* disk:UpToDate')
-primary_n.peer_devices.event(r'peer-device .* replication:SyncSource')
+# TODOs: read errors, IO errors during resync, allocation errors
 
 verbose('* Shut down and clean up.')
 resource.down()

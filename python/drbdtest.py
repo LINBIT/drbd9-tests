@@ -1422,6 +1422,9 @@ class Node(exxe.Exxe):
               '--rate=100',
               '--devs=%d' % (1 << volume.minor)])
 
+    def disable_fault_injection(self, volume):
+        self.run(['disable-faults', '--devs=%d' % (1 << volume.minor)])
+
 
 class Tee(object):
     """ File object that forwards writes and flushes to two other file objects. """

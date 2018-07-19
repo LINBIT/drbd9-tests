@@ -22,9 +22,11 @@ def test_writes(fault_type):
     secondary_n.down()
     secondary_n.up()
     secondary_n.volumes.event(r'device .* disk:Inconsistent')
+    secondary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:4')
     secondary_n.volumes.event(r'device .* disk:UpToDate')
-    primary_n.peer_devices.event(r'peer-device .* replication:SyncSource')
+    primary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:4')
     primary_n.peer_devices.event(r'peer-device .* replication:Established')
+    # Expect 4k resync. That ensure it is a bitmap-based resync and not a full resync
 
     primary_n.primary()
     primary_n.secondary()
@@ -45,12 +47,15 @@ def test_writes(fault_type):
     primary_n.down()
     primary_n.up()
     primary_n.volumes.event(r'device .* disk:Inconsistent')
+    primary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:4096')
     primary_n.volumes.event(r'device .* disk:UpToDate')
-    secondary_n.peer_devices.event(r'peer-device .* replication:SyncSource')
+    secondary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:4096')
     secondary_n.peer_devices.event(r'peer-device .* replication:Established')
+    # Expect 4M resync. One AL-extent. That ensure it is a bitmap-based resync and not a full resync
 
 # main
 
+random.seed()
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
 resource.add_disk('10M')
 resource.up_wait()

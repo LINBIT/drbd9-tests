@@ -1,0 +1,30 @@
+#!/usr/bin/python
+
+import sys, os
+import argparse
+
+buf = 'drbd-testsuite-stress-al'
+al_extent_len = 4 * 1024 * 1024;
+
+def stress_al(device_path, nr_writes):
+    fd = os.open(device_path, os.O_RDWR)
+
+    for i in range(1, nr_writes):
+        w_len = os.write(fd, buf)
+        os.lseek(fd, al_extent_len - w_len, os.SEEK_CUR)
+
+    os.fdatasync(fd)
+    os.close(fd)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('device_path', type=str, help='device to write to')
+    parser.add_argument('writes', type=int, help='number of writes = al-extents to activate')
+    args = parser.parse_args()
+
+    stress_al(args.device_path, args.writes)
+
+
+if __name__ == "__main__":
+    main()

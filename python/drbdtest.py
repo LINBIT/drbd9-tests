@@ -269,8 +269,6 @@ class Nodes(Collection):
     def attach(self):
         self.run(['drbdadm', 'attach', 'all', '-v'])
         self.volumes.diskful.event(r'device .* disk:Attaching')
-        # and some other state ... Inconsistent, UpToDate, ...
-        self.volumes.diskful.event(r'device .* disk:.*')
 
     def detach(self):
         self.run(['drbdadm', 'detach', 'all', '-v'])

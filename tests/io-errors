@@ -7,6 +7,9 @@ from python import drbdtest
 from python.drbdtest import verbose
 from subprocess import CalledProcessError
 
+M_REATTACH=1
+M_RECREATE_MD=2
+
 def test_writes(fault_type):
     verbose('* Writing on primary (autopromote) secondary should detach')
     secondary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
@@ -53,20 +56,35 @@ def test_writes(fault_type):
     secondary_n.peer_devices.event(r'peer-device .* replication:Established')
     # Expect 4M resync. One AL-extent. That ensure it is a bitmap-based resync and not a full resync
 
-def test_tracking_writes():
+def test_tracking_writes(mode):
     # check the resync of blocks while the disk on the primary is away. Do it in a way the
     # AL does not get applied, so that we verify that the diskfull secondary tracked the
     # changes.
+    verbose('* verify resync amount %s' % ("after reattach" if mode == M_REATTACH else "with replaced backing disk"))
     primary_n.detach()
     primary_n.primary()
-    primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=1024', 'oflag=direct', 'count=12', 'seek=12'])
+    primary_n.run(['dd', 'if=/dev/urandom', 'of=/tmp/data', 'bs=1024', 'count=12'])
+    md5sum = primary_n.run(['md5sum', '/tmp/data'], return_stdout=True)
+    primary_n.run(['dd', 'if=/tmp/data', 'of=%s' % (vol.device()), 'bs=1024', 'oflag=direct', 'count=12', 'seek=10216'])
     primary_n.secondary()
+    if mode == M_RECREATE_MD:
+        primary_n.run(['drbdadm', 'create-md', '--force', resource.name])
+
+    primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.disk_lv), 'bs=1024', 'oflag=direct', 'count=12', 'seek=10216'])
     primary_n.attach()
 
     primary_n.volumes.event(r'device .* disk:Inconsistent')
-    primary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:12')
-    primary_n.volumes.event(r'device .* disk:UpToDate')
-    secondary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:12')
+    if mode == M_REATTACH:
+        primary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:12')
+        secondary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:12')
+    elif mode == M_RECREATE_MD:
+        primary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:12248')
+        secondary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:12248')
+    primary_n.run(['dd', 'if=%s' % (vol.device()), 'of=/tmp/data', 'bs=1024', 'iflag=direct', 'count=12', 'skip=10216'])
+    verify_md5 = primary_n.run(['md5sum', '/tmp/data'], return_stdout=True)
+    if verify_md5 != md5sum:
+        raise Exception("Got back worng data! %s %s" % (md5sum, verify_md5))
+    primary_n.volumes.event(r'device .* disk:UpToDate', timeout=300) # Need to wait for 10MB full sync
     secondary_n.peer_devices.event(r'peer-device .* replication:Established')
 
 
@@ -89,7 +107,8 @@ resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Faile
 for fault_type in [drbdtest.DF_DATA_WRITE, drbdtest.DF_META_WRITE]:
     test_writes(fault_type)
 
-test_tracking_writes()
+test_tracking_writes(M_REATTACH)
+test_tracking_writes(M_RECREATE_MD)
 
 # TODOs: read errors, IO errors during resync, allocation errors
 

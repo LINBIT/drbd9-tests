@@ -53,6 +53,23 @@ def test_writes(fault_type):
     secondary_n.peer_devices.event(r'peer-device .* replication:Established')
     # Expect 4M resync. One AL-extent. That ensure it is a bitmap-based resync and not a full resync
 
+def test_tracking_writes():
+    # check the resync of blocks while the disk on the primary is away. Do it in a way the
+    # AL does not get applied, so that we verify that the diskfull secondary tracked the
+    # changes.
+    primary_n.detach()
+    primary_n.primary()
+    primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=1024', 'oflag=direct', 'count=12', 'seek=12'])
+    primary_n.secondary()
+    primary_n.attach()
+
+    primary_n.volumes.event(r'device .* disk:Inconsistent')
+    primary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:12')
+    primary_n.volumes.event(r'device .* disk:UpToDate')
+    secondary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:12')
+    secondary_n.peer_devices.event(r'peer-device .* replication:Established')
+
+
 # main
 
 random.seed()
@@ -71,6 +88,8 @@ resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Faile
 
 for fault_type in [drbdtest.DF_DATA_WRITE, drbdtest.DF_META_WRITE]:
     test_writes(fault_type)
+
+test_tracking_writes()
 
 # TODOs: read errors, IO errors during resync, allocation errors
 

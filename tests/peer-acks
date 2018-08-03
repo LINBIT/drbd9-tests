@@ -1,0 +1,88 @@
+#! /usr/bin/env python
+# Pass this script a list of host names to use as the test nodes.
+
+# This test verifies that peer-acks serve their purpose.
+# 1) two diskfull secondaries do not build up out-of-sync bits towards each
+#    other when they receive writes from 3rd primary.
+# 2) That recent writes which where not peer-acked are getting marked as
+#    out of sync in the bitmap when the connection to the primary gets lost.
+
+import time
+import random
+import re
+from python import drbdtest
+from python.drbdtest import verbose
+
+M_PEER_ACKED=1
+M_NOT_PEER_ACKED=2
+
+def do_test(mode):
+    if mode == M_PEER_ACKED:
+        res_opt_str = '--peer-ack-delay=100' # default 100ms
+        sleep_time = 0.4 # 4 times that should be enough
+        verb_str = "gets through/no resync"
+        reconnect_regex = r'peer-device .* replication:Established .* out-of-sync:0'
+    elif mode == M_NOT_PEER_ACKED:
+        res_opt_str = '--peer-ack-delay=1000' # 1second
+        sleep_time = 0 # do not wait, should cause peer_ack to not get through
+        verb_str = "does not get through/resync"
+        reconnect_regex = r'peer-device .* replication:SyncTarget .* out-of-sync:8'
+
+    verbose('* verify peer-ack %s' % (verb_str))
+    isolated_target_c.disconnect()
+    target_isolated_c.disconnect()
+
+    diskless_n.resource_options([res_opt_str])
+    diskless_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=2'])
+    time.sleep(sleep_time)
+
+    if mode == M_NOT_PEER_ACKED:
+        diskless_target_c.disconnect()
+        target_diskless_c.event(r'connection .* connection:Unconnected')
+        status_str = target_n.run(['drbdsetup', 'status', resource.name, '--statistics'], return_stdout=True)
+        if not re.search(r'out-of-sync:8', status_str):
+            raise Exception("bit(s) not set for the not peer-acked write-request(s)")
+
+    target_isolated_c.connect()
+    isolated_target_c.connect()
+    target_isolated_pd.event(reconnect_regex)
+    isolated_target_pd.event(r'peer-device .* replication:Established')
+
+    if mode == M_NOT_PEER_ACKED:
+        diskless_target_c.connect()
+        diskless_target_c.event(r'connection .* connection:Connected')
+
+# main
+
+random.seed()
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+diskless_n = random.choice(resource.nodes)
+diskful_nodes = resource.nodes.difference([diskless_n])
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+target_n = random.choice(diskful_nodes)
+isolated_n = resource.nodes.difference([diskless_n, target_n])[0]
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+vol = resource.volumes[0]
+isolated_target_c = drbdtest.Connection(isolated_n, target_n)
+isolated_target_pd = drbdtest.PeerDevice(isolated_target_c, isolated_n.volumes[0])
+target_isolated_c = drbdtest.Connection(target_n, isolated_n)
+target_isolated_pd = drbdtest.PeerDevice(target_isolated_c, target_n.volumes[0])
+diskless_target_c = drbdtest.Connection(diskless_n, target_n)
+target_diskless_c = drbdtest.Connection(target_n, diskless_n)
+target_diskless_pd = drbdtest.PeerDevice(target_diskless_c, target_n.volumes[0])
+
+diskless_n.primary()
+
+for mode in [M_PEER_ACKED, M_NOT_PEER_ACKED]:
+    do_test(mode)
+
+diskless_n.secondary()
+resource.connections.to_node(diskless_n).event(r'connection .* role:Secondary')
+
+diskless_n.down()
+diskful_nodes.down()
+resource.rmmod()

@@ -287,6 +287,9 @@ class Nodes(Collection):
         self.run(['drbdadm', 'new-peer', 'all', '-v'])
         self.volumes.peer_devices.event(r'create peer-device')
 
+    def resource_options(self, opts=[]):
+        self.run(['drbdadm', 'resource-options', 'all', '-v'] + opts)
+
     def peer_device_options(self):
         self.run(['drbdadm', 'peer-device-options', 'all', '-v'])
 
@@ -872,6 +875,12 @@ class Connection(object):
     def event(self, *args, **kwargs):
         return Connections([self]).event(*args, **kwargs)
 
+    def connect(self, *args, **kwargs):
+        return Connections([self]).connect(*args, **kwargs)
+
+    def disconnect(self, *args, **kwargs):
+        return Connections([self]).disconnect(*args, **kwargs)
+
 
 class PeerDevice(object):
     def __init__(self, connection, volume):
@@ -1235,6 +1244,9 @@ class Node(exxe.Exxe):
 
     def new_peer(self):
         Nodes([self]).new_peer()
+
+    def resource_options(self, *args):
+        Nodes([self]).resource_options(*args)
 
     def peer_device_options(self):
         Nodes([self]).peer_device_options()

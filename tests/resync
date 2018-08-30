@@ -1,0 +1,108 @@
+#! /usr/bin/env python
+
+# This tests generates as many data-generations as you pass nodes, by
+# disconnecting each node and writing on one in between the disconnect
+# operations. The "one" node is the "writing_n" in the code.
+#
+# Then beginning with the oldest the nodes are formed to a chain,
+# verifying in each step the resync (direction and amount).
+#
+# Finally the node with the latest data-set is connected to the node
+# that had the oldest data-set, causing a wave of resyncs propagating
+# through the chain. That is verified as well.
+#
+# Finally the chain is formed to a ring and it is verified that
+# no resync happens at that stage.
+
+import random
+from python import drbdtest
+from python.drbdtest import verbose
+
+def write_on_node(node):
+    global write_offset
+
+    for v in node.volumes:
+        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
+                  'seek=%d' % (write_offset), 'count=1', 'conv=fsync'])
+    write_offset += 1
+
+def assert_resync_dir(forward_c, backward_c, oos_str):
+    v = resource.volumes[0]
+    forward_pd = drbdtest.PeerDevice(forward_c, v)
+    backward_pd = drbdtest.PeerDevice(backward_c, v)
+    forward_pd.event(r'peer-device .* replication:SyncSource' + oos_str)
+    forward_pd.event(r'peer-device .* replication:Established')
+    backward_pd.event(r'peer-device .* replication:SyncTarget' + oos_str)
+    backward_pd.event(r'peer-device .* replication:Established')
+
+def connect_and_check_resync(newer_n, older_n):
+    forward_c = drbdtest.Connection(newer_n, older_n)
+    backward_c = drbdtest.Connection(older_n, newer_n)
+    cs = drbdtest.Connections([forward_c, backward_c])
+    cs.connect()
+    cs.event(r'connection .* connection:Connected')
+    assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
+
+def disconnect_reverse(writing_n, nodes):
+    verbose('* Disconnect nodes, writing in between')
+    for n in reversed(nodes):
+        write_on_node(writing_n)
+        resource.connections.from_node(n).disconnect()
+        to = resource.connections.to_node(n)
+        to.event(r'connection .* connection:TearDown')
+        to.event(r'connection .* connection:Connecting')
+
+def connect_them_oldest_first(nodes):
+    verbose('* Reconnecting them starting from the most outdated one')
+    for i in range(len(nodes)-1, 0, -1):
+        connect_and_check_resync(nodes[i-1], nodes[i])
+
+def connect_oldest_to_newest(newest_n, nodes):
+    verbose('* Reconnecting the newest with the (former) oldest node of the chain')
+    oldest_n = nodes[-1]
+    forward_c = drbdtest.Connection(newest_n, oldest_n)
+    backward_c = drbdtest.Connection(oldest_n, newest_n)
+    backward_c.connect()
+    assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
+
+    verbose('* Verify a "wave" of resyncs going through the chain of nodes')
+    for i in range(len(nodes)-1, 0, -1):
+        forward_c = drbdtest.Connection(nodes[i], nodes[i-1])
+        backward_c = drbdtest.Connection(nodes[i-1], nodes[i])
+        #nodes[i].run(['true', 'mark_from']) # mark in syslog
+        #nodes[i-1].run(['true', 'mark_to'])
+        verbose('* from %s to %s' % (nodes[i-1], nodes[i]))
+        assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
+
+def form_a_ring(newest_n, nodes):
+    verbose('* Completing the ring, verifying no resync happens')
+    end_n = nodes[0]
+    forward_c = drbdtest.Connection(end_n, newest_n)
+    resource.forbidden_patterns.update([r'replication:SyncSource', r'replication:SyncTarget'])
+    forward_c.connect()
+    forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
+    forward_pd.event(r'peer-device .* replication:Established')
+    resource.forbidden_patterns.difference_update([r'replication:SyncSource', r'replication:SyncTarget'])
+
+# main
+write_offset = 0
+
+random.seed()
+resource = drbdtest.setup(min_nodes=3, max_nodes=5)
+writing_n = random.choice(resource.nodes)
+other_nodes = resource.nodes.difference([writing_n])
+resource.add_disk('10M')
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+disconnect_reverse(writing_n, other_nodes)
+write_on_node(writing_n)
+connect_them_oldest_first(other_nodes)
+connect_oldest_to_newest(writing_n, other_nodes)
+form_a_ring(writing_n, other_nodes)
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

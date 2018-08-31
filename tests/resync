@@ -106,6 +106,45 @@ def write_on_head(nodes):
             verbose('* from %s to %s' % (nodes[i], nodes[i+1]))
             assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
 
+def part_iii(nodes):
+    (a,b,c) = nodes
+    ac = drbdtest.Connection(nodes[0], nodes[2])
+    ca = drbdtest.Connection(nodes[2], nodes[0])
+    ab = drbdtest.Connection(nodes[0], nodes[1])
+    ba = drbdtest.Connection(nodes[1], nodes[0])
+    bc = drbdtest.Connection(nodes[1], nodes[2])
+    cb = drbdtest.Connection(nodes[2], nodes[1])
+
+    ac_bidir = drbdtest.Connections([ca, ac])
+    ab_bidir = drbdtest.Connections([ab, ba])
+
+    all_c = drbdtest.Connections([ca, ac, ab, ba, bc, cb])
+    all_c.connect()
+    all_c.event(r'connection .* connection:Connected')
+
+    verbose('* Part III with nodes: %s %s %s ' % (a, b, c))
+    a.run(['true', 'mark part III'])
+    b.run(['true', 'mark part III'])
+    c.run(['true', 'mark part III'])
+    # test begins:
+    ca.disconnect()
+    a.primary()
+    write_on_node(a)
+    resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
+    ab.disconnect(force=True)
+    ba.event(r'connection .* connection:Unconnected')
+    resource.forbidden_patterns.update([r'connection:BrokenPipe'])
+    a.secondary()
+    assert_resync_dir(bc, cb, '')
+    write_on_node(b)
+    ab.connect()
+    assert_resync_dir(ba, ab, '')
+    resource.forbidden_patterns.update([r'replication:SyncSource', r'replication:SyncTarget'])
+    ca.connect()
+    ac_bidir.event(r'connection .* connection:Connected')
+    # TODO move the event to peer_device level!
+    resource.forbidden_patterns.difference_update([r'replication:SyncSource', r'replication:SyncTarget'])
+
 # main
 write_offset = 0
 
@@ -132,6 +171,10 @@ form_a_ring(writing_n, other_nodes)
 chain = drbdtest.Nodes([writing_n]).extend(other_nodes)
 form_a_chain(chain)
 write_on_head(chain)
+
+# Part III
+resource.connections.disconnect()
+part_iii(resource.nodes[0:3])
 
 verbose('* Shut down and clean up.')
 resource.down()

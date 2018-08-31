@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+# Part I of the test:
 # This tests generates as many data-generations as you pass nodes, by
 # disconnecting each node and writing on one in between the disconnect
 # operations. The "one" node is the "writing_n" in the code.
@@ -84,6 +85,27 @@ def form_a_ring(newest_n, nodes):
     forward_pd.event(r'peer-device .* replication:Established')
     resource.forbidden_patterns.difference_update([r'replication:SyncSource', r'replication:SyncTarget'])
 
+def form_a_chain(nodes):
+    forward_c = drbdtest.Connection(nodes[0], nodes[-1])
+    backward_c = drbdtest.Connection(nodes[-1], nodes[0])
+    cs = drbdtest.Connections([forward_c, backward_c])
+    cs.disconnect()
+
+def write_on_head(nodes):
+    head_n = nodes[0]
+    tail_n = nodes[-1]
+
+    verbose('* Part II of test')
+
+    for c in range(0,4):
+        write_on_node(head_n)
+        verbose('* Verify a (forward) "wave" of resyncs going through the chain of nodes')
+        for i in range(1, len(nodes)-1):
+            forward_c = drbdtest.Connection(nodes[i], nodes[i+1])
+            backward_c = drbdtest.Connection(nodes[i+1], nodes[i])
+            verbose('* from %s to %s' % (nodes[i], nodes[i+1]))
+            assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
+
 # main
 write_offset = 0
 
@@ -95,13 +117,21 @@ resource.add_disk('10M')
 resource.up_wait()
 
 verbose('* Make up-to-date data available.')
-resource.skip_initial_sync();
+resource.skip_initial_sync()
 
+# Part I tests the detect_copy_ops_on_peer() function
 disconnect_reverse(writing_n, other_nodes)
 write_on_node(writing_n)
 connect_them_oldest_first(other_nodes)
 connect_oldest_to_newest(writing_n, other_nodes)
 form_a_ring(writing_n, other_nodes)
+
+# Part II, verify that resynch propagation through a chain of nodes
+# works repeatedly (that used to be the resync-never-connected test)
+# That checks if clearing the bitmap base at the head node works
+chain = drbdtest.Nodes([writing_n]).extend(other_nodes)
+form_a_chain(chain)
+write_on_head(chain)
 
 verbose('* Shut down and clean up.')
 resource.down()

@@ -1,11 +1,17 @@
 #! /usr/bin/env python
 #
-# That test covers the quorum mechanism with all nodes having disks:
+# 1st part: Isolation of a primary node, with making sure it sees
+#           one peer going away before the a write and the other
+#           peer going away after that write
+#
+# 2nd part: covers the quorum mechanism with all nodes having disks:
 #  * on-no-quorum io-error
 #  * Last man standing optimization
 #
-#
 # Remaining TODOs:
+#  * Check that if Quorum a quorum lost node becomes sync source
+#    if the other partition (that has quorum) does not begin a new
+#    data generation.
 #  * on-no-quroum freeze-io
 #  * quorum-minimum-redundancy
 #  * quorum handling on diskless nodes
@@ -40,6 +46,63 @@ secondaries_a.remove(primary_a)
 verbose('* %s is the primary' % primary_a.name)
 primary_a.primary()
 write_on_node(primary_a)
+
+verbose('* Isolating the primary, while writing at the same time')
+tmp_pri = random.choice(secondaries_a)
+remaining_a = drbdtest.Nodes(secondaries_a)
+remaining_a.remove(tmp_pri)
+tmp_old_pri = drbdtest.Connection(tmp_pri, primary_a)
+connections_to_cut = remaining_a.connections.to_node(primary_a)
+connections_witness = resource.connections.from_node(primary_a)
+
+resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
+    r'connection:BrokenPipe',
+    r'connection:ProtocolError'
+])
+
+tmp_old_pri.disconnect(wait = True, force = True)
+
+connections_to_cut.block(jump_to="REJECT")
+connections_to_cut.disconnect(wait = False, force = True)
+
+try:
+    write_on_node(primary_a)
+    raise RuntimeError('Quorum was not lost, although expected!')
+except CalledProcessError:
+    pass # Expect the IO error in case quorum was lost
+
+connections_to_cut.unblock(jump_to="REJECT")
+
+connections_to_cut.event(r'connection .* connection:StandAlone')
+connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|ProtocolError)')
+
+primary_a.secondary() # Yes!
+tmp_pri.primary()
+write_on_node(tmp_pri)
+
+tmp_old_pri.connect()
+# Alternatively move connections_to_cut.connect() up here...
+
+primary_a.volumes[0].event(r'disk:Inconsistent')
+primary_a.volumes[0].event(r'disk:UpToDate')
+# This is the rollback "last writes" on primary that lost quorum resync.
+# If it does not happen we have a bug!
+# (Those writes where never completed with an error to the uppwer layers,
+#  but submitted to the local disk)
+
+connections_to_cut.connect()
+connections_to_cut.event(r'connection .* connection:Connected')
+
+time.sleep(0.2)
+
+tmp_pri.secondary()
+primary_a.primary()
+write_on_node(primary_a)
+
+
+# part2
+verbose('* Remove secondaries one by one until the partition lost quorum')
 
 while len(partition_b) < len(partition_a):
     moving = random.choice(secondaries_a)

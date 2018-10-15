@@ -509,6 +509,13 @@ class Connections(Collection):
         self.add(Connection(node1, node2))
         self.add(Connection(node2, node1))
 
+    def block(self, *args, **kwargs):
+        for connection in self:
+            connection.block(*args, **kwargs)
+
+    def unblock(self, *args, **kwargs):
+        for connection in self:
+            connection.unblock(*args, **kwargs)
 
 class PeerDevices(Collection):
     def __init__(self, members=[]):
@@ -881,6 +888,21 @@ class Connection(object):
     def disconnect(self, *args, **kwargs):
         return Connections([self]).disconnect(*args, **kwargs)
 
+    def run_cmd(self, cmd):
+        self.nodes[0].run(['drbdadm', cmd, '%s:%s' %
+                           (self.resource.name, self.nodes[1].hostname)])
+
+    def pause_sync(self):
+        self.run_cmd('pause-sync')
+
+    def resume_sync(self):
+        self.run_cmd('resume-sync')
+
+    def block(self, *args, **kwargs):
+        self.nodes[0].block_path(self.nodes[1], *args, **kwargs)
+
+    def unblock(self, *args, **kwargs):
+        self.nodes[0].unblock_path(self.nodes[1], *args, **kwargs)
 
 class PeerDevice(object):
     def __init__(self, connection, volume):

@@ -8,8 +8,32 @@ from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=2, max_nodes=5)
 resource.resource_options = 'twopc-timeout 600;'
+resource.net_options = 'socket-check-timeout 5;'
 resource.add_disk('4M')
 
+resource.forbidden_patterns.difference_update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe',
+        r'connection:ProtocolError'
+    ])
+
 for i in range(20):
+    resource.forbidden_patterns.difference_update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe',
+        r'connection:ProtocolError'
+    ])
+
     resource.up_wait()
+    resource.forbidden_patterns.difference_update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe',
+        r'connection:ProtocolError'
+    ])
+
     resource.down(concurrent=True)
+    resource.forbidden_patterns.difference_update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe',
+        r'connection:ProtocolError'
+    ])

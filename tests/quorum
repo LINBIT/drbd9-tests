@@ -29,13 +29,18 @@ def write_on_node(node):
         node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
                   'count=1', 'oflag=direct'])
 
+def my_verbose(str):
+    verbose(str)
+    for node in resource.nodes:
+        node.run(["echo", str])
+
 resource = drbdtest.setup(min_nodes=3, max_nodes=5)
 resource.add_disk('10M')
 resource.resource_options = 'quorum majority; on-no-quorum io-error; twopc-timeout 100;'
 
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+my_verbose('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 partition_a = drbdtest.Nodes(resource.nodes)
@@ -43,11 +48,11 @@ partition_b = drbdtest.Nodes()
 primary_a = random.choice(partition_a)
 secondaries_a = drbdtest.Nodes(partition_a)
 secondaries_a.remove(primary_a)
-verbose('* %s is the primary' % primary_a.name)
+my_verbose('* %s is the primary' % primary_a.name)
 primary_a.primary()
 write_on_node(primary_a)
 
-verbose('* Isolating the primary, while writing at the same time')
+my_verbose('* Isolating the primary, while writing at the same time')
 tmp_pri = random.choice(secondaries_a)
 remaining_a = drbdtest.Nodes(secondaries_a)
 remaining_a.remove(tmp_pri)
@@ -94,19 +99,22 @@ primary_a.volumes[0].event(r'disk:UpToDate')
 connections_to_cut.connect()
 connections_to_cut.event(r'connection .* connection:Connected')
 
-time.sleep(0.2)
+time.sleep(0.2) # Otherwise we trigger weired follow-on race conditions
 
 tmp_pri.secondary()
+
+time.sleep(0.5) # Otherwise we trigger weired follow-on race conditions
+
 primary_a.primary()
 write_on_node(primary_a)
 
 
 # part2
-verbose('* Remove secondaries one by one until the partition lost quorum')
+my_verbose('* Remove secondaries one by one until the partition lost quorum')
 
 while len(partition_b) < len(partition_a):
     moving = random.choice(secondaries_a)
-    verbose('* %s breaks away' % moving.name)
+    my_verbose('* %s breaks away' % moving.name)
 
     partition_a.remove(moving)
     secondaries_a.remove(moving)
@@ -144,7 +152,7 @@ while len(partition_b) < len(partition_a):
 
     partition_b.add(moving)
 
-verbose('* Now the partition A lost quorum')
+my_verbose('* Now the partition A lost quorum')
 primary_a.volumes[0].event(r'quorum:no')
 
 moving = primary_a
@@ -177,11 +185,11 @@ else:
     # Partition b is already bigger than a
     primary_b.volumes[0].event(r'quorum:yes')
 
-verbose('* %s is the new primary' % primary_b.name)
+my_verbose('* %s is the new primary' % primary_b.name)
 primary_b.primary()
 write_on_node(primary_b)
 
-verbose('* Joining the remaining nodes from partition A to partition B')
+my_verbose('* Joining the remaining nodes from partition A to partition B')
 # now connect secondaries_a to partition_b
 connections_new = drbdtest.Connections()
 connections_witness = drbdtest.Connections()
@@ -205,7 +213,7 @@ for node in partition_a:
     partition_b.add(node)
 partition_a = drbdtest.Nodes()
 
-verbose('* Verifying the "last man standing" mechanism')
+my_verbose('* Verifying the "last man standing" mechanism')
 secondaries_b = drbdtest.Nodes(partition_b)
 secondaries_b.remove(primary_b)
 

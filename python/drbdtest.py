@@ -536,7 +536,7 @@ class PeerDevices(Collection):
                             '-f', 'volume:%s' % volume]
                  ]
             resource = first(self.members).resource
-            resource.logscan(self, where, *args, **kwargs)
+            return resource.logscan(self, where, *args, **kwargs)
 
 
 # Now that all collection classes are defined, define inter-class dependencies:

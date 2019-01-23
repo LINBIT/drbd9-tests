@@ -1,0 +1,103 @@
+#! /usr/bin/env python
+
+# This test creats three different versions of the data. It let
+# the two older nodes begin a resync. When they are in the middle
+# of the resync operation, the node with the newest data connects
+# to the resync source of the already running resync.
+# It has to pause the running resync, obtain the newest data, and
+# then continue the resync to the downstream peer.
+#
+# In variant two it starts the upstream resync after downstream
+# completed
+
+import time
+import random
+from python import drbdtest
+from python.drbdtest import verbose
+
+def write_on_node(node, file_nr, megs):
+    dev_name = node.volumes[0].device()
+
+    node.run(['mkdir', '-p', '/mnt/1'])
+    node.run(['mount', dev_name, '/mnt/1'])
+    node.run(['dd', 'if=/dev/urandom', 'of=/mnt/1/file%d' % (file_nr) , 'bs=1M',
+              'count=%d' % (megs)])
+    node.run(['umount', '/mnt/1'])
+
+def disconnect_and_write(n, file_nr):
+    resource.connections.from_node(n).disconnect()
+    to = resource.connections.to_node(n)
+    to.event(r'connection .* connection:TearDown')
+    to.event(r'connection .* connection:Connecting')
+    write_on_node(writing_n, file_nr, megs_per_file)
+
+def connect_and_check(n1, n2):
+    forward_c = drbdtest.Connection(n1, n2)
+    backward_c = drbdtest.Connection(n2, n1)
+    cs = drbdtest.Connections([forward_c, backward_c])
+    cs.connect()
+    cs.event(r'connection .* connection:Connected')
+
+def do_test(variant):
+    verbose('* Variant %d of test' % (variant))
+    file_nr = 0
+    for n in other_nodes:
+        disconnect_and_write(n, file_nr)
+        file_nr += 1
+
+    resource.connections.from_node(writing_n).disconnect()
+
+    verbose('* Start downstream resync.')
+
+    forward_c = drbdtest.Connection(other_nodes[0], other_nodes[1])
+    backward_c = drbdtest.Connection(other_nodes[1], other_nodes[0])
+    cs = drbdtest.Connections([forward_c, backward_c])
+    cs.connect()
+    cs.event(r'connection .* connection:Connected')
+
+    pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
+
+    if variant == 1:
+        while True:
+            done = pd.event(r'peer-device .* done:([0-9.]+)')
+            if float(done[0][0]) > 10.0:
+                break
+        verbose('* Start upstream resync at %s of downstream resync.' % (done[0][0]))
+    elif variant == 2:
+        other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
+        time.sleep(0.5)
+        verbose('* Start upstream resync after downstream resync finished')
+
+    connect_and_check(writing_n, other_nodes[-1])
+
+    other_nodes[-1].volumes[0].event(r'device .* disk:UpToDate')
+    if variant == 1:
+        other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
+
+    connect_and_check(writing_n, other_nodes[0])
+
+# main
+megs = 100
+
+random.seed()
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.add_disk('%dM' % (megs))
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+writing_n = random.choice(resource.nodes)
+other_nodes = resource.nodes.difference([writing_n])
+dev_name = writing_n.volumes[0].device()
+megs_per_file = (megs * 8 / 10) / (len(resource.nodes) - 1)
+
+writing_n.run(['mkfs', '-t', 'ext4', dev_name])
+
+do_test(1)
+do_test(2)
+
+verbose('* Shut down and clean up.')
+writing_n.run(['wipefs', dev_name])
+resource.down()
+resource.rmmod()

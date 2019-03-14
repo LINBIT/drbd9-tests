@@ -1,0 +1,87 @@
+#! /usr/bin/env python
+#
+# Starting with 3 nodes, one is primary.
+# Isolate primary node. Try to promote one of the remaining
+# nodes as quick as possible. The two remaining nodes have
+# quorum but need to become D_CONSISTENT for a short time
+# span. Then they use the try_become_up_to_date() mechanism
+# to become D_UPTODATE again.
+#
+# Check that the promotion does not fail with strange exit codes.
+#
+import time
+import random
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+random.seed()
+
+def write_on_node(node):
+    for v in node.volumes:
+        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
+                  'count=1', 'oflag=direct'])
+
+def do_test(resource):
+    primary_n = random.choice(resource.nodes)
+    secondaries_n = drbdtest.Nodes(resource.nodes)
+    secondaries_n.remove(primary_n)
+    verbose('* %s is the primary' % primary_n.name)
+    primary_n.primary()
+    write_on_node(primary_n)
+
+    verbose('* Isolating the primary, while writing at the same time')
+    tmp_pri = random.choice(secondaries_n)
+    connections_to_cut = resource.connections.to_node(primary_n)
+    connections_witness = resource.connections.from_node(primary_n)
+
+    resource.forbidden_patterns.difference_update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe',
+        r'connection:ProtocolError'
+    ])
+
+    connections_to_cut.block(jump_to="REJECT")
+    connections_to_cut.disconnect(wait = False, force = True)
+
+    tmp_pri.primary()
+    write_on_node(tmp_pri)
+
+    try:
+        write_on_node(primary_n)
+        raise RuntimeError('Quorum was not lost, although expected!')
+    except CalledProcessError:
+        pass # Expect the IO error in case quorum was lost
+
+    connections_to_cut.unblock(jump_to="REJECT")
+
+    verbose('* re-integrating')
+    tmp_pri.secondary()
+    primary_n.secondary()
+    connections_to_cut.connect()
+    evs = [r'peer-node-id:%d .* connection:Connected' % (n.id) for n in secondaries_n] + \
+          [r'volume:0 .* disk:Inconsistent', r'volume:0 .* disk:UpToDate']
+    primary_n.event(*evs)
+
+
+#main
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.add_disk('10M')
+resource.resource_options = 'quorum majority; on-no-quorum io-error; twopc-timeout 100;'
+
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+for i in range(2):
+    do_test(resource)
+
+resource.down()
+
+try:
+    primary_b.run(['udevadm', 'settle', '--timeout=2'])
+except:
+    pass
+
+resource.rmmod()

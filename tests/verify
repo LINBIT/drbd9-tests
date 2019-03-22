@@ -122,7 +122,7 @@ def GetDifferenceFromDmesg(node):
 
 
 def DoVerify(src_node, dst_node, expected):
-    src_node.run(["drbdadm", "verify", "-v", "%s:%s" % (resource.name, dst_node.name)])
+    src_node.run(["drbdadm", "verify", "-v", "--start=0", "%s:%s/0" % (resource.name, dst_node.name)])
 
     src_node.peer_devices.event(r'peer-device .* replication:VerifyS')
     dst_node.peer_devices.event(r'peer-device .* replication:VerifyT')

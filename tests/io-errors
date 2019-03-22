@@ -83,7 +83,7 @@ def test_tracking_writes(mode):
     primary_n.run(['dd', 'if=%s' % (vol.device()), 'of=/tmp/data', 'bs=1024', 'iflag=direct', 'count=12', 'skip=10216'])
     verify_md5 = primary_n.run(['md5sum', '/tmp/data'], return_stdout=True)
     if verify_md5 != md5sum:
-        raise Exception("Got back worng data! %s %s" % (md5sum, verify_md5))
+        raise Exception("Got back wrong data! %s %s" % (md5sum, verify_md5))
     primary_n.volumes.event(r'device .* disk:UpToDate', timeout=300) # Need to wait for 10MB full sync
     secondary_n.peer_devices.event(r'peer-device .* replication:Established')
 

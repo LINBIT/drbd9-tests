@@ -1,0 +1,23 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+
+from python import drbdtest
+
+resource = drbdtest.setup(max_nodes=5)
+
+resource.nodes.up_wait()
+resource.connections.event(r'connection .* role:Secondary')
+
+resource.forbidden_patterns.update([
+    r'connection:Timeout',
+    r'connection:ProtocolError',
+])
+
+# Note: this test does not define any devices, so disconnecting does not
+# require a two-phase commit.  The peer of a disconnecting node will only
+# notice a socket close.
+
+resource.down()
+
+resource.rmmod()

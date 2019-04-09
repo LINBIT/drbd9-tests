@@ -6,3 +6,4 @@ target/blkdiscard.py
 target/missaligned_bio.py
 
 tests/*.new
+tests/log/

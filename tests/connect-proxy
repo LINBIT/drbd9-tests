@@ -2,8 +2,6 @@
 
 # Pass this script a list of host names to use as the test nodes.
 
-import time
-
 from python import drbdtest2
 
 resource = drbdtest2.setup(max_nodes=5)
@@ -19,8 +17,6 @@ resource.forbidden_patterns.update([
 # Note: this test does not define any devices, so disconnecting does not
 # require a two-phase commit.  The peer of a disconnecting node will only
 # notice a socket close.
-
-time.sleep(10)
 
 resource.down()
 

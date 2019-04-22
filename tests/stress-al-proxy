@@ -1,0 +1,71 @@
+#! /usr/bin/env python
+# Pass this script a list of host names to use as the test nodes.
+
+import time
+import random
+import signal
+from python import drbdtest2
+from python.drbdtest2 import verbose
+
+def alarm_handler(signum, frame):
+    raise Exception("timeout")
+
+# main
+
+random.seed()
+resource = drbdtest2.setup(min_nodes=2, max_nodes=5)
+resource.disk_options = 'al-extents 67;'
+resource.nodes.config_changed = True
+resource.nodes.update_config()
+
+diskless_n = random.choice(resource.nodes)
+diskful_nodes = resource.nodes.difference([diskless_n])
+
+resource.add_disk('512M', diskful_nodes=diskful_nodes)
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+verbose('* Beginning AL stress test')
+diskless_n.primary()
+
+
+for i in range(1, 5):
+    try:
+        old_sig = signal.signal(signal.SIGALRM, alarm_handler)
+        signal.alarm(2) # seconds
+        diskless_n.run(['stress-al.py', resource.volumes[0].device(), '127'])
+        signal.alarm(0) #disarm
+        signal.signal(signal.SIGALRM, old_sig)
+    except Exception, e:
+        verbose('* Test failed, IO blocked! %s' % (e))
+        signal.alarm(0) #disarm
+        signal.signal(signal.SIGALRM, old_sig)
+        resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
+        diskful_nodes.connections.to_node(diskless_n).disconnect(force=True)
+
+        try:
+            diskless_n.run(['true'])
+            # This collects the exception for the IO error. On the primary/diskless
+            # node the stress-al.py exits with an error code. We need to "collect"
+            # that excetpion before using node.run() the next time
+        except:
+            pass
+
+        diskless_n.secondary()
+        resource.down()
+        time.sleep(2)
+        resource.rmmod()
+        exit(10)
+
+diskless_n.secondary()
+diskful_nodes.connections.to_node(diskless_n).event(r'connection .* role:Secondary')
+time.sleep(1)
+
+verbose('* Shut down and clean up.')
+try:
+    resource.down()
+except:
+    pass
+resource.rmmod()

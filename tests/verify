@@ -140,7 +140,7 @@ def DoVerify(src_node, dst_node, expected):
 
 def DoSync(node1, node2):
     node1.disconnect(node2, wait=True)
-    node1.run(["drbdadm", "new-current-uuid", "%s/0" % resource.name]);
+    node1.run(["drbdadm", "new-current-uuid", "%s/0" % resource.name])
     node1.connect(node2)
     node1.event(r'connection .* connection:Connected')
     node2.event(r'connection .* connection:Connected')
@@ -181,3 +181,4 @@ for with_changes in (0, 1):
     # DoSync(other, first)
     # for n in resource.nodes:
     #     CheckContent(n, changed)
+

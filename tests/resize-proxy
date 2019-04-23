@@ -1,0 +1,213 @@
+#! /usr/bin/env python
+
+# Pass this script a list of host names to use as the test nodes.
+# From 3 nodes on, one will only be weakly connected;
+# from 4 nodes on, one will be diskless.
+
+from python import drbdtest2
+from python.drbdtest2 import verbose
+from subprocess import CalledProcessError
+import time
+
+# In MB; should be a multiple of the PE size, so that there's _really_ a size change ;)
+size = 8
+step = 8
+
+def verify_size(size_mb = 0):
+    common_size = 0
+    for n in resource.nodes:
+        size_bytes = int(n.run(['blockdev', '--getsize64',
+                                '/dev/drbd%d' % (n.disks[0].minor)],
+                               return_stdout=True))
+        if size_mb:
+            if size_mb * 2**20 != size_bytes:
+                raise RuntimeError("Expected %dM found %dM on %s" %
+                                   (size_mb, size_bytes / 2.0**20, n.name))
+        if common_size == 0:
+            common_size = size_bytes
+        else:
+            if size_bytes != common_size:
+                raise RuntimeError("Expected %d found %d on %s" %
+                                   (common_size, size_bytes, n.name))
+
+
+resource = drbdtest2.setup(min_nodes=2, max_nodes=5)
+
+# Node sets
+client_nodes = []
+weak_node = None
+nr_nodes = len(resource.nodes)
+
+# Settle time in seconds (should be 0)
+settle_time = 0.1
+
+if nr_nodes > 3:
+    diskful_nodes = resource.nodes[0:nr_nodes - 1]
+else:
+    diskful_nodes = resource.nodes
+
+# don't have the diskless one weakly connected, too!
+if len(resource.nodes) > 2:
+    weak_node = diskful_nodes[-1]
+
+# take a strong one
+first_node = diskful_nodes[0]
+
+# Initialization
+resource.add_disk('%dM' % size, diskful_nodes=diskful_nodes)
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+# make one node "weakly" connected
+#if weak_node:
+#    for n in resource.nodes:
+#        if n != weak_node and n != first_node:
+#            weak_node.disconnect(n)
+
+#first_node.fio(section="write")
+
+
+## TODOs: add some test for --assume-peer-has-space
+
+verbose('* Resize on each diskfull node once. Testing --size and --assume-clean')
+for n in diskful_nodes:
+    # new values
+    size += step
+    size_str = "%dM" % size
+
+    verbose('* Node %s wants to use %dMB;' % (n, size - 1))
+
+    # Only if same VG everywhere
+    diskful_nodes.volumes.resize(size_str)
+
+    n.run(['drbdadm', 'resize', '--assume-clean',
+                     '--size=%dM' % (size - 1), resource.name])
+
+    time.sleep(settle_time)
+    verify_size(size-1)
+
+
+# This is also a test of two-phase-commit serializing concurrent transactions,
+# since starting the transaction al all nodes concurrently.
+verbose('* Get rid of the user supplied size')
+diskful_nodes.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+
+verbose('* Resize on each diskfull node once. Testing --assume-clean')
+for n in diskful_nodes:
+    size += step
+    size_str = "%dM" % size
+
+    verbose('* Node %s wants to use %dMB;' % (n, size))
+
+    diskful_nodes.volumes.resize(size_str)
+
+    n.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+
+    time.sleep(settle_time)
+    verify_size()
+
+
+verbose('* Check resync after resize.')
+size += step
+size_str = "%dM" % size
+diskful_nodes.volumes.resize(size_str)
+first_node.run(['drbdadm', 'resize', resource.name])
+
+rstn = diskful_nodes.difference([first_node])
+pds = drbdtest2.PeerDevices()
+for n in rstn:
+    pds.add(drbdtest2.PeerDevice(drbdtest2.Connection(first_node, n), first_node.volumes[0]))
+pds.event(r'peer-device .* replication:SyncSource')
+pds.event(r'peer-device .* replication:Established')
+rstn.volumes.event(r'device .* disk:Inconsistent')
+rstn.volumes.event(r'device .* disk:UpToDate')
+
+if nr_nodes >= 5:
+    verbose('* Forming a sigma-shaped cluster')
+    #
+    # This tests what the two-phase-commit logic does at node 3
+    # where the prepare (and commit) arrives two times.
+    #
+
+    # sigma:
+    #    1
+    #   / \
+    #  0   3--4
+    #   \ /
+    #    2
+    sigma = drbdtest2.Connections()
+    sigma.bidir_add(resource.nodes[0], resource.nodes[1])
+    sigma.bidir_add(resource.nodes[0], resource.nodes[2])
+    sigma.bidir_add(resource.nodes[1], resource.nodes[3])
+    sigma.bidir_add(resource.nodes[2], resource.nodes[3])
+    sigma.bidir_add(resource.nodes[3], resource.nodes[4])
+
+    resource.connections.difference(sigma).disconnect()
+
+    size += step
+    size_str = "%dM" % size
+
+    verbose('* Resizing disks to %dMB;' % (size))
+
+    diskful_nodes.volumes.resize(size_str)
+
+    first_node.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+    time.sleep(settle_time)
+    verify_size()
+
+if len(resource.nodes.diskless) >= 1:
+    verbose('* Verify consistency between old resize code an 2pc code')
+    # Resize using 2pc code. The connect of the diskless works only if
+    # some caching members (like peer_device->max_size) in DRBD where
+    # updated correctly by the 2pc code.
+    resource.down()
+
+    two_nodes = diskful_nodes[0:2]
+    two_nodes.up()
+
+    pds = drbdtest2.PeerDevices()
+    pds.add(drbdtest2.PeerDevice(drbdtest2.Connection(two_nodes[0], two_nodes[1]), two_nodes[0].volumes[0]))
+    pds.add(drbdtest2.PeerDevice(drbdtest2.Connection(two_nodes[1], two_nodes[0]), two_nodes[1].volumes[0]))
+    pds.event(r'peer-device .* peer-disk:UpToDate')
+
+    # this is part of up_wait, so add it here explicitly:
+    resource.forbidden_patterns.update([
+        r'connection:BrokenPipe',
+        r'connection:NetworkFailure'])
+
+    size += step
+    size_str = "%dM" % size
+    two_nodes.volumes.resize(size_str)
+
+    n = diskful_nodes[0]
+    n.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+
+    diskless_node = resource.nodes.diskless[0]
+    diskless_node.up()
+
+    pds = drbdtest2.PeerDevices()
+    for n in two_nodes:
+        pds.add(drbdtest2.PeerDevice(drbdtest2.Connection(diskless_node, n), diskless_node.volumes[0]))
+    pds.event(r'peer-device .* replication:Established')
+    # Unfortunately the BrokenPipe comes in after the Established, so do something in order to
+    # see the BrokenPipe...
+    diskless_node.primary()
+    diskless_node.secondary()
+    time.sleep(settle_time)
+
+    verbose('* Shut down and clean up.')
+    try:
+        diskless_node.down()
+        two_nodes.down()
+    except:
+        pass
+else:
+    verbose('* Shut down and clean up.')
+    try:
+        resource.down()
+    except:
+        pass
+
+resource.rmmod()

@@ -1035,10 +1035,6 @@ class Node(exxe.Exxe):
         except:
             raise RuntimeError('Could not determine IP for host %s' % name)
 
-        # if proxy_enable:
-        #     self.port = 7788
-        # else:
-        #     self.port = port
         self.port = port
         self.disks = []  # by volume
         self.id = len(self.resource.nodes)
@@ -1206,13 +1202,18 @@ class Node(exxe.Exxe):
                     net.write("transport rdma;")
                 net.write(resource.net_options)
 
-            # NOTE: (wap) W/ linstor, separate proxy stanza not needed
-            # with ConfigBlock(t='proxy') as proxy:
-            #     if proxy_enable:
-            #         proxy.write("# PROXY ENABLED;")
-            #     else:
-            #         proxy.write("# PROXY NOT ENABLED;")
-            #     proxy.write(resource.proxy_options)
+            # NOTE: (wap) W/ drbd9/LINSTOR, separate proxy stanza not needed
+            #       for proxy but only for proxy options like compressions
+            with ConfigBlock(t='proxy') as proxy:
+                if proxy_enable:
+                    if lz4_enable:
+                        with ConfigBlock(t='plugin') as proxy_plugin:
+                            proxy_plugin.write("lz4;")
+                    elif zstd_enable:
+                        with ConfigBlock(t='plugin') as proxy_plugin:
+                            proxy_plugin.write("zstd;")
+
+                # proxy.write(resource.proxy_options)
 
             for index, n in enumerate(resource.nodes):
                 self.config_host(n, index=index)
@@ -1597,6 +1598,8 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--report-and-quit', action="store_true")
     parser.add_argument('--no-rmmod', action="store_true")
     parser.add_argument('--proxy', action="store_true")
+    parser.add_argument('--lz4', action="store_true")
+    parser.add_argument('--zstd', action="store_true")
     args = parser.parse_args()
 
     if nodes is not None:
@@ -1668,6 +1671,12 @@ def setup(parser=argparse.ArgumentParser(),
 
     global proxy_enable
     proxy_enable = args.proxy
+
+    global lz4_enable
+    lz4_enable = args.lz4
+
+    global zstd_enable
+    zstd_enable = args.zstd
 
     Cleanup(args.cleanup)
     resource = _res_class(args.resource,

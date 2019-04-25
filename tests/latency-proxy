@@ -8,7 +8,7 @@ from python.drbdtest2 import verbose
 from python.drbdtest2 import Measurement
 from subprocess import CalledProcessError
 
-resource = drbdtest2.setup(min_nodes=2, max_nodes=2)
+resource = drbdtest2.setup(nodes=2)
 resource.add_disk('4M')
 resource.net_options = 'ping-timeout 30; sndbuf-size 4M; rcvbuf-size 4M; '
 resource.nodes.config_changed = True
@@ -65,27 +65,18 @@ first.run(['drbdsetup', 'net-options', resource.name, '1', '--protocol=A'])
 
 r_w_rw('connected-prot-A')
 
-
-print("About to add delay")
-
 # FIXME: only to the second node?
 first.run(['tc', 'qdisc', 'add', 'dev', dev, 'root', 'netem', 'delay', '50ms'])
-
-print("Added delay")
 
 r_w_rw('connected-prot-A-delayed')
 
 first.run(['tc', 'qdisc', 'del', 'dev', dev, 'root'])
-
-print("Removed delay")
 
 # ensure that no bad things happened in the meantime
 # we use the role switching as unique event
 first.secondary()
 second.primary()
 second.secondary()
-
-print("Finished role toggling")
 
 # FIXME: how to check for UpToDate? Would need to store last event?
 # I hope that the forbidden events catch connection loss, as we're reading
@@ -95,8 +86,6 @@ print("Finished role toggling")
 
 first.disconnect(second)
 
-print("Disconnecting second")
-
 # need to be primary, to avoid swinging around?
 first.primary()
 
@@ -104,8 +93,6 @@ r_w_rw('unconnected')
 
 
 verbose('* Shut down and clean up.')
-
-print("Cleaning up")
 
 # FIXME: (wap) helps suppress clean up error w/ proxy connection for now
 try:

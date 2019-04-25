@@ -31,7 +31,7 @@ def verify_size(size_mb = 0):
                                    (common_size, size_bytes, n.name))
 
 
-resource = drbdtest2.setup(min_nodes=2, max_nodes=5)
+resource = drbdtest2.setup(nodes=2)
 
 # Node sets
 client_nodes = []

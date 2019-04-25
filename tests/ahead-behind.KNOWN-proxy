@@ -8,7 +8,7 @@ from python import drbdtest2
 from python.drbdtest2 import verbose
 from subprocess import CalledProcessError
 
-resource = drbdtest2.setup(min_nodes=2, max_nodes=3)
+resource = drbdtest2.setup(nodes=2)
 
 resource.add_disk('64M')
 resource.net_options = 'on-congestion pull-ahead; congestion-fill 10k; protocol A;'

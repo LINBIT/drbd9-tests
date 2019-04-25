@@ -5,7 +5,7 @@
 from python import drbdtest2
 from python.drbdtest2 import verbose
 
-resource = drbdtest2.setup(max_nodes=2)
+resource = drbdtest2.setup(nodes=2)
 first_node = resource.nodes[0]
 other_node = resource.nodes.difference([first_node])
 

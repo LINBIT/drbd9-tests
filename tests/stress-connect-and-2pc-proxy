@@ -6,7 +6,7 @@ from python import drbdtest2
 from python.drbdtest2 import verbose
 from subprocess import CalledProcessError
 
-resource = drbdtest2.setup(min_nodes=2, max_nodes=5)
+resource = drbdtest2.setup(nodes=2)
 resource.resource_options = 'twopc-timeout 600;'
 resource.net_options = 'socket-check-timeout 5;'
 resource.add_disk('4M')

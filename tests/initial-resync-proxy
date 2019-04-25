@@ -6,11 +6,11 @@
 from python import drbdtest2
 from python.drbdtest2 import verbose
 
-resource = drbdtest2.setup(max_nodes=5)
+resource = drbdtest2.setup(nodes=2)
 first_node = resource.nodes[0]
 other_nodes = resource.nodes.difference([first_node])
 
-resource.add_disk('30M')
+resource.add_disk('10M')
 
 verbose('* Bring up the first node, make it primary, and write defined data onto all volumes.')
 first_node.up_wait()

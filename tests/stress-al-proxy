@@ -13,7 +13,7 @@ def alarm_handler(signum, frame):
 # main
 
 random.seed()
-resource = drbdtest2.setup(min_nodes=2, max_nodes=5)
+resource = drbdtest2.setup(nodes=2)
 resource.disk_options = 'al-extents 67;'
 resource.nodes.config_changed = True
 resource.nodes.update_config()

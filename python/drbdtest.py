@@ -13,6 +13,8 @@
 # consoles, syslogs, and event logs once. We need to prefix the .pos file names
 # and the log messages with the resource name.
 
+# FIXME: Upgrade to Python 3
+
 from __future__ import print_function
 
 import os
@@ -258,7 +260,13 @@ class Nodes(Collection):
         #self.run(['bash', '-c', 'drbdadm up all -v | grep    " connect " | PATH=/lib/drbd:$PATH bash -x'])
         self.after_up()
 
+        if proxy_enable:
+            self.run(['drbdadm', 'proxy-up', 'all', '-v'] + extra_options)
+
     def down(self):
+        if proxy_enable:
+            self.run(['drbdadm', 'proxy-down', 'all', '-v'])
+
         self.resource().forbidden_patterns.difference_update([
             r'connection:BrokenPipe'
         ])
@@ -550,6 +558,8 @@ class Resource(object):
         self.net_options = ""
         self.disk_options = ""
         self.resource_options = ""
+        # NOTE: (wap) Not needed for now
+        # self.proxy_options = ""
         self.handlers = ""
         self.nodes = Nodes()
         self.num_volumes = 0
@@ -613,7 +623,11 @@ class Resource(object):
                     n.run(['rmmod', 'drbd_transport_tcp'])
                 except:
                     pass
-        self.nodes.run(['rmmod', 'drbd'])
+
+        try:
+            self.nodes.run(['rmmod', 'drbd'])
+        except:
+            pass
 
     def logscan(self, collection, where, *args, **kwargs):
         """ Run logscan to scan / wait for events to occur. """
@@ -1118,13 +1132,26 @@ class Node(exxe.Exxe):
 
     def _config_one_connection(self, n1, n2):
         with ConfigBlock(t="connection"):
-            with ConfigBlock(t='net'):
-                pass
+            port_inside = self.port
+            port_outside = self.port
 
-            for i, a1, a2 in zip(xrange(len(n1.addr)), n1.addrs, n2.addrs):
-                with ConfigBlock(t='path') as path:
-                    self._config_one_host_addr(n1, path, i)
-                    self._config_one_host_addr(n2, path, i)
+            if proxy_enable:
+                with ConfigBlock(t='host %s address 127.0.0.1:%s via proxy on %s'
+                        % (n1.name, n1.port, n1.name)) as N1:
+                    N1.write("inside 127.0.0.2:%s;" % port_inside)
+                    N1.write("outside ipv4 %s:%s;"% (n1.addrs[0], port_outside))
+                with ConfigBlock(t='host %s address 127.0.0.1:%s via proxy on %s'
+                        % (n2.name, n2.port, n2.name)) as N2:
+                    N2.write("inside 127.0.0.2:%s;" % port_inside)
+                    N2.write("outside ipv4 %s:%s;"% (n2.addrs[0], port_outside))
+            else:
+                with ConfigBlock(t='net'):
+                    pass
+
+                for i, a1, a2 in zip(xrange(len(n1.addr)), n1.addrs, n2.addrs):
+                    with ConfigBlock(t='path') as path:
+                        self._config_one_host_addr(n1, path, i)
+                        self._config_one_host_addr(n2, path, i)
 
     def _config_conns_9(self):
         for start, n1 in enumerate(self.resource.nodes):
@@ -1171,6 +1198,17 @@ class Node(exxe.Exxe):
                     net.write("transport rdma;")
                 net.write(resource.net_options)
 
+            # NOTE: (wap) W/ drbd9/LINSTOR, separate proxy stanza not needed
+            #       for proxy but only for proxy options like compressions
+            with ConfigBlock(t='proxy') as proxy:
+                if proxy_enable:
+                    if lz4_enable:
+                        with ConfigBlock(t='plugin') as proxy_plugin:
+                            proxy_plugin.write("lz4;")
+                    elif zstd_enable:
+                        with ConfigBlock(t='plugin') as proxy_plugin:
+                            proxy_plugin.write("zstd;")
+
             for index, n in enumerate(resource.nodes):
                 self.config_host(n, index=index)
 
@@ -1192,6 +1230,11 @@ class Node(exxe.Exxe):
             file.write(config)
             file.close
             self.run(['install-config'], stdin=StringIO(config), prepare=True)
+
+    def config_proxy(self):
+        """ Update DRBD proxy options in the configuration file. """
+        # TODO: (wap) Implement adding proxy options
+        pass
 
     def listen_to_events(self):
         file = open(os.path.join(self.resource.logdir,
@@ -1547,6 +1590,9 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--override-max', action="store_true")
     parser.add_argument('--report-and-quit', action="store_true")
     parser.add_argument('--no-rmmod', action="store_true")
+    parser.add_argument('--proxy', action="store_true")
+    parser.add_argument('--lz4', action="store_true")
+    parser.add_argument('--zstd', action="store_true")
     args = parser.parse_args()
 
     if nodes is not None:
@@ -1615,6 +1661,15 @@ def setup(parser=argparse.ArgumentParser(),
 
     global tee
     tee = Tee(open(os.path.join(args.logdir, 'test.log'), 'w'))
+
+    global proxy_enable
+    proxy_enable = args.proxy
+
+    global lz4_enable
+    lz4_enable = args.lz4
+
+    global zstd_enable
+    zstd_enable = args.zstd
 
     Cleanup(args.cleanup)
     resource = _res_class(args.resource,

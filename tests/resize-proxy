@@ -1,11 +1,9 @@
 #! /usr/bin/env python
 
 # Pass this script a list of host names to use as the test nodes.
-# From 3 nodes on, one will only be weakly connected;
-# from 4 nodes on, one will be diskless.
 
-from python import drbdtest2
-from python.drbdtest2 import verbose
+from python import drbdtest
+from python.drbdtest import verbose
 from subprocess import CalledProcessError
 import time
 
@@ -31,7 +29,7 @@ def verify_size(size_mb = 0):
                                    (common_size, size_bytes, n.name))
 
 
-resource = drbdtest2.setup(nodes=2)
+resource = drbdtest.setup(nodes=2)
 
 # Node sets
 client_nodes = []
@@ -116,9 +114,9 @@ diskful_nodes.volumes.resize(size_str)
 first_node.run(['drbdadm', 'resize', resource.name])
 
 rstn = diskful_nodes.difference([first_node])
-pds = drbdtest2.PeerDevices()
+pds = drbdtest.PeerDevices()
 for n in rstn:
-    pds.add(drbdtest2.PeerDevice(drbdtest2.Connection(first_node, n), first_node.volumes[0]))
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(first_node, n), first_node.volumes[0]))
 pds.event(r'peer-device .* replication:SyncSource')
 pds.event(r'peer-device .* replication:Established')
 rstn.volumes.event(r'device .* disk:Inconsistent')
@@ -137,7 +135,7 @@ if nr_nodes >= 5:
     #  0   3--4
     #   \ /
     #    2
-    sigma = drbdtest2.Connections()
+    sigma = drbdtest.Connections()
     sigma.bidir_add(resource.nodes[0], resource.nodes[1])
     sigma.bidir_add(resource.nodes[0], resource.nodes[2])
     sigma.bidir_add(resource.nodes[1], resource.nodes[3])
@@ -167,9 +165,9 @@ if len(resource.nodes.diskless) >= 1:
     two_nodes = diskful_nodes[0:2]
     two_nodes.up()
 
-    pds = drbdtest2.PeerDevices()
-    pds.add(drbdtest2.PeerDevice(drbdtest2.Connection(two_nodes[0], two_nodes[1]), two_nodes[0].volumes[0]))
-    pds.add(drbdtest2.PeerDevice(drbdtest2.Connection(two_nodes[1], two_nodes[0]), two_nodes[1].volumes[0]))
+    pds = drbdtest.PeerDevices()
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(two_nodes[0], two_nodes[1]), two_nodes[0].volumes[0]))
+    pds.add(drbdtest.PeerDevice(drbdtest.Connection(two_nodes[1], two_nodes[0]), two_nodes[1].volumes[0]))
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
     # this is part of up_wait, so add it here explicitly:
@@ -187,9 +185,9 @@ if len(resource.nodes.diskless) >= 1:
     diskless_node = resource.nodes.diskless[0]
     diskless_node.up()
 
-    pds = drbdtest2.PeerDevices()
+    pds = drbdtest.PeerDevices()
     for n in two_nodes:
-        pds.add(drbdtest2.PeerDevice(drbdtest2.Connection(diskless_node, n), diskless_node.volumes[0]))
+        pds.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, n), diskless_node.volumes[0]))
     pds.event(r'peer-device .* replication:Established')
     # Unfortunately the BrokenPipe comes in after the Established, so do something in order to
     # see the BrokenPipe...

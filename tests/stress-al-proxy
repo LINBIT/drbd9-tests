@@ -4,8 +4,8 @@
 import time
 import random
 import signal
-from python import drbdtest2
-from python.drbdtest2 import verbose
+from python import drbdtest
+from python.drbdtest import verbose
 
 def alarm_handler(signum, frame):
     raise Exception("timeout")
@@ -13,7 +13,7 @@ def alarm_handler(signum, frame):
 # main
 
 random.seed()
-resource = drbdtest2.setup(nodes=2)
+resource = drbdtest.setup(nodes=2)
 resource.disk_options = 'al-extents 67;'
 resource.nodes.config_changed = True
 resource.nodes.update_config()

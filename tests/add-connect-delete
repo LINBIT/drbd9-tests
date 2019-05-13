@@ -10,37 +10,27 @@ from python.drbdtest import verbose
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
 resource.add_disk('4M')
 
-
 # need the second node only to get a network config etc.
 node = resource.nodes[0]
 node.up()
 
 # wait for the initialization to be done
 node.event(r'connection .* connection:Connecting')
-time.sleep(1)
 
+# try del-path; VM must not crash
+try:
+    node.run(["drbdadm", "del-path", "all", "-v"])
+    raise RuntimeError("drbdadm del-path should have returned an error code")
+except:
+    pass
 
-# a few tries to make it crash
-for i in (1, 2, 3):
-    verbose("Try %d" % i) 
+node.adjust()
+try:
+    node.run(["drbdadm", "del-peer", "all", "-v"])
+    raise RuntimeError("drbdadm del-peer should have returned an error code")
+except:
+    pass
 
-    node.adjust()
-
-    # try del-path; VM must not crash
-    try:
-        node.run(["drbdadm", "del-path", "all", "-v"])
-    except:
-        pass
-    time.sleep(2)
-
-
-    node.adjust()
-    try:
-        node.run(["drbdadm", "del-peer", "all", "-v"])
-    except:
-        pass
-    time.sleep(2)
-
-
-# delay for some seconds, perhaps we'll still crash
-time.sleep(4)
+# verify that the VM is still running by requesting some action
+# and waiting for it to happen.
+node.primary(force=True, wait=True)

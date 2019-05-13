@@ -2,7 +2,6 @@
 
 # Pass this script a host name to use as the test node.
 
-import time
 import subprocess
 
 from python import drbdtest
@@ -11,43 +10,27 @@ from python.drbdtest import verbose
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
 resource.add_disk('4M')
 
-
 # need the second node only to get a network config etc.
 node = resource.nodes[0]
 node.up()
 
 # wait for the initialization to be done
 node.event(r'connection .* connection:Connecting')
-time.sleep(1)
 
+# run these commands again; VM must not crash.
+# drbdadm is expected to report an error.
+try:
+    node.run(["drbdadm", "new-path", "all", "-v"])
+    raise RuntimeError("drbdadm new-path should have returned an error code")
+except subprocess.CalledProcessError:
+    pass
 
-# a few tries to make it crash
-for i in (1, 2, 3):
-    verbose("Try %d" % i) 
+try:
+    node.run(["drbdadm", "new-peer", "all", "-v"])
+    raise RuntimeError("drbdadm new-peer should have returned an error code")
+except subprocess.CalledProcessError:
+    pass
 
-    try:
-        node.adjust()
-    except:
-        pass
-
-
-    # run these commands again; VM must not crash.
-    # drbdadm is expected to report an error.
-    adm_stat = 0
-    try:
-        node.run(["drbdadm", "new-path", "all", "-v"])
-        raise RuntimeError("drbdadm new-path should've return an error code")
-    except subprocess.CalledProcessError:
-        pass
-    time.sleep(2)
-
-    try:
-        node.run(["drbdadm", "new-peer", "all", "-v"])
-        raise RuntimeError("drbdadm new-path should've return an error code")
-    except subprocess.CalledProcessError:
-        pass
-    time.sleep(2)
-
-
-# delay for some seconds, perhaps we'll still crash
-time.sleep(4)
+# verify that the VM is still running by requesting some action
+# and waiting for it to happen.
+node.primary(force=True, wait=True)

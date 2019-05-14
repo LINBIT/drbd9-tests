@@ -2,7 +2,11 @@
 
 # Pass this script a list of host names to use as the test nodes.
 
+import sys
+
 from python import drbdtest
+
+sys.argv.extend(['--proxy'])
 
 resource = drbdtest.setup(nodes=2)
 

@@ -2,10 +2,14 @@
 
 # Pass this script a list of host names to use as the test nodes.
 
+from subprocess import CalledProcessError
+import sys
+import time
+
 from python import drbdtest
 from python.drbdtest import verbose
-from subprocess import CalledProcessError
-import time
+
+sys.argv.extend(['--proxy'])
 
 # In MB; should be a multiple of the PE size, so that there's _really_ a size change ;)
 size = 8

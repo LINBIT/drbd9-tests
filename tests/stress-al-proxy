@@ -4,8 +4,12 @@
 import time
 import random
 import signal
+import sys
+
 from python import drbdtest
 from python.drbdtest import verbose
+
+sys.argv.extend(['--proxy'])
 
 def alarm_handler(signum, frame):
     raise Exception("timeout")

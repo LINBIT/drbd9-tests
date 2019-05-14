@@ -3,8 +3,12 @@
 # Pass this script a list of host names to use as the test nodes.
 
 # import time
+import sys
+
 from python import drbdtest
 from python.drbdtest import verbose
+
+sys.argv.extend(['--proxy'])
 
 resource = drbdtest.setup(nodes=2)
 first_node = resource.nodes[0]

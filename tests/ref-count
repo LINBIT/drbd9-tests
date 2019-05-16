@@ -4,6 +4,7 @@
 
 from python import drbdtest
 import re
+import time
 
 
 def get_ref_counts(lines, which):
@@ -71,6 +72,7 @@ expect_drbd(node, 2, 1)
 
 # Now "up" with wrong data
 node.down()
+time.sleep(0.1) # the reference doesn't get freed immediately. give it some time to settle
 expect_drbd(node, 1, 0)
 resource.net_options = 'verify-alg quaxi-wurstly;'
 node.config_changed = True

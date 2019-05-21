@@ -1,2 +1,1 @@
 {"vms":2, "tests": ["connect-proxy", "initial-resync-proxy", "latency-proxy", "misaligned-bio-proxy", "resize-proxy", "stress-connect-and-2pc-proxy", "switch-primaries-proxy"]}
-{"vms":3, "tests": ["connect-proxy", "initial-resync-proxy", "latency-proxy", "misaligned-bio-proxy", "resize-proxy", "stress-connect-and-2pc-proxy", "switch-primaries-proxy"]}

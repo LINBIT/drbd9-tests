@@ -1,0 +1,91 @@
+#! /usr/bin/env python
+
+# This test is run on a 3-node cluster
+#
+#     B
+#   / |
+# A   |
+#   \ |
+#     C
+#
+# Phases of this test:
+# 1) C is isolated, and B writes a large amount of data (100MiB)
+#
+# 2) C is reconnected, which should trigger a resync between B and C
+#
+# 3) While the resync is in progress, A starts generating lots of
+#    writes. The catch is that the connection between A and C is
+#    slower, so that the SyncSource gets the requests before the
+#    SyncTarget. This should (or, ideally, shouldn't) cause the
+#    cluster to deadlock.
+
+from python import drbdtest
+from python.drbdtest import verbose
+import time
+import socket
+
+def slow_down_connection(from_n, to_n, speed='', delay=''):
+    ip = socket.gethostbyname(to_n.hostname)
+    verbose('Slowing down connection from {0} to {1} ({2})'.format(from_n.hostname, to_n.hostname, ip))
+    from_n.run(['tc', 'qdisc', 'add', 'dev', 'eth0', 'root', 'handle', '1:', 'prio'])
+    if delay != '':
+        from_n.run(['tc', 'qdisc', 'add', 'dev', 'eth0', 'parent', '1:1', 'handle', '2:', 'netem', 'delay', delay])
+    else:
+        from_n.run(['tc', 'qdisc', 'add', 'dev', 'eth0', 'parent', '1:1', 'handle', '2:', 'netem', 'rate', speed])
+
+    from_n.run(['tc', 'filter', 'add', 'dev', 'eth0', 'parent', '1:0', 'protocol', 'ip', 'pref', '55', 'handle', '::55', 'u32', 'match', 'ip', 'dst', ip, 'flowid', '2:1'])
+
+def restore_slow_down(n):
+    n.run(['tc', 'qdisc', 'del', 'root', 'dev', 'eth0'])
+
+def write_on_node(node):
+    for v in node.volumes:
+        # write 100 MiB at offset 10 MiB
+        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
+                  'seek=2560', 'count=25600', 'conv=fsync'])
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.net_options = 'connect-int 1;'
+
+a = resource.nodes[0]
+b = resource.nodes[1]
+c = resource.nodes[2]
+
+a_c = drbdtest.Connection(a, c)
+b_c = drbdtest.Connection(b, c)
+to_c = drbdtest.Connections([a_c, b_c])
+c_a = drbdtest.Connection(c, a)
+c_b = drbdtest.Connection(c, b)
+from_c = drbdtest.Connections([c_a, c_b])
+
+resource.add_disk('128M')
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+b_c.disconnect()
+c_b.event(r'connection .* connection:TearDown')
+c_b.event(r'connection .* connection:Connecting')
+b.primary()
+
+write_on_node(b)
+
+slow_down_connection(a, c, delay='100ms')
+slow_down_connection(b, c, speed='100mbit')
+b_c.connect()
+b_c.event(r'connection .* connection:Connected')
+c_b.event(r'connection .* connection:Connected')
+
+b.secondary()
+a.primary()
+write_on_node(a)
+
+c.event(r'response helper .* helper:after-resync-target')
+
+verbose('* Shut down and clean up.')
+
+restore_slow_down(a)
+restore_slow_down(b)
+resource.down()
+resource.rmmod()

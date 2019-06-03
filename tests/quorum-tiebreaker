@@ -28,10 +28,6 @@ def my_verbose(str):
     for node in resource.nodes:
         node.run(["echo", str])
 
-def pause():
-    print('Press enter')
-    os.system('read')
-
 def test_case1():
     """
     Case 1: Network connection between primary and secondary is interrupted
@@ -253,6 +249,14 @@ cases = [test_case1, test_case2, test_case3, test_case3_promote]
 random.shuffle(cases)
 
 verbose('Execution order: ' + str([c.__name__ for c in cases]))
+
+for case in cases:
+    case()
+
+# run all tests again, but this time with a fixed quorum amount
+resource.resource_options = 'quorum 2; on-no-quorum io-error;'
+resource.nodes.config_changed = True
+resource.nodes.update_config()
 
 for case in cases:
     case()

@@ -25,18 +25,20 @@ import time
 import socket
 
 def slow_down_connection(from_n, to_n, speed='', delay=''):
+    dev = from_n.net_device_to_peer(to_n)
     ip = socket.gethostbyname(to_n.hostname)
     verbose('Slowing down connection from {0} to {1} ({2})'.format(from_n.hostname, to_n.hostname, ip))
-    from_n.run(['tc', 'qdisc', 'add', 'dev', 'eth0', 'root', 'handle', '1:', 'prio'])
+    from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'root', 'handle', '1:', 'prio'])
     if delay != '':
-        from_n.run(['tc', 'qdisc', 'add', 'dev', 'eth0', 'parent', '1:1', 'handle', '2:', 'netem', 'delay', delay])
+        from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'delay', delay])
     else:
-        from_n.run(['tc', 'qdisc', 'add', 'dev', 'eth0', 'parent', '1:1', 'handle', '2:', 'netem', 'rate', speed])
+        from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'rate', speed])
 
-    from_n.run(['tc', 'filter', 'add', 'dev', 'eth0', 'parent', '1:0', 'protocol', 'ip', 'pref', '55', 'handle', '::55', 'u32', 'match', 'ip', 'dst', ip, 'flowid', '2:1'])
+    from_n.run(['tc', 'filter', 'add', 'dev', dev, 'parent', '1:0', 'protocol', 'ip', 'pref', '55', 'handle', '::55', 'u32', 'match', 'ip', 'dst', ip, 'flowid', '2:1'])
 
-def restore_slow_down(n):
-    n.run(['tc', 'qdisc', 'del', 'root', 'dev', 'eth0'])
+def restore_slow_down(from_n, to_n):
+    dev = from_n.net_device_to_peer(to_n)
+    from_n.run(['tc', 'qdisc', 'del', 'root', 'dev', dev])
 
 def write_on_node(node):
     for v in node.volumes:
@@ -85,7 +87,7 @@ c.event(r'response helper .* helper:after-resync-target')
 
 verbose('* Shut down and clean up.')
 
-restore_slow_down(a)
-restore_slow_down(b)
+restore_slow_down(a, c)
+restore_slow_down(b, c)
 resource.down()
 resource.rmmod()

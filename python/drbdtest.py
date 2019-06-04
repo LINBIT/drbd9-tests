@@ -1207,7 +1207,7 @@ class Node(exxe.Exxe):
                             proxy_plugin.write("lz4;")
                     elif zstd_enable:
                         with ConfigBlock(t='plugin') as proxy_plugin:
-                            proxy_plugin.write("zstd;")
+                            proxy_plugin.write("zstd levels %d;" % zstd_enable)
 
                     try:
                         if memlimit:
@@ -1601,7 +1601,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--no-rmmod', action="store_true")
     parser.add_argument('--proxy', action="store_true")
     parser.add_argument('--lz4', action="store_true")
-    parser.add_argument('--zstd', action="store_true")
+    parser.add_argument('--zstd', type=int)
     parser.add_argument('--memlimit', type=int)
     args = parser.parse_args()
 
@@ -1679,7 +1679,10 @@ def setup(parser=argparse.ArgumentParser(),
     lz4_enable = args.lz4
 
     global zstd_enable
-    zstd_enable = args.zstd
+    if args.zstd > 0 and args.zstd <= 22:
+        zstd_enable = args.zstd
+    else:
+        zstd_enable = 3
 
     if args.memlimit:
         global memlimit

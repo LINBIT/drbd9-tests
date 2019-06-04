@@ -1209,6 +1209,12 @@ class Node(exxe.Exxe):
                         with ConfigBlock(t='plugin') as proxy_plugin:
                             proxy_plugin.write("zstd;")
 
+                    try:
+                        if memlimit:
+                            proxy.write("memlimit %d;" % memlimit)
+                    except:
+                        pass
+
             for index, n in enumerate(resource.nodes):
                 self.config_host(n, index=index)
 
@@ -1572,6 +1578,9 @@ def setup(parser=argparse.ArgumentParser(),
                    (for recognizing additional arguments)
       nodes, min_nodes, max_nodes
                 -- exact, minimum, and maximum number of test nodes required
+      proxy     -- enables proxy connection between two test nodes
+      lz4, zstd -- enables compression plugins with DRBD proxy
+      memlimit  -- sets memlimit value for DRBD proxy
     """
     parser.add_argument('node', nargs='*')
     parser.add_argument('--job')
@@ -1593,6 +1602,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--proxy', action="store_true")
     parser.add_argument('--lz4', action="store_true")
     parser.add_argument('--zstd', action="store_true")
+    parser.add_argument('--memlimit', type=int)
     args = parser.parse_args()
 
     if nodes is not None:
@@ -1670,6 +1680,10 @@ def setup(parser=argparse.ArgumentParser(),
 
     global zstd_enable
     zstd_enable = args.zstd
+
+    if args.memlimit:
+        global memlimit
+        memlimit = args.memlimit
 
     Cleanup(args.cleanup)
     resource = _res_class(args.resource,

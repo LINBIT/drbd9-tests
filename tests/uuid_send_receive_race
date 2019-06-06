@@ -14,8 +14,6 @@ from python import drbdtest
 from python.drbdtest import verbose
 import os
 
-P_UUIDS110 = 0x42
-
 def my_verbose(str):
     verbose(str)
     for node in resource.nodes:
@@ -65,14 +63,14 @@ from_a.disconnect()
 to_a.event(r'connection:Unconnected')
 
 write_on_node(B)
-block_drbd_packet_type(C, A, P_UUIDS110)
+A.block_packet_type(drbdtest.P_UUIDS110, from_node=C)
 from_a.connect()
 to_a.event(r'connection:Connected')
 
 a_b_pd.event(r'peer-device .* replication:SyncTarget')
 a_b_pd.event(r'peer-device .* replication:Established')
 
-unblock_drbd_packet_type(C, A, P_UUIDS110)
+A.unblock_packet_type(drbdtest.P_UUIDS110, from_node=C)
 my_verbose('* Here is the test.')
 
 c_a_pd.event(r'peer-device .* replication:Established')

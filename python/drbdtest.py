@@ -48,6 +48,72 @@ DF_BITMAP_ALLOC = 128
 DF_PEERREQ_ALLOC = 256
 DF_RECEIVE_CURRUPT = 512
 
+#DRBD's packet types for block_packet_type()
+P_DATA                = 0x00
+P_DATA_REPLY	      = 0x01
+P_RS_DATA_REPLY	      = 0x02
+P_BARRIER	      = 0x03
+P_BITMAP	      = 0x04
+P_BECOME_SYNC_TARGET  = 0x05
+P_BECOME_SYNC_SOURCE  = 0x06
+P_UNPLUG_REMOTE	      = 0x07
+P_DATA_REQUEST	      = 0x08
+P_RS_DATA_REQUEST     = 0x09
+P_SYNC_PARAM	      = 0x0a
+P_PROTOCOL	      = 0x0b
+P_UUIDS		      = 0x0c
+P_SIZES		      = 0x0d
+P_STATE		      = 0x0e
+P_SYNC_UUID	      = 0x0f
+P_AUTH_CHALLENGE      = 0x10
+P_AUTH_RESPONSE	      = 0x11
+P_STATE_CHG_REQ	      = 0x12
+P_PING		      = 0x13
+P_PING_ACK	      = 0x14
+P_RECV_ACK	      = 0x15
+P_WRITE_ACK	      = 0x16
+P_RS_WRITE_ACK	      = 0x17
+P_SUPERSEDED	      = 0x18
+P_NEG_ACK	      = 0x19
+P_NEG_DREPLY	      = 0x1a
+P_NEG_RS_DREPLY	      = 0x1b
+P_BARRIER_ACK	      = 0x1c
+P_STATE_CHG_REPLY     = 0x1d
+P_OV_REQUEST	      = 0x1e
+P_OV_REPLY	      = 0x1f
+P_OV_RESULT	      = 0x20
+P_CSUM_RS_REQUEST     = 0x21
+P_RS_IS_IN_SYNC	      = 0x22
+P_SYNC_PARAM89	      = 0x23
+P_COMPRESSED_BITMAP   = 0x24
+P_DELAY_PROBE         = 0x27
+P_OUT_OF_SYNC         = 0x28
+P_RS_CANCEL           = 0x29
+P_CONN_ST_CHG_REQ     = 0x2a
+P_CONN_ST_CHG_REPLY   = 0x2b
+P_RETRY_WRITE	      = 0x2c
+P_PROTOCOL_UPDATE     = 0x2d
+P_TWOPC_PREPARE       = 0x2e
+P_TWOPC_ABORT         = 0x2f
+P_DAGTAG	      = 0x30
+P_TRIM                = 0x31
+P_RS_THIN_REQ         = 0x32
+P_RS_DEALLOCATED      = 0x33
+P_WSAME               = 0x34
+P_TWOPC_PREP_RSZ      = 0x35
+P_ZEROES              = 0x36
+P_PEER_ACK            = 0x40
+P_PEERS_IN_SYNC       = 0x41
+P_UUIDS110	      = 0x42
+P_PEER_DAGTAG         = 0x43
+P_CURRENT_UUID	      = 0x44
+P_TWOPC_YES           = 0x45
+P_TWOPC_NO            = 0x46
+P_TWOPC_COMMIT        = 0x47
+P_TWOPC_RETRY         = 0x48
+P_CONFIRM_STABLE      = 0x49
+P_RS_CANCEL_AHEAD     = 0x4a
+
 TOP = os.getenv('TOP', os.path.join(os.path.dirname(sys.argv[0]), '..'))
 DRBD_TEST_DATA = os.getenv('DRBD_TEST_DATA', '/usr/share/drbd-test')
 
@@ -1424,6 +1490,21 @@ class Node(exxe.Exxe):
     def unblock_paths(self, net_number=0, jump_to="DROP"):
         for n in self.resource.nodes.difference([self]):
             self.unblock_path(n, net_number=net_number, jump_to=jump_to)
+
+    def _block_packet_type(self, packet, op, from_node):
+        cmdline = ['iptables', op, 'drbd-test-input', '-p', 'tcp']
+        if from_node is not None:
+            cmdline += ['-s', from_node.addrs[0]]
+        cmdline += [ '-m', 'string', '--algo', 'bm', '--from', '0',
+                     '--hex-string', '|8620ec20 0000 %04X 0000|' % (packet)]
+        for ipt_target in ['LOG', 'DROP']:
+            self.run(cmdline + ['-j', ipt_target])
+
+    def block_packet_type(self, packet, from_node=None):
+        self._block_packet_type(packet, '-A', from_node)
+
+    def unblock_packet_type(self, packet, from_node=None):
+        self._block_packet_type(packet, '-D', from_node)
 
     def dmesg(self, pattern=None):
         """Fetches (part of) dmesg; clears it afterwards.

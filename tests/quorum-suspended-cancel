@@ -1,0 +1,100 @@
+#! /usr/bin/env python
+
+# When the "on-quorum-loss" option is set to "suspend-io", any process
+# writing on a node without quorum will block until the node regains
+# quorum.
+# When "on-quorum-loss" is set to "io-error", DRBD will return IO errors
+# to the writing application when quorum is not available.
+# The transition between these two modes should be possible while IO is
+# suspended.
+#
+# Thus, this test does the following:
+# 1) Create a 3-node cluster with quorum enabled and "on-no-quorum suspend-io;"
+# 2) Isolate the primary to make it lose quorum
+# 3) Start a small write operation in the background, which should block
+# 4) While IO is blocked, change the "on-no-quorum" setting to "io-errors"
+# 5) The writing process should now exit with an IO error
+#
+# Additionally, a second variant does basically the same thing, but without
+# waiting for the node to lose quorum before starting to write. This has the
+# effect that DRBD dispatches the request and only then realizes that it can't
+# actually deliver it. It is then supposed to look up the request in the
+# transfer lock and cancel it with an io error.
+
+from python import drbdtest
+from python.drbdtest import verbose
+import time
+
+def write_on_node(node):
+    v = node.volumes[0]
+    # write 4K in background
+    pid = primary_n.run(['setsid', 'bash', '-c',
+                   'dd if=/dev/urandom of={0} bs=4096 oflag=direct count=1 < /dev/null &> /dev/null & echo $!'
+                   .format(v.device())], return_stdout=True)
+
+    return pid
+
+def do_test(primary_n, other_nodes, wait_before_write):
+    dd_pid = 0
+    primary_conn = other_nodes.connections.to_node(primary_n)
+
+    # cut connection so that primary loses quorum
+    for n in other_nodes:
+        primary_n.block_path(n, 0)
+
+    # now write on the primary without quorum; this should block
+    if not wait_before_write:
+        dd_pid = write_on_node(primary_n)
+
+    primary_conn.event(r'connection:NetworkFailure')
+    primary_n.event(r'device .* quorum:no')
+
+    if wait_before_write:
+        dd_pid = write_on_node(primary_n)
+
+    # give it some time to actually block
+    time.sleep(1)
+
+    # set on-no-quorum policy
+    primary_n.run(['drbdsetup', 'resource-options', resource.name, '--on-no-quorum=io-error'])
+
+    # wait for the dd command to exit
+    primary_n.run(['tail', '--pid={0}'.format(dd_pid), '-f', '/dev/null'])
+
+    for n in other_nodes:
+        primary_n.unblock_path(n, 0)
+    primary_conn.event(r'connection .* connection:Connected')
+    primary_n.run(['drbdsetup', 'resource-options', resource.name, '--on-no-quorum=suspend-io'])
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.resource_options = 'quorum majority; on-no-quorum suspend-io;'
+resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
+resource.nodes.config_changed = True
+resource.nodes.update_config()
+
+primary_n = resource.nodes[0]
+other_nodes = resource.nodes.difference([primary_n])
+
+resource.add_disk('100M')
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+primary_n.primary()
+
+resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
+    r'connection:BrokenPipe',
+    r'connection:ProtocolError'
+])
+
+verbose('* Test Case 1')
+do_test(primary_n, other_nodes, wait_before_write=True)
+verbose('* Test Case 2')
+do_test(primary_n, other_nodes, wait_before_write=False)
+
+verbose('* Shut down and clean up.')
+
+resource.down()
+resource.rmmod()

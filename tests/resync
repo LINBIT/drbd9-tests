@@ -21,10 +21,7 @@ from python.drbdtest import verbose
 
 def write_on_node(node):
     global write_offset
-
-    for v in node.volumes:
-        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
-                  'seek=%d' % (write_offset), 'count=1', 'conv=fsync'])
+    node.volumes.write(1, offset=write_offset, flags=['conv=fsync'])
     write_offset += 1
 
 def assert_resync_dir(forward_c, backward_c, oos_str):

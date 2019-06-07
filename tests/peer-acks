@@ -33,7 +33,7 @@ def do_test(mode):
     target_isolated_c.disconnect()
 
     diskless_n.resource_options([res_opt_str])
-    diskless_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=2'])
+    diskless_n.volumes.write(2, flags=['oflag=direct'])
     time.sleep(sleep_time)
 
     if mode == M_NOT_PEER_ACKED:

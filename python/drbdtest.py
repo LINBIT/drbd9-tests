@@ -152,6 +152,11 @@ def debug(*args, **kwargs):
     if level <= debug_level:
         print(*args, file=sys.stderr)
 
+def kib_to_blocks(b):
+    return n * 2**10 / 4096
+
+def mib_to_blocks(n):
+    return n * 2**20 / 4096
 
 class Cleanup(object):
     """ Catch uncaught exceptions and set skip_cleanup accordingly. """
@@ -516,6 +521,10 @@ class Volumes(Collection):
 
     def resize(self, size):
         return [v.resize(size) for v in self if v.disk is not None]
+
+    def write(self, *args, **kwargs):
+        for v in self:
+            v.write(*args, **kwargs)
 
 
 class Connections(Collection):
@@ -936,6 +945,11 @@ class Volume(object):
     def device(self):
         return '/dev/drbd%d' % self.minor
 
+    def write(self, count, offset=0, bs=4096, flags=[]):
+        cmd = ['dd', 'if=/dev/urandom', 'of=' + self.device(), 'bs={0}'.format(bs),
+               'seek={0}'.format(offset), 'count={0}'.format(count)]
+        cmd.extend(flags)
+        self.node.run(cmd)
 
 class Connection(object):
     def __init__(self, node1, node2):

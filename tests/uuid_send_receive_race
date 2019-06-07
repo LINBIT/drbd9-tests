@@ -19,11 +19,6 @@ def my_verbose(str):
     for node in resource.nodes:
         node.run(["echo", str])
 
-def write_on_node(node):
-    for v in node.volumes:
-        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=1M',
-                  'count=1', 'oflag=direct'])
-
 def _block_drbd_packet_type(from_node, to_node, packet, op):
     for ipt_target in ['LOG', 'DROP']:
         to_node.run(['iptables', op, 'drbd-test-input', '-p', 'tcp',
@@ -62,7 +57,7 @@ my_verbose('* Preparing scenario.')
 from_a.disconnect()
 to_a.event(r'connection:Unconnected')
 
-write_on_node(B)
+B.volumes.write(1, bs='1M', flags=['oflag=direct'])
 A.block_packet_type(drbdtest.P_UUIDS110, from_node=C)
 from_a.connect()
 to_a.event(r'connection:Connected')

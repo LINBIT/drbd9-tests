@@ -25,9 +25,7 @@ from subprocess import CalledProcessError
 random.seed()
 
 def write_on_node(node):
-    for v in node.volumes:
-        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
-                  'count=1', 'oflag=direct'])
+    node.volumes.write(1, flags=['oflag=direct'])
 
 def my_verbose(str):
     verbose(str)

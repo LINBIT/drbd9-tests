@@ -16,12 +16,6 @@ from python import drbdtest
 from python.drbdtest import verbose
 from subprocess import CalledProcessError
 
-def write_on_node(node):
-    for v in node.volumes:
-        # write 8 MiB at offset 20 MiB
-        node.run(['dd', 'if=/dev/urandom', 'of={0}'.format(v.device()) , 'bs=4096',
-                  'seek=5120', 'count=2048', 'conv=fsync'])
-
 def read_from_node(node):
     for v in node.volumes:
         # read 8 MiB at offset 20 MiB
@@ -48,7 +42,7 @@ resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Faile
 primary_n.set_fault_injection(resource.volumes[0], drbdtest.DF_DATA_WRITE)
 
 # verify that writes still work
-write_on_node(primary_n)
+primary_n.volumes.write(count=1, flags=['conv=fsync'])
 
 # verify that reads don't work
 try:

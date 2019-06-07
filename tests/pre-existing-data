@@ -30,11 +30,6 @@ resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
 diskless_node = resource.nodes.diskless[0]
 
-def write_on_node(node):
-    for v in node.volumes:
-        node.run(['dd', 'if=/dev/urandom', 'of=%s' % (v.device()) , 'bs=4096',
-                  'count=1', 'conv=fsync'])
-
 def pre_existing_test(write_between_actions = False):
     verbose('* Pretending both servers have up-to-date data.')
     for n in diskful_nodes:
@@ -59,7 +54,7 @@ def pre_existing_test(write_between_actions = False):
     verbose('* Promoting the diskless')
     diskless_node.primary()
     if write_between_actions:
-        write_on_node(diskless_node)
+        diskless_node.volumes.write(1, flags=['conv=fsync'])
 
     verbose('* Connect the remaining server to the server that is already up')
     n = resource.nodes.diskful[0]

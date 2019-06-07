@@ -19,20 +19,6 @@ def my_verbose(str):
     for node in resource.nodes:
         node.run(["echo", str])
 
-def _block_drbd_packet_type(from_node, to_node, packet, op):
-    for ipt_target in ['LOG', 'DROP']:
-        to_node.run(['iptables', op, 'drbd-test-input', '-p', 'tcp',
-                     '-s', from_node.addrs[0],
-                     '-m', 'string', '--algo', 'bm', '--from', '0',
-                     '--hex-string', '|8620ec20 0000 %04X 0000|' % (packet),
-                     '-j', ipt_target])
-
-def unblock_drbd_packet_type(from_node, to_node, packet):
-    _block_drbd_packet_type(from_node, to_node, packet, '-D')
-
-def block_drbd_packet_type(from_node, to_node, packet):
-    _block_drbd_packet_type(from_node, to_node, packet, '-A')
-
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.disk_options = 'c-max-rate 750k;'
 resource.nodes.config_changed = True
@@ -64,6 +50,11 @@ to_a.event(r'connection:Connected')
 
 a_b_pd.event(r'peer-device .* replication:SyncTarget')
 a_b_pd.event(r'peer-device .* replication:Established')
+
+resource.forbidden_patterns.difference_update([
+    r'connection:ProtocolError',
+    r'connection:BrokenPipe'
+])
 
 A.unblock_packet_type(drbdtest.P_UUIDS110, from_node=C)
 my_verbose('* Here is the test.')

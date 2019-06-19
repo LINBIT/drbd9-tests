@@ -1224,6 +1224,8 @@ class Node(exxe.Exxe):
                         % (n2.name, n2.port, n2.name)) as N2:
                     N2.write("inside 127.0.0.2:%s;" % port_inside)
                     N2.write("outside ipv4 %s:%s;"% (n2.addrs[0], port_outside))
+                with ConfigBlock(t='net') as NET_OPTS:
+                    NET_OPTS.write("protocol A;")
             else:
                 with ConfigBlock(t='net'):
                     pass
@@ -1774,10 +1776,13 @@ def setup(parser=argparse.ArgumentParser(),
     lz4_enable = args.lz4
 
     global zstd_enable
-    if args.zstd > 0 and args.zstd <= 22:
-        zstd_enable = args.zstd
+    if args.zstd:
+        if args.zstd > 0 and args.zstd <= 22:
+            zstd_enable = args.zstd
+        else:
+            zstd_enable = 3
     else:
-        zstd_enable = 3
+        zstd_enable = 0
 
     if args.memlimit:
         global memlimit

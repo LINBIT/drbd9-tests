@@ -1,0 +1,80 @@
+#! /usr/bin/env python
+
+# This test is run on a 3-node cluster.
+#   A = primary; B, C = secondary
+#
+# 1) Trigger a resync (Source = A, Target = B and C)
+#    - Cut all connections to A
+#    - Write data on A
+#    - Reconnect A
+#    (Important: connection A-C is much slower than A-B, so
+#    that B definitely finishes first)
+#
+# 2) When B is done syncing (but C isn't yet), kill A
+#    to pull away C's SyncSource
+#
+# Result: B should become SyncSource for C and sync should continue
+
+
+# As of now (drbd-9.0.17-rc1), this is NOT EXPECTED TO WORK.
+# TODO: Remove this notice when the behaviour is fixed
+
+import time
+import random
+from python import drbdtest
+from python.drbdtest import verbose, mib_to_blocks
+from subprocess import CalledProcessError
+import socket
+
+def slow_down_connection(from_n, to_n, speed='', delay=''):
+    dev = from_n.net_device_to_peer(to_n)
+    ip = socket.gethostbyname(to_n.hostname)
+    verbose('Slowing down connection from {0} to {1} ({2})'.format(from_n.hostname, to_n.hostname, ip))
+    from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'root', 'handle', '1:', 'prio'])
+    if delay != '':
+        from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'delay', delay])
+    else:
+        from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'rate', speed])
+
+    from_n.run(['tc', 'filter', 'add', 'dev', dev, 'parent', '1:0', 'protocol', 'ip', 'pref', '55', 'handle', '::55', 'u32', 'match', 'ip', 'dst', ip, 'flowid', '2:1'])
+
+def restore_slow_down(from_n, to_n):
+    dev = from_n.net_device_to_peer(to_n)
+    from_n.run(['tc', 'qdisc', 'del', 'root', 'dev', dev])
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
+primary = resource.nodes[0]
+fast = resource.nodes[1]
+slow = resource.nodes[2]
+resource.add_disk('128M')
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+primary.primary()
+verbose('* All nodes connected')
+
+fast.detach()
+slow.detach()
+
+# ensure "fast" node finishes before "slow" node
+slow_down_connection(primary, slow, speed='100mbit')
+
+c = resource.connections.to_node(primary)
+
+primary.volumes.write(mib_to_blocks(100), flags=['conv=fsync'])
+
+fast.attach()
+slow.attach()
+
+fast.event('response helper .* helper:after-resync-target')
+primary.down()
+
+slow.event('response helper .* helper:after-resync-target')
+
+verbose('* Shut down and clean up.')
+restore_slow_down(primary, slow)
+resource.down()
+resource.rmmod()

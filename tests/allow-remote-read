@@ -15,6 +15,7 @@
 from python import drbdtest
 from python.drbdtest import verbose
 from subprocess import CalledProcessError
+import time
 
 def read_from_node(node):
     for v in node.volumes:
@@ -23,6 +24,7 @@ def read_from_node(node):
                   'seek=5120', 'count=2048'])
 
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 primary_n = resource.nodes[0]
 no_reads_n = resource.nodes[1]
 
@@ -41,8 +43,13 @@ primary_n.run(['drbdsetup', 'net-options', resource.name, no_reads_n.id, '--allo
 resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Failed'])
 primary_n.set_fault_injection(resource.volumes[0], drbdtest.DF_DATA_WRITE)
 
-# verify that writes still work
-primary_n.volumes.write(count=1, flags=['conv=fsync'])
+# verify that writes don't work
+try:
+    primary_n.volumes.write(count=1, flags=['conv=fsync'])
+    raise RuntimeError("writing should have caused an error")
+except CalledProcessError:
+    # it failed, good
+    pass
 
 # verify that reads don't work
 try:
@@ -51,6 +58,13 @@ try:
 except CalledProcessError:
     # it failed, good
     pass
+
+verbose('* Recover disk')
+primary_n.disable_fault_injection(resource.volumes[0])
+primary_n.down()
+primary_n.up()
+
+time.sleep(5)
 
 verbose('* Shut down and clean up.')
 

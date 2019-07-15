@@ -1,0 +1,62 @@
+#! /usr/bin/env python
+
+# Tests the quorum feature with multiple volumes instead of just one.
+
+import time
+import random
+from python import drbdtest
+from python.drbdtest import verbose, mib_to_blocks
+from subprocess import CalledProcessError
+
+def test_io_errors():
+    '''
+    Make one of the disks fail (which makes it lose quorum), and then try to
+    write on the other one. The request should still fail.
+    '''
+    verbose('* Kill disk 0')
+    resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Failed'])
+    primary_n.set_fault_injection(resource.volumes[0], drbdtest.DF_DATA_WRITE)
+    try:
+        primary_n.volumes[0].write(count=1, flags=['conv=fsync', 'oflag=direct'])
+    except CalledProcessError:
+        pass
+
+    primary_n.volumes[0].event(r'device .* disk:Failed')
+    primary_n.volumes[0].event(r'device .* disk:Diskless')
+
+    # verify that writes on the other volume don't work
+    try:
+        primary_n.volumes[1].write(count=1, flags=['conv=fsync', 'oflag=direct'])
+        raise RuntimeError("writing should have caused an error")
+    except CalledProcessError:
+        # it failed, good
+        pass
+
+    verbose('* Recover disk')
+    primary_n.disable_fault_injection(resource.volumes[0])
+    primary_n.down()
+    primary_n.up()
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.add_disk('10M')
+resource.add_disk('10M')
+resource.resource_options = 'auto-promote no; quorum majority; on-no-quorum io-error; twopc-timeout 100;'
+
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+primary_n = resource.nodes[0]
+primary_n.primary()
+
+resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+c = primary_n.connections.to_node(resource.nodes[1])
+c.block()
+
+test_io_errors()
+
+verbose('* Shut down and clean up.')
+
+resource.down()
+resource.rmmod()

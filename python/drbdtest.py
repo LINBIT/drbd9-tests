@@ -1507,20 +1507,20 @@ class Node(exxe.Exxe):
         for n in self.resource.nodes.difference([self]):
             self.unblock_path(n, net_number=net_number, jump_to=jump_to)
 
-    def _block_packet_type(self, packet, op, from_node):
+    def _block_packet_type(self, packet, op, from_node, volume):
         cmdline = ['iptables', op, 'drbd-test-input', '-p', 'tcp']
         if from_node is not None:
             cmdline += ['-s', from_node.addrs[0]]
         cmdline += [ '-m', 'string', '--algo', 'bm', '--from', '0',
-                     '--hex-string', '|8620ec20 0000 %04X 0000|' % (packet)]
+                     '--hex-string', '|8620ec20 %04X %04X 0000|' % (volume, packet)]
         for ipt_target in ['LOG', 'DROP']:
             self.run(cmdline + ['-j', ipt_target])
 
-    def block_packet_type(self, packet, from_node=None):
-        self._block_packet_type(packet, '-A', from_node)
+    def block_packet_type(self, packet, from_node=None, volume=0):
+        self._block_packet_type(packet, '-A', from_node, volume)
 
-    def unblock_packet_type(self, packet, from_node=None):
-        self._block_packet_type(packet, '-D', from_node)
+    def unblock_packet_type(self, packet, from_node=None, volume=0):
+        self._block_packet_type(packet, '-D', from_node, volume)
 
     def dmesg(self, pattern=None):
         """Fetches (part of) dmesg; clears it afterwards.

@@ -37,7 +37,8 @@
 	"write-during-resync",
 	"quorum-suspended-cancel",
 	"uuid_send_receive_race",
-	"quorum-multi-volume"
+	"quorum-multi-volume",
+	"resync-reconciliation"
     ],
     "samevms": [
 	"diskless"

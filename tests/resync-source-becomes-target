@@ -52,6 +52,9 @@ def do_test(variant):
     forward_c = drbdtest.Connection(other_nodes[0], other_nodes[1])
     backward_c = drbdtest.Connection(other_nodes[1], other_nodes[0])
     cs = drbdtest.Connections([forward_c, backward_c])
+    pds = drbdtest.PeerDevices.from_connections(cs)
+    if variant == 1:
+        pds.peer_device_options("--c-max-rate=10M")
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 
@@ -63,6 +66,8 @@ def do_test(variant):
             if float(done[0][0]) > 10.0:
                 break
         verbose('* Start upstream resync at %s of downstream resync.' % (done[0][0]))
+        pds.peer_device_options("--c-max-rate=60M")
+
     elif variant == 2:
         other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
         time.sleep(0.5)
@@ -90,7 +95,7 @@ megs = 100
 
 random.seed()
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
-resource.disk_options = 'c-max-rate 7M;'
+resource.disk_options = 'c-max-rate 60M;'
 resource.nodes.config_changed = True
 resource.nodes.update_config()
 resource.add_disk('%dM' % (megs))

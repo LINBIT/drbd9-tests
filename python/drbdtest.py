@@ -369,8 +369,8 @@ class Nodes(Collection):
     def resource_options(self, opts=[]):
         self.run(['drbdadm', 'resource-options', 'all', '-v'] + opts)
 
-    def peer_device_options(self):
-        self.run(['drbdadm', 'peer-device-options', 'all', '-v'])
+    def peer_device_options(self, opts=[]):
+        self.run(['drbdadm', 'peer-device-options', 'all', '-v'] + opts)
 
     def new_path(self):
         self.run(['drbdadm', 'new-path', 'all', '-v'])
@@ -604,6 +604,12 @@ class PeerDevices(Collection):
     def __init__(self, members=[]):
         super(PeerDevices, self).__init__(PeerDevice, members)
 
+    @classmethod
+    def from_connections(cls, connections, volumes=[]):
+        if not volumes:
+            volumes = connections[0].resource.volumes
+        return cls([PeerDevice(c, v) for c in connections for v in volumes])
+
     def event(self, *args, **kwargs):
         """ Wait for an event. """
 
@@ -621,6 +627,14 @@ class PeerDevices(Collection):
             resource = first(self.members).resource
             return resource.logscan(self, where, *args, **kwargs)
 
+    def peer_device_options(self, opts=[]):
+        for pd in self:
+            node0, node1 = pd.connection.nodes
+            cmdline = ['drbdadm', 'peer-device-options', '%s:%s' %
+                       (pd.connection.resource.name, node1.hostname),
+                       opts]
+
+            node0.run(cmdline)
 
 # Now that all collection classes are defined, define inter-class dependencies:
 Nodes.finish()
@@ -1020,6 +1034,8 @@ class PeerDevice(object):
     def event(self, *args, **kwargs):
         return PeerDevices([self]).event(*args, **kwargs)
 
+    def peer_device_options(self, opts=[]):
+        PeerDevices([self]).peer_device_options(opts)
 
 class AsPrimary(object):
 

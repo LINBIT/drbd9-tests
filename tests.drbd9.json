@@ -21,7 +21,7 @@
     "samevms": [
 	"initial-resync"
     ]
-},
+}
 {
     "vms": 3,
     "tests": [
@@ -43,13 +43,13 @@
     "samevms": [
 	"diskless"
     ]
-},
+}
 {
     "vms": 4,
     "tests": [
 	"migrate"
     ]
-},
+}
 {
     "vms": 5,
     "tests": [

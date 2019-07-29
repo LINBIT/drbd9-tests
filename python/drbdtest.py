@@ -607,7 +607,8 @@ class PeerDevices(Collection):
     @classmethod
     def from_connections(cls, connections, volumes=[]):
         if not volumes:
-            volumes = connections[0].resource.volumes
+            cluster_volumes = connections[0].resource.volumes
+            volumes = [ x for x in cluster_volumes if x.node == connections[0].nodes[0] ]
         return cls([PeerDevice(c, v) for c in connections for v in volumes])
 
     def event(self, *args, **kwargs):

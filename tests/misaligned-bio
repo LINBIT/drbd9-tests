@@ -20,6 +20,9 @@ first_node.run(['misaligned_bio.py', dev_name, 'write'])
 first_node.run(['misaligned_bio.py', dev_name, 'verify'])
 other_node.run(['misaligned_bio.py', dev_name, 'verify'])
 
+# That is BLKZEROOUT, BLKDISCARD and BLKSECDISCARD
+first_node.run(['unusual_bios.py', dev_name])
+
 verbose('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

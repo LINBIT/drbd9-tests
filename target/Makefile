@@ -39,8 +39,8 @@ data_scripts := \
 	rsyslogd \
 	unblock-connection \
 	misaligned_bio.py \
-	blkdiscard.py \
 	stress-al.py \
+	unusual_bios.py.in \
 
 
 extra_files := \

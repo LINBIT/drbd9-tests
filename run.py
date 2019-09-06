@@ -2,6 +2,7 @@
 
 import subprocess
 import argparse
+import pathlib
 import time
 import json
 import sys
@@ -40,16 +41,14 @@ def stream_read_json(file_name):
 
 
 def cleanup_and_prepare_vm(vm):
-    cmds = [ 'drbdsetup down all',
-             'rmmod drbd_transport_tcp || true',
-             'rmmod drbd || true',
+    cmds = [ 'drbdsetup down all 2>/dev/null',
+             'rmmod drbd_transport_tcp 2>/dev/null || true',
+             'rmmod drbd 2>/dev/null || true',
              'insmod /lib/modules/$(uname -r)/updates/drbd.ko',
              'insmod /lib/modules/$(uname -r)/updates/drbd_transport_tcp.ko' ]
 
-    print(CR + "Preparing %s" % (vm), end='')
-    sys.stdout.flush()
     for cmd in cmds:
-        subprocess.run(['ssh', 'root@' + vm, cmd], stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(['ssh', 'root@' + vm, cmd], check=True)
 
 
 def run_with_progress(args):
@@ -83,7 +82,7 @@ def remove_excess_LVs(orig_lvs, vm):
     for lv in lvs:
         if not lv in orig_lvs:
             cleanup_and_prepare_vm(vm)
-            p = subprocess.run(['ssh', 'root@' + vm, 'lvremove %s' % (lv)], check=True)
+            p = subprocess.run(['ssh', 'root@' + vm, 'lvremove -f %s' % (lv)], check=True)
 
 def cleanup(original_lvs, all_vm_names):
     for vm in all_vm_names:
@@ -95,6 +94,11 @@ def main():
     cmdline_parser = argparse.ArgumentParser(
         description="run the testsuite's tests locally"
         )
+    cmdline_parser.add_argument('-f', '--test-set-file', type=pathlib.Path,
+                                dest='test_set_file', default='tests.drbd9.json',
+                                metavar="FILE", help='JSON stream file to read the test set')
+    cmdline_parser.add_argument('-n', '--not', type=str, metavar="TEST_NAME", nargs='*',
+                                dest='exclude', help='exclude these tests')
     cmdline_parser.add_argument('vm_name', type=str, nargs='+',
                                 help='name of VM that can be used to ssh into it')
 
@@ -104,13 +108,16 @@ def main():
     for vm in all_vm_names:
         original_lvs[vm] = list_LVs(vm)
 
-    test_set_iter=stream_read_json('tests.drbd9.json')
+    test_set_iter=stream_read_json(args.test_set_file)
     for test_set in test_set_iter:
         if len(all_vm_names) < test_set['vms']:
             continue
         vm_names = all_vm_names[:test_set['vms']]
         for test in test_set['tests']:
+            if test in args.exclude:
+                continue
             for vm in vm_names:
+                print(CR + "Preparing %s" % (vm), end='')
                 cleanup_and_prepare_vm(vm)
             print(CR + 'running %s on %s: ' %
                   (WHITE + test + NORMAL, ', '.join(vm_names)), end='')

@@ -110,9 +110,10 @@ def generate_test_set(tests, n_vms):
         result['tests'] = test_sets[n]
         yield result
 
-def run_tests(test_set_iter, all_vm_names, exclude_tests):
+def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going):
     original_lvs = {}
     results = {}
+    global_exit_code = 0
 
     for vm in all_vm_names:
         original_lvs[vm] = list_LVs(vm)
@@ -138,9 +139,13 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests):
             else:
                 print(RED + 'FAILED' + NORMAL)
                 cleanup(original_lvs, all_vm_names)
-                return (exit_code, results)
+                if keep_going:
+                    # just return 1 for now
+                    global_exit_code = 1
+                else:
+                    return (exit_code, results)
 
-    return (0, results)
+    return (global_exit_code, results)
 
 def collect_software_versions(vm):
     cleanup_and_prepare_vm(vm)
@@ -164,6 +169,8 @@ def main():
                                 dest='exclude', help='exclude these tests', default=[])
     cmdline_parser.add_argument('-r', '--run', type=str, metavar="TEST_NAME", nargs='*',
                                 dest='run', help='run only these named tests', default=[])
+    cmdline_parser.add_argument('-k', '--keep-going', action='store_true', dest='keep_going',
+                                help='keep going even after a test fails', default=False)
 
     args = cmdline_parser.parse_args()
     all_vm_names = args.vm_name
@@ -181,7 +188,7 @@ def main():
     except FileNotFoundError:
         result_db = []
 
-    (exit_code, results) = run_tests(test_set_iter, all_vm_names, args.exclude)
+    (exit_code, results) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going)
 
     result_db.append({
         'version': drbd_ver,

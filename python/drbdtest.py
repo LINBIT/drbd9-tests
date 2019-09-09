@@ -1351,10 +1351,11 @@ class Node(exxe.Exxe):
                 self.events.wait()
         except:
             pass
+        devnull = open('/dev/null', 'r')
         self.events = subprocess.Popen(
             ['ssh', '-q', '-l', 'root', self.name,
              'drbdsetup', 'events2', 'all', '--statistics', '--timestamps'],
-            stdout=file)
+            stdout=file, stderr=subprocess.STDOUT, stdin=devnull)
 
     def run(self, *args, **kwargs):
         if not kwargs.pop('prepare', False):

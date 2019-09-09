@@ -103,6 +103,9 @@ def generate_test_set(tests, n_vms):
                     test_sets[use_vms].append(test)
                 else:
                     test_sets[use_vms] = [test]
+            else:
+                print("Can not run %s with %d VMs, need %d at minimum" %
+                      (WHITE + test + NORMAL, n_vms, min_nodes))
 
     for n in iter(test_sets):
         result = {}

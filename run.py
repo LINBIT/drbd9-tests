@@ -40,7 +40,7 @@ def stream_read_json(file_name):
                 yield obj
 
 
-def cleanup_and_prepare_vm(vm):
+def cleanup_and_prepare_vm(vm, parallel=False):
     cmd = """
 drbdsetup down all 2>/dev/null
 rmmod drbd_transport_tcp 2>/dev/null || true
@@ -54,7 +54,27 @@ elif test -e /lib/modules/$UNR/extras/drbd.ko; then
     insmod /lib/modules/$(uname -r)/extras/drbd_transport_tcp.ko
 fi
 """
-    subprocess.run(['ssh', 'root@' + vm, cmd], check=True)
+    p = subprocess.Popen(['ssh', 'root@' + vm, cmd])
+    if not parallel:
+        p.wait()
+        if p.returncode != 0:
+            raise subprocess.CalledProcessError(p.returncode, 'ssh')
+
+    return p
+
+def cleanup_and_prepare_vms(vm_names):
+    processes = []
+
+    print("Preparing", end='')
+    for vm in vm_names:
+        print(" %s" % (vm), end='')
+        processes.append(cleanup_and_prepare_vm(vm, parallel=True))
+    sys.stdout.flush()
+
+    for p in processes:
+        p.wait()
+        if p.returncode != 0:
+            raise subprocess.CalledProcessError(p.returncode, 'ssh')
 
 
 def run_with_progress(args):
@@ -134,9 +154,7 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going):
         for test in test_set['tests']:
             if test in exclude_tests:
                 continue
-            for vm in vm_names:
-                print(CR + "Preparing %s" % (vm), end='')
-                cleanup_and_prepare_vm(vm)
+            cleanup_and_prepare_vms(vm_names)
             print(CR + 'running %s on %s: ' %
                   (WHITE + test + NORMAL, ', '.join(vm_names)), end='')
             result = run_with_progress(["tests/" + test, '-v', '--cleanup=always', *vm_names])

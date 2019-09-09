@@ -41,14 +41,20 @@ def stream_read_json(file_name):
 
 
 def cleanup_and_prepare_vm(vm):
-    cmds = [ 'drbdsetup down all 2>/dev/null',
-             'rmmod drbd_transport_tcp 2>/dev/null || true',
-             'rmmod drbd 2>/dev/null || true',
-             'insmod /lib/modules/$(uname -r)/updates/drbd.ko',
-             'insmod /lib/modules/$(uname -r)/updates/drbd_transport_tcp.ko' ]
-
-    for cmd in cmds:
-        subprocess.run(['ssh', 'root@' + vm, cmd], check=True)
+    cmd = """
+drbdsetup down all 2>/dev/null
+rmmod drbd_transport_tcp 2>/dev/null || true
+rmmod drbd 2>/dev/null || true
+UNR=$(uname -r)
+if test -e /lib/modules/$UNR/updates/drbd.ko; then
+    insmod /lib/modules/$(uname -r)/updates/drbd.ko
+    insmod /lib/modules/$(uname -r)/updates/drbd_transport_tcp.ko
+elif test -e /lib/modules/$UNR/extras/drbd.ko; then
+    insmod /lib/modules/$(uname -r)/extras/drbd.ko
+    insmod /lib/modules/$(uname -r)/extras/drbd_transport_tcp.ko
+fi
+"""
+    subprocess.run(['ssh', 'root@' + vm, cmd], check=True)
 
 
 def run_with_progress(args):

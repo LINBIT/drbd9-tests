@@ -40,7 +40,7 @@ data_scripts := \
 	unblock-connection \
 	misaligned_bio.py \
 	stress-al.py \
-	unusual_bios.py.in \
+	unusual_bios.py \
 
 
 extra_files := \

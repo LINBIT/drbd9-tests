@@ -142,13 +142,14 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests):
 
     return (0, results)
 
-def collect_drbd_version(vm):
+def collect_software_versions(vm):
     cleanup_and_prepare_vm(vm)
-    p = subprocess.run(['ssh', 'root@' + vm, 'cat /proc/drbd'],
+    p = subprocess.run(['ssh', 'root@' + vm, 'uname -r; cat /proc/drbd'],
                        check=True, stdout=subprocess.PIPE)
     s = p.stdout.decode('utf-8')
-    [(version, git_hash)] = re.findall(r'version: ([\d\.-]+)[^G]*GIT-hash: ([0-9a-f]+)', s)
-    return (version, git_hash)
+    [(kern_ver, drbd_ver, drbd_git)] = re.findall(
+        r'([^\s]+)\nversion: ([\d\.-]+)[^G]*GIT-hash: ([0-9a-f]+)', s)
+    return ( kern_ver, drbd_ver, drbd_git)
 
 def main():
     cmdline_parser = argparse.ArgumentParser(
@@ -167,7 +168,7 @@ def main():
     args = cmdline_parser.parse_args()
     all_vm_names = args.vm_name
 
-    (drbd_version, drbd_git_hash) = collect_drbd_version(all_vm_names[0])
+    (kern_ver, drbd_ver, drbd_git) = collect_software_versions(all_vm_names[0])
 
     if args.run:
         test_set_iter=generate_test_set(args.run, len(all_vm_names))
@@ -183,8 +184,9 @@ def main():
     (exit_code, results) = run_tests(test_set_iter, all_vm_names, args.exclude)
 
     result_db.append({
-        'version': drbd_version,
-        'git_hash': drbd_git_hash,
+        'version': drbd_ver,
+        'git_hash': drbd_git,
+        'kernel': kern_ver,
         'date_time': time.strftime("%Y%m%d-%H%M%S"),
         'results': results})
 

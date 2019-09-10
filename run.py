@@ -45,13 +45,17 @@ def cleanup_and_prepare_vm(vm, parallel=False):
 drbdsetup down all 2>/dev/null
 rmmod drbd_transport_tcp 2>/dev/null || true
 rmmod drbd 2>/dev/null || true
+modprobe crc32c
 UNR=$(uname -r)
 if test -e /lib/modules/$UNR/updates/drbd.ko; then
-    insmod /lib/modules/$(uname -r)/updates/drbd.ko
-    insmod /lib/modules/$(uname -r)/updates/drbd_transport_tcp.ko
-elif test -e /lib/modules/$UNR/extras/drbd.ko; then
-    insmod /lib/modules/$(uname -r)/extras/drbd.ko
-    insmod /lib/modules/$(uname -r)/extras/drbd_transport_tcp.ko
+    insmod /lib/modules/$UNR/updates/drbd.ko
+    insmod /lib/modules/$UNR/updates/drbd_transport_tcp.ko
+elif test -e /lib/modules/$UNR/extra/drbd/drbd.ko; then
+    insmod /lib/modules/$UNR/extra/drbd/drbd.ko
+    insmod /lib/modules/$UNR/extra/drbd/drbd_transport_tcp.ko
+else
+    echo "drbd.ko is in an unknown location, cannot load"
+    exit 1
 fi
 """
     p = subprocess.Popen(['ssh', 'root@' + vm, cmd])

@@ -91,17 +91,17 @@ primary_a.volumes[0].event(r'disk:Inconsistent')
 primary_a.volumes[0].event(r'disk:UpToDate')
 # This is the rollback "last writes" on primary that lost quorum resync.
 # If it does not happen we have a bug!
-# (Those writes where never completed with an error to the uppwer layers,
+# (Those writes were never completed with an error to the upper layers,
 #  but submitted to the local disk)
 
 connections_to_cut.connect()
 connections_to_cut.event(r'connection .* connection:Connected')
 
-time.sleep(0.2) # Otherwise we trigger weired follow-on race conditions
+time.sleep(0.2) # Otherwise we trigger weird follow-on race conditions
 
 tmp_pri.secondary()
 
-time.sleep(0.5) # Otherwise we trigger weired follow-on race conditions
+time.sleep(0.5) # Otherwise we trigger weird follow-on race conditions
 
 primary_a.primary()
 write_on_node(primary_a)

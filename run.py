@@ -175,6 +175,7 @@ def cleanup_and_prepare_vms(vm_names):
             raise subprocess.CalledProcessError(p.returncode, 'ssh')
 
 def run_with_progress(args, statistic = None):
+    N_CHARS = 10
     TIMEOUT_SEC = 5*60 # 5 minutes
     start = time.time()
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, preexec_fn=os.setsid)
@@ -257,6 +258,8 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, statistics
     original_lvs = {}
     results = {}
     global_exit_code = 0
+    num_successful = 0
+    num_total = 0
 
     for vm in all_vm_names:
         original_lvs[vm] = list_LVs(vm)
@@ -271,6 +274,7 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, statistics
             cleanup_and_prepare_vms(vm_names)
             print(CR + 'running %s on %s: ' %
                   (WHITE + test + NORMAL, ', '.join(vm_names)), end='')
+            num_total += 1
             result = run_with_progress(["tests/" + test, '-v', '--cleanup=always', *vm_names], statistics.get(test))
             result['nodes'] = len(vm_names)
             results[test] = result
@@ -289,10 +293,11 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, statistics
                     # just return 1 for now
                     global_exit_code = 1
                 else:
-                    return (exit_code, results)
+                    return (exit_code, results, num_successful, num_total)
             else:
                 if exit_code == 0:
                     print(GREEN + 'OKAY' + NORMAL + success_rate)
+                    num_successful += 1
                 else:
                     print(RED + 'FAILED' + NORMAL + success_rate)
                     cleanup(original_lvs, all_vm_names)
@@ -300,9 +305,9 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, statistics
                         # just return 1 for now
                         global_exit_code = 1
                     else:
-                        return (exit_code, results)
+                        return (exit_code, results, num_successful, num_total)
 
-    return (global_exit_code, results)
+    return (global_exit_code, results, num_successful, num_total)
 
 def collect_software_versions(all_vm_names):
     vm = all_vm_names[0]
@@ -380,7 +385,9 @@ def main():
     statistics = {}
     find_statistics(result_db, statistics)
 
-    (exit_code, results) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, statistics)
+    (exit_code, results, num_successful, num_total) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, statistics)
+
+    print('{0}{4}{3} tests ran, {1}{5} successful{3}, {2}{6} failed{3}'.format(WHITE, GREEN, RED, NORMAL, num_total, num_successful, num_total - num_successful))
 
     result_db.append({
         'version': drbd_ver,

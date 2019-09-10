@@ -174,7 +174,7 @@ def cleanup_and_prepare_vms(vm_names):
         if p.returncode != 0:
             raise subprocess.CalledProcessError(p.returncode, 'ssh')
 
-def run_with_progress(args, average_runtime = None):
+def run_with_progress(args, statistic = None):
     TIMEOUT_SEC = 5*60 # 5 minutes
     start = time.time()
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, preexec_fn=os.setsid)
@@ -195,9 +195,9 @@ def run_with_progress(args, average_runtime = None):
             break
         if now - before > 0.1:  # 100ms since last update
             time_diff = now - start
-            if average_runtime is not None:
+            if statistic is not None and 'average_runtime' in statistic:
                 N_CHARS = len('123.1 secs (100.0%)')
-                percent = min(time_diff / average_runtime * 100, 100)
+                percent = min(time_diff / statistic['average_runtime'] * 100, 100)
                 secs = ('%5.1f secs (%5.1f%%)' % (time_diff, percent))
             else:
                 N_CHARS = len('123.1 secs')
@@ -253,7 +253,7 @@ def generate_test_set(tests, n_vms):
         result['tests'] = test_sets[n]
         yield result
 
-def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, average_runtimes):
+def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, statistics):
     original_lvs = {}
     results = {}
     global_exit_code = 0
@@ -271,13 +271,19 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, average_ru
             cleanup_and_prepare_vms(vm_names)
             print(CR + 'running %s on %s: ' %
                   (WHITE + test + NORMAL, ', '.join(vm_names)), end='')
-            result = run_with_progress(["tests/" + test, '-v', '--cleanup=always', *vm_names], average_runtimes.get(test))
+            result = run_with_progress(["tests/" + test, '-v', '--cleanup=always', *vm_names], statistics.get(test))
             result['nodes'] = len(vm_names)
             results[test] = result
             exit_code = result.get('exit_code')
             timeout = result.get('timeout')
+
+            success_rate = ''
+            if test in statistics:
+                rate = statistics[test].get('success_rate') * 100
+                success_rate = ' (%.1f%% success rate)' % (rate)
+
             if timeout:
-                print(RED + 'TIMEOUT' + NORMAL)
+                print(RED + 'TIMEOUT' + NORMAL + success_rate)
                 cleanup(original_lvs, all_vm_names)
                 if keep_going:
                     # just return 1 for now
@@ -286,9 +292,9 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, average_ru
                     return (exit_code, results)
             else:
                 if exit_code == 0:
-                    print(GREEN + 'OKAY' + NORMAL)
+                    print(GREEN + 'OKAY' + NORMAL + success_rate)
                 else:
-                    print(RED + 'FAILED' + NORMAL)
+                    print(RED + 'FAILED' + NORMAL + success_rate)
                     cleanup(original_lvs, all_vm_names)
                     if keep_going:
                         # just return 1 for now
@@ -308,11 +314,18 @@ def collect_software_versions(all_vm_names):
         r'([^\s]+)\nversion: ([\d\.-]+)[^G]*GIT-hash: ([0-9a-f]+)', s)
     return ( kern_ver, drbd_ver, drbd_git)
 
-def find_average_runtimes(result_db):
+def find_statistics(result_db, statistics):
     total_times = {}
+    total_successes = {}
     for result in result_db:
         for name, params in result.get('results').items():
-            if params.get('exit_code') is not 0:
+            if name not in total_successes:
+                total_successes[name] = {'successes': 0, 'count': 0}
+
+            total_successes[name]['count'] += 1
+            if params.get('exit_code') is 0:
+                total_successes[name]['successes'] += 1
+            else:
                 continue
 
             if name not in total_times:
@@ -320,12 +333,17 @@ def find_average_runtimes(result_db):
             total_times[name]['time'] += params.get('run_time')
             total_times[name]['count'] += 1
 
-    averages = {}
-    for t, v in total_times.items():
+    for name, v in total_times.items():
         av = v.get('time') / v.get('count')
-        averages[t] = av
+        if name not in statistics:
+            statistics[name] = {}
+        statistics[name]['average_runtime'] = av
 
-    return averages
+    for name, v in total_successes.items():
+        av = v.get('successes') / v.get('count')
+        if name not in statistics:
+            statistics[name] = {}
+        statistics[name]['success_rate'] = av
 
 def main():
     cmdline_parser = argparse.ArgumentParser(
@@ -359,9 +377,10 @@ def main():
     except FileNotFoundError:
         result_db = []
 
-    average_runtimes = find_average_runtimes(result_db)
+    statistics = {}
+    find_statistics(result_db, statistics)
 
-    (exit_code, results) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, average_runtimes)
+    (exit_code, results) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, statistics)
 
     result_db.append({
         'version': drbd_ver,

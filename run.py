@@ -79,7 +79,7 @@ def kill_process(vm, pid):
         raise Exception()
 
 def kill_node(vm):
-    cmd = '{ sleep 0.5; echo b > /proc/sysrq-trigger; } > /dev/null &'
+    cmd = '{ sleep 0.5; echo -e "s\nb" > /proc/sysrq-trigger; } > /dev/null &'
     args = ['ssh', 'root@' + vm, cmd]
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = p.communicate()

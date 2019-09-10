@@ -174,8 +174,7 @@ def cleanup_and_prepare_vms(vm_names):
         if p.returncode != 0:
             raise subprocess.CalledProcessError(p.returncode, 'ssh')
 
-def run_with_progress(args):
-    N_CHARS = 10
+def run_with_progress(args, average_runtime = None):
     TIMEOUT_SEC = 5*60 # 5 minutes
     start = time.time()
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, preexec_fn=os.setsid)
@@ -195,7 +194,15 @@ def run_with_progress(args):
         if not line:
             break
         if now - before > 0.1:  # 100ms since last update
-            print(('%5.1f secs' % (now - start)) + (BS * N_CHARS), end='')
+            time_diff = now - start
+            if average_runtime is not None:
+                N_CHARS = len('123.1 secs (100.0%)')
+                percent = min(time_diff / average_runtime * 100, 100)
+                secs = ('%5.1f secs (%5.1f%%)' % (time_diff, percent))
+            else:
+                N_CHARS = len('123.1 secs')
+                secs = ('%5.1f secs' % (time_diff))
+            print(secs + (BS * N_CHARS), end='')
             sys.stdout.flush()
     print(' ' * N_CHARS + BS * N_CHARS, end='')
     sys.stdout.flush()
@@ -246,7 +253,7 @@ def generate_test_set(tests, n_vms):
         result['tests'] = test_sets[n]
         yield result
 
-def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going):
+def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, average_runtimes):
     original_lvs = {}
     results = {}
     global_exit_code = 0
@@ -264,7 +271,7 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going):
             cleanup_and_prepare_vms(vm_names)
             print(CR + 'running %s on %s: ' %
                   (WHITE + test + NORMAL, ', '.join(vm_names)), end='')
-            result = run_with_progress(["tests/" + test, '-v', '--cleanup=always', *vm_names])
+            result = run_with_progress(["tests/" + test, '-v', '--cleanup=always', *vm_names], average_runtimes.get(test))
             result['nodes'] = len(vm_names)
             results[test] = result
             exit_code = result.get('exit_code')
@@ -301,6 +308,25 @@ def collect_software_versions(all_vm_names):
         r'([^\s]+)\nversion: ([\d\.-]+)[^G]*GIT-hash: ([0-9a-f]+)', s)
     return ( kern_ver, drbd_ver, drbd_git)
 
+def find_average_runtimes(result_db):
+    total_times = {}
+    for result in result_db:
+        for name, params in result.get('results').items():
+            if params.get('exit_code') is not 0:
+                continue
+
+            if name not in total_times:
+                total_times[name] = {'time': 0, 'count': 0}
+            total_times[name]['time'] += params.get('run_time')
+            total_times[name]['count'] += 1
+
+    averages = {}
+    for t, v in total_times.items():
+        av = v.get('time') / v.get('count')
+        averages[t] = av
+
+    return averages
+
 def main():
     cmdline_parser = argparse.ArgumentParser(
         description="run the testsuite's tests locally"
@@ -333,7 +359,9 @@ def main():
     except FileNotFoundError:
         result_db = []
 
-    (exit_code, results) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going)
+    average_runtimes = find_average_runtimes(result_db)
+
+    (exit_code, results) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, average_runtimes)
 
     result_db.append({
         'version': drbd_ver,

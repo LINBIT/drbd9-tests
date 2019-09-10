@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 
 import subprocess
+import signal
+from subprocess import CalledProcessError, TimeoutExpired
+from threading import Timer
 import argparse
 import pathlib
 import time
@@ -39,10 +42,101 @@ def stream_read_json(file_name):
                 start_pos += end_pos
                 yield obj
 
+def drbdsetup_down(vm):
+    cmd = 'drbdsetup down all'
+    args = ['ssh', 'root@' + vm, cmd]
+    subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=30)
 
-def cleanup_and_prepare_vm(vm, parallel=False):
+def unmount_dev(vm, dev):
+    cmd = 'umount ' + dev
+    args = ['ssh', 'root@' + vm, cmd]
+    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = p.communicate()
+    if p.returncode != 0:
+        raise Exception(stderr)
+
+def is_process_running(vm, pid):
+    cmd = 'test -d /proc/' + pid
+    args = ['ssh', 'root@' + vm, cmd]
+    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.communicate()
+    return p.returncode == 0
+
+def kill_process(vm, pid):
+    cmd = 'kill -9 ' + pid
+    args = ['ssh', 'root@' + vm, cmd]
+
+    attempt = 0
+    last_stderr = ''
+    while attempt < 3:
+        p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = p.communicate()
+        if not is_process_running(vm, pid):
+            break
+        print('  Process was not killed on attempt {0}, retrying'.format(attempt+1))
+        attempt += 1
+    else:
+        raise Exception()
+
+def kill_node(vm):
+    cmd = '{ sleep 0.5; echo b > /proc/sysrq-trigger; } > /dev/null &'
+    args = ['ssh', 'root@' + vm, cmd]
+    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = p.communicate()
+    if p.returncode != 0:
+        raise Exception(stderr)
+
+def handle_down_error(vm, e):
+    """
+    handle an error produced by 'drbdsetup down'
+    """
+    if e.returncode == 11:
+        # held open by someone
+        regexPid = r'^(.*) opened by (.*) \(pid (\d*)\) at .*$'
+        r = re.search(regexPid, str(e.stderr))
+        dev = r.group(1)
+        procname = r.group(2)
+        pid = r.group(3)
+        # special case: if 'mount' is holding the device open, we need to unmount it
+        if procname == 'mount':
+            print('  Device is mounted, unmounting {0}'.format(dev))
+            unmount_dev(vm, dev)
+        else:
+            print('  Device is being held open, killing {0} (pid {1})'.format(procname, pid))
+            kill_process(vm, pid)
+    else:
+        raise Exception('Unknown drbdsetup down exception: {0}'.format(e))
+
+    # let's try this again...
+    drbdsetup_down(vm)
+
+def try_down_all(vm, all_vm_names):
+    try:
+        drbdsetup_down(vm)
+    except TimeoutExpired as e:
+        print('  drbdsetup down is not responding, killing all nodes')
+        try:
+            for node in all_vm_names:
+                kill_node(node)
+        except Exception as e:
+            print('  sysrq-trigger failed, cannot continue')
+            raise e
+    except CalledProcessError as e:
+        try:
+            handle_down_error(vm, e)
+        except Exception as e:
+            print('  Could not handle error, rebooting all nodes')
+            print(e)
+            try:
+                for node in all_vm_names:
+                    kill_node(node)
+            except Exception as e:
+                print('  sysrq-trigger failed, cannot continue')
+                raise e
+
+def cleanup_and_prepare_vm(vm, all_vm_names, parallel=False):
+    try_down_all(vm, all_vm_names)
     cmd = """
-drbdsetup down all 2>/dev/null
 rmmod drbd_transport_tcp 2>/dev/null || true
 rmmod drbd 2>/dev/null || true
 modprobe crc32c
@@ -72,7 +166,7 @@ def cleanup_and_prepare_vms(vm_names):
     print("Preparing", end='')
     for vm in vm_names:
         print(" %s" % (vm), end='')
-        processes.append(cleanup_and_prepare_vm(vm, parallel=True))
+        processes.append(cleanup_and_prepare_vm(vm, vm_names, parallel=True))
     sys.stdout.flush()
 
     for p in processes:
@@ -80,11 +174,19 @@ def cleanup_and_prepare_vms(vm_names):
         if p.returncode != 0:
             raise subprocess.CalledProcessError(p.returncode, 'ssh')
 
-
 def run_with_progress(args):
     N_CHARS = 10
+    TIMEOUT_SEC = 5*60 # 5 minutes
     start = time.time()
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, preexec_fn=os.setsid)
+
+    timeout = False
+    def do_timeout():
+        nonlocal timeout
+        os.killpg(p.pid, signal.SIGKILL)
+        timeout = True
+    timer = Timer(TIMEOUT_SEC, do_timeout)
+    timer.start()
     now = start
     while True:
         before = now
@@ -98,8 +200,9 @@ def run_with_progress(args):
     print(' ' * N_CHARS + BS * N_CHARS, end='')
     sys.stdout.flush()
     p.wait()
+    timer.cancel()
     now = time.time()
-    return {'exit_code': p.returncode, 'run_time': now - start}
+    return {'exit_code': p.returncode, 'run_time': now - start, 'timeout': timeout}
 
 def list_LVs(vm):
     p = subprocess.run(['ssh', 'root@' + vm, 'lvs --noheadings -o lv_path'],
@@ -107,16 +210,16 @@ def list_LVs(vm):
     lvs = [lv.strip() for lv in p.stdout.decode('utf-8').splitlines()]
     return lvs
 
-def remove_excess_LVs(orig_lvs, vm):
+def remove_excess_LVs(orig_lvs, vm, all_vm_names):
     lvs = list_LVs(vm)
     for lv in lvs:
         if not lv in orig_lvs:
-            cleanup_and_prepare_vm(vm)
+            cleanup_and_prepare_vm(vm, all_vm_names)
             subprocess.run(['ssh', 'root@' + vm, 'lvremove -f %s' % (lv)], check=True)
 
 def cleanup(original_lvs, all_vm_names):
     for vm in all_vm_names:
-        remove_excess_LVs(original_lvs[vm], vm)
+        remove_excess_LVs(original_lvs[vm], vm, all_vm_names)
 
 def generate_test_set(tests, n_vms):
     test_sets = {}
@@ -165,21 +268,32 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going):
             result['nodes'] = len(vm_names)
             results[test] = result
             exit_code = result.get('exit_code')
-            if exit_code == 0:
-                print(GREEN + 'OKAY' + NORMAL)
-            else:
-                print(RED + 'FAILED' + NORMAL)
+            timeout = result.get('timeout')
+            if timeout:
+                print(RED + 'TIMEOUT' + NORMAL)
                 cleanup(original_lvs, all_vm_names)
                 if keep_going:
                     # just return 1 for now
                     global_exit_code = 1
                 else:
                     return (exit_code, results)
+            else:
+                if exit_code == 0:
+                    print(GREEN + 'OKAY' + NORMAL)
+                else:
+                    print(RED + 'FAILED' + NORMAL)
+                    cleanup(original_lvs, all_vm_names)
+                    if keep_going:
+                        # just return 1 for now
+                        global_exit_code = 1
+                    else:
+                        return (exit_code, results)
 
     return (global_exit_code, results)
 
-def collect_software_versions(vm):
-    cleanup_and_prepare_vm(vm)
+def collect_software_versions(all_vm_names):
+    vm = all_vm_names[0]
+    cleanup_and_prepare_vm(vm, all_vm_names)
     p = subprocess.run(['ssh', 'root@' + vm, 'uname -r; cat /proc/drbd'],
                        check=True, stdout=subprocess.PIPE)
     s = p.stdout.decode('utf-8')
@@ -206,7 +320,7 @@ def main():
     args = cmdline_parser.parse_args()
     all_vm_names = args.vm_name
 
-    (kern_ver, drbd_ver, drbd_git) = collect_software_versions(all_vm_names[0])
+    (kern_ver, drbd_ver, drbd_git) = collect_software_versions(all_vm_names)
 
     if args.run:
         test_set_iter=generate_test_set(args.run, len(all_vm_names))

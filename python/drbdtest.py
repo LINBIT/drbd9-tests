@@ -28,6 +28,8 @@ import threading
 import socket
 import argparse
 import subprocess
+import select
+import signal
 from subprocess import CalledProcessError
 import atexit
 from ordered_set import OrderedSet
@@ -698,6 +700,7 @@ class Resource(object):
         return PeerDevices([pd for pd in pds if peer == pd.connection.nodes[1]])
 
     def cleanup(self):
+        os.kill(output_catcher_pid, signal.SIGTERM)
         if not skip_cleanup:
             self.nodes.run(['cleanup'], prepare=True, catch=True)
         for node in self.nodes:
@@ -749,7 +752,6 @@ class Resource(object):
         debug('# ' + ' '.join(pipes.quote(_) for _ in cmd + where))
 
         result = subprocess.check_output(cmd + where)
-        # Keep data in logfiles, too.
         print(result)
 
         lines = result.split("\n")
@@ -1622,40 +1624,40 @@ class Node(exxe.Exxe):
         self.run(['disable-faults', '--devs=%d' % (1 << volume.minor)])
 
 
-class Tee(object):
-    """ File object that forwards writes and flushes to two other file objects. """
+def output_cachter_io_loop(stdout_pipe_r, stderr_pipe_r, logfile):
+    poll = select.poll()
+    READ_FLAGS = select.POLLIN | select.POLLPRI | select.POLLHUP | select.POLLERR
+    poll.register(stdout_pipe_r, READ_FLAGS)
+    poll.register(stderr_pipe_r, READ_FLAGS)
+    while True:
+        events = poll.poll()
+        for fd, flag in events:
+            if flag & (select.POLLIN | select.POLLPRI):
+                bytes = os.read(fd, 4096)
+                os.write(logfile.fileno(), bytes)
+                if fd == stdout_pipe_r:
+                    os.write(sys.stdout.fileno(), bytes)
+                elif fd == stderr_pipe_r:
+                    os.write(sys.stderr.fileno(), bytes)
+            else:
+                return;
 
-    class Tee(object):
-        def __init__(self, file1, file2):
-            self.file1 = file1
-            self.file2 = file2
+def output_catcher(file_name):
+    stdout_pipe_r, stdout_pipe_w = os.pipe()
+    stderr_pipe_r, stderr_pipe_w = os.pipe()
 
-        def write(self, data):
-            self.file1.write(data)
-            self.file2.write(data)
+    with open(file_name, 'w') as logfile:
+        pid = os.fork()
+        if pid == 0:
+            output_cachter_io_loop(stdout_pipe_r, stderr_pipe_r, logfile)
+            exit(0)
+        else:
+            global output_catcher_pid
+            output_catcher_pid = pid
 
-        def flush(self):
-            self.file1.flush()
-            self.file2.flush()
-
-    def __init__(self, file):
-        self.file = file
-        self.stdout = sys.stdout
-        self.stderr = sys.stderr
-        sys.stdout = Tee.Tee(self.file, sys.stdout)
-        sys.stderr = Tee.Tee(self.file, sys.stderr)
-
-    def __del__(self):
-        sys.stdout = self.stdout
-        sys.stderr = self.stderr
-        self.file.close()
-
-    def __enter__(self):
-        pass
-
-    def __exit__(self, _type, _value, _traceback):
-        pass
-
+            os.dup2(stdout_pipe_w, sys.stdout.fileno())
+            os.dup2(stderr_pipe_w, sys.stderr.fileno())
+    return
 
 def skip_test(text):
     print(text)
@@ -1784,8 +1786,7 @@ def setup(parser=argparse.ArgumentParser(),
                 raise e
         os.symlink(args.job, os.path.join('log', job_symlink))
 
-    global tee
-    tee = Tee(open(os.path.join(args.logdir, 'test.log'), 'w'))
+    output_catcher(os.path.join(args.logdir, 'test.log'))
 
     global proxy_enable
     proxy_enable = args.proxy

@@ -196,6 +196,11 @@ for node_a in partition_a:
         connections_new.add(drbdtest.Connection(node_b, node_a))
         connections_witness.add(drbdtest.Connection(node_a, node_b))
 
+resource.forbidden_patterns.difference_update([
+    r'connection:BrokenPipe',
+    r'connection:ProtocolError'
+])
+
 connections_new.connect()
 connections_witness.event(r'connection .* connection:Connected')
 
@@ -205,6 +210,11 @@ for connection in connections_new:
     peer_devices.add(drbdtest.PeerDevice(connection, connection[1].volumes[0]))
 
 peer_devices.event(r'peer-device .* peer-disk:UpToDate')
+
+resource.forbidden_patterns.update([
+    r'connection:BrokenPipe',
+    r'connection:ProtocolError'
+])
 
 
 for node in partition_a:

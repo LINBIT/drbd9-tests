@@ -1640,7 +1640,7 @@ def output_cachter_io_loop(stdout_pipe_r, stderr_pipe_r, logfile):
                 elif fd == stderr_pipe_r:
                     os.write(sys.stderr.fileno(), bytes)
             else:
-                return;
+                return
 
 def output_catcher(file_name):
     stdout_pipe_r, stdout_pipe_w = os.pipe()

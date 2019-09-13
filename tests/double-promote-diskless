@@ -1,0 +1,74 @@
+#! /usr/bin/env python
+#
+# This test configures a 3 node system, with one node (A) diskless.
+# One node (C) is isolated, node A promotes and demotes 2 times. Then
+# ensure the isolated node can be re-integrated with C.
+
+import random
+import time
+from python import drbdtest
+from python.drbdtest import verbose
+
+def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
+    def connect_ca():
+        connection_ca = drbdtest.Connection(node_c, node_a)
+        connection_ca.connect()
+        pd = drbdtest.PeerDevice(connection_ca, resource.volumes[0])
+        pd.event(r'peer-device .* replication:Established')
+
+    def new_current_uuid_a():
+        node_a.primary()
+        time.sleep(0.2)
+        node_a.run(cmd)
+        time.sleep(0.2)
+        node_a.secondary()
+        time.sleep(0.2)
+
+    verbose('* Isolating %s' % (node_c.name))
+    connection_cb = drbdtest.Connection(node_c, node_b)
+    connection_ca = drbdtest.Connection(node_c, node_a)
+    connection_cb.disconnect()
+
+    verbose('* Promoting multiple times on %s' % (node_a.name))
+    dev_name = node_a.volumes[0].device()
+    cmd = ['dd', 'if=/dev/urandom', 'of=%s' % (dev_name), 'bs=4k', 'count=1', 'oflag=direct']
+
+    new_current_uuid_a()
+    connection_ca.disconnect()
+    new_current_uuid_a()
+    new_current_uuid_a()
+
+    if connect_to_diskless_first:
+        connect_ca()
+
+    verbose('* Resync from %s to %s' % (node_b.name, node_c.name))
+    connection_cb.connect()
+
+    pd = drbdtest.PeerDevice(connection_cb, resource.volumes[0])
+    pd.event(r'peer-device .* replication:SyncTarget')
+    pd.event(r'peer-device .* replication:Established')
+
+    if not connect_to_diskless_first:
+        connect_ca()
+
+    return
+
+random.seed()
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+node_a = random.choice(resource.nodes)
+diskful_nodes = resource.nodes.difference([node_a])
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+[node_b, node_c] = random.sample(diskful_nodes, 2)
+
+do_test(node_a, node_b, node_c, connect_to_diskless_first=True)
+do_test(node_a, node_b, node_c, connect_to_diskless_first=False)
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

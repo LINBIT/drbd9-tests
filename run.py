@@ -16,8 +16,11 @@ NORMAL='\033[0m'
 GREEN='\033[32m'
 WHITE='\033[97m'
 RED='\033[91m'
+YELLOW='\033[33m'
 BS='\010'
 CR='\015'
+
+GRAY_BACKGROUND='\u001b[40;1m'
 
 def stream_read_json(file_name):
     start_pos = 0
@@ -349,12 +352,44 @@ def find_statistics(result_db, statistics):
         if name not in statistics:
             statistics[name] = {}
         statistics[name]['success_rate'] = av
+        statistics[name]['count'] = v.get('count')
+
+def analyze():
+    try:
+        f = open('result_db.json', 'r')
+        result_db = json.load(f)
+    except FileNotFoundError:
+        result_db = []
+
+    statistics = {}
+    find_statistics(result_db, statistics)
+
+    print('{}{:<29}  {:>5}   {:>8}   {:>6}{}'.format(GRAY_BACKGROUND, 'Test Name', 'Count', 'Success', 'Avg. Runtime', NORMAL))
+
+    for name, stats in statistics.items():
+        count = stats.get('count')
+        success_rate = round(stats.get('success_rate') * 100, 2)
+        if success_rate == 0:
+            color = RED
+        elif success_rate == 100:
+            color = GREEN
+        else:
+            color = YELLOW
+
+        s = '{:<29}  {:>5}     {}{:>5}%{}'.format(name, stats.get('count'), color, success_rate, NORMAL)
+        av = stats.get('average_runtime')
+        if av:
+            secs = round(av, 2)
+        else:
+            secs = ' -----'
+        s += '        {:>6}s'.format(secs)
+        print(s)
 
 def main():
     cmdline_parser = argparse.ArgumentParser(
         description="run the testsuite's tests locally"
         )
-    cmdline_parser.add_argument('vm_name', type=str, nargs='+',
+    cmdline_parser.add_argument('vm_name', type=str, nargs='*',
                                 help='name of VM/host that can be used to ssh into it')
     cmdline_parser.add_argument('-f', '--test-set-file', type=pathlib.Path,
                                 dest='test_set_file', default='tests.drbd9.json',
@@ -365,9 +400,19 @@ def main():
                                 dest='run', help='run only these named tests', default=[])
     cmdline_parser.add_argument('-k', '--keep-going', action='store_true', dest='keep_going',
                                 help='keep going even after a test fails', default=False)
-
+    cmdline_parser.add_argument('-a', '--analyze', action='store_true', dest='analyze',
+                                help='view statistics about previous runs', default=False)
     args = cmdline_parser.parse_args()
+
+    if args.analyze:
+        analyze()
+        return
+
     all_vm_names = args.vm_name
+    if len(all_vm_names) < 1:
+        cmdline_parser.print_usage()
+        print('error: the following arguments are required: vm_name')
+        sys.exit(1)
 
     (kern_ver, drbd_ver, drbd_git) = collect_software_versions(all_vm_names)
 

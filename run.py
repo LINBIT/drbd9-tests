@@ -432,6 +432,13 @@ def main():
     except FileNotFoundError:
         result_db = []
 
+    # register SIGINT handler so that the result_db is saved on Ctrl+C
+    def sigint_handler(sig, frame):
+        with open('result_db.json', 'w') as f:
+            json.dump(result_db, f)
+        sys.exit(0)
+    signal.signal(signal.SIGINT, sigint_handler)
+
     statistics = {}
     find_statistics(result_db, statistics)
 

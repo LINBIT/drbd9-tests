@@ -399,9 +399,9 @@ def main():
     cmdline_parser.add_argument('-f', '--test-set-file', type=pathlib.Path,
                                 dest='test_set_file', default='tests.drbd9.json',
                                 metavar="FILE", help='JSON stream file to read the test set')
-    cmdline_parser.add_argument('-n', '--not', type=str, metavar="TEST_NAME", nargs='*',
+    cmdline_parser.add_argument('-n', '--not', type=str, metavar="TEST_NAME", action='append',
                                 dest='exclude', help='exclude these tests', default=[])
-    cmdline_parser.add_argument('-r', '--run', type=str, metavar="TEST_NAME", nargs='*',
+    cmdline_parser.add_argument('-r', '--run', type=str, metavar="TEST_NAME", action='append',
                                 dest='run', help='run only these named tests', default=[])
     cmdline_parser.add_argument('-k', '--keep-going', action='store_true', dest='keep_going',
                                 help='keep going even after a test fails', default=False)

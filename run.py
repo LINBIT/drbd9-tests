@@ -142,11 +142,14 @@ def cleanup_and_prepare_vm(vm, all_vm_names, parallel=False):
     cmd = """
 rmmod drbd_transport_tcp 2>/dev/null || true
 rmmod drbd 2>/dev/null || true
-modprobe crc32c
+modprobe crc32c 2>/dev/null || true
 UNR=$(uname -r)
 if test -e /lib/modules/$UNR/updates/drbd.ko; then
     insmod /lib/modules/$UNR/updates/drbd.ko
     insmod /lib/modules/$UNR/updates/drbd_transport_tcp.ko
+elif test -e /lib/modules/$UNR/weak-updates/drbd/drbd.ko; then
+    insmod /lib/modules/$UNR/weak-updates/drbd/drbd.ko
+    insmod /lib/modules/$UNR/weak-updates/drbd/drbd_transport_tcp.ko
 elif test -e /lib/modules/$UNR/extra/drbd/drbd.ko; then
     insmod /lib/modules/$UNR/extra/drbd/drbd.ko
     insmod /lib/modules/$UNR/extra/drbd/drbd_transport_tcp.ko

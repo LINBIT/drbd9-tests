@@ -407,6 +407,8 @@ def main():
                                 help='keep going even after a test fails', default=False)
     cmdline_parser.add_argument('-a', '--analyze', action='store_true', dest='analyze',
                                 help='view statistics about previous runs', default=False)
+    cmdline_parser.add_argument('-i', '--iterations', type=int, dest='iterations',
+                                help='how many times to run the test suite', default=1)
     args = cmdline_parser.parse_args()
 
     if args.analyze:
@@ -421,11 +423,6 @@ def main():
 
     (kern_ver, drbd_ver, drbd_git) = collect_software_versions(all_vm_names)
 
-    if args.run:
-        test_set_iter=generate_test_set(args.run, len(all_vm_names))
-    else:
-        test_set_iter=stream_read_json(args.test_set_file)
-
     try:
         f = open('result_db.json', 'r')
         result_db = json.load(f)
@@ -439,19 +436,36 @@ def main():
         sys.exit(0)
     signal.signal(signal.SIGINT, sigint_handler)
 
-    statistics = {}
-    find_statistics(result_db, statistics)
+    total_successful = 0
+    total_ran = 0
+    for i in range(args.iterations):
+        if args.iterations > 1:
+            print('Starting iteration {0}{2}{1} of {0}{3}{1}'.format(WHITE, NORMAL, i+1, args.iterations))
 
-    (exit_code, results, num_successful, num_total) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, statistics)
+        if args.run:
+            test_set_iter=generate_test_set(args.run, len(all_vm_names))
+        else:
+            test_set_iter=stream_read_json(args.test_set_file)
 
-    print('{0}{4}{3} tests ran, {1}{5} successful{3}, {2}{6} failed{3}'.format(WHITE, GREEN, RED, NORMAL, num_total, num_successful, num_total - num_successful))
+        statistics = {}
+        find_statistics(result_db, statistics)
+        (exit_code, results, num_successful, num_total) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, statistics)
+        total_successful += num_successful
+        total_ran += num_total
 
-    result_db.append({
-        'version': drbd_ver,
-        'git_hash': drbd_git,
-        'kernel': kern_ver,
-        'date_time': time.strftime("%Y%m%d-%H%M%S"),
-        'results': results})
+        if args.iterations > 1:
+            print('Iteration {0}{4}{3}: {0}{5}{3} tests ran, {1}{6} successful{3}, {2}{7} failed{3}'.format(
+                WHITE, GREEN, RED, NORMAL, i+1, num_total, num_successful, num_total - num_successful))
+
+        result_db.append({
+            'version': drbd_ver,
+            'git_hash': drbd_git,
+            'kernel': kern_ver,
+            'date_time': time.strftime("%Y%m%d-%H%M%S"),
+            'results': results})
+
+    print('{0}{4}{3} tests ran, {1}{5} successful{3}, {2}{6} failed{3}'.format(
+        WHITE, GREEN, RED, NORMAL, total_ran, total_successful, total_ran - total_successful))
 
     with open('result_db.json', 'w') as f:
         json.dump(result_db, f)

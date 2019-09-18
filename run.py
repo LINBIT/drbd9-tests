@@ -367,9 +367,11 @@ def analyze():
     statistics = {}
     find_statistics(result_db, statistics)
 
+    sorted_stats = sorted(statistics.items(), key=lambda x: (x[1]['success_rate'], x[1].get('average_runtime')), reverse=True)
+
     print('{}{:<29}  {:>5}   {:>8}   {:>6}{}'.format(GRAY_BACKGROUND, 'Test Name', 'Count', 'Success', 'Avg. Runtime', NORMAL))
 
-    for name, stats in statistics.items():
+    for name, stats in sorted_stats:
         count = stats.get('count')
         success_rate = round(stats.get('success_rate') * 100, 2)
         if success_rate == 0:

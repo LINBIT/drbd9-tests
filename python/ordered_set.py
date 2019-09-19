@@ -114,7 +114,7 @@ class OrderedSet(collections.MutableSet):
     append = add
 
     def update(self, data):
-        return map(lambda e: self.add(e), data)
+        return [self.add(e) for e in data]
 
     def difference_update(self, delta):
         for e in delta:

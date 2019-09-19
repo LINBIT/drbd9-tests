@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 ## DRBD-TESTSUITE-FLAG: dumpcap=0
 
 # Pass this script two host names to use as the test nodes.
@@ -25,12 +25,12 @@ def report(test, fio):
     lat = fio.latency("write")
     if lat:
         meas_w.save(test, lat.iops)
-        print("%s: write %f IOPs (%s)" % (test, lat.iops, lat))
+        print(("%s: write %f IOPs (%s)" % (test, lat.iops, lat)))
 
     lat = fio.latency("read")
     if lat:
         meas_r.save(test, lat.iops)
-        print("%s: read  %f IOPs (%s)" % (test, lat.iops, lat))
+        print(("%s: read  %f IOPs (%s)" % (test, lat.iops, lat)))
 
 def r_w_rw(name):
     n = 'rd-%s' % name

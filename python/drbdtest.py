@@ -13,10 +13,6 @@
 # consoles, syslogs, and event logs once. We need to prefix the .pos file names
 # and the log messages with the resource name.
 
-# FIXME: Upgrade to Python 3
-
-from __future__ import print_function
-
 import os
 import errno
 import sys
@@ -32,11 +28,11 @@ import select
 import signal
 from subprocess import CalledProcessError
 import atexit
-from ordered_set import OrderedSet
+from .ordered_set import OrderedSet
 import exxe
 
-from syslog import syslog_server
-from cStringIO import StringIO
+from .syslogd import syslog_server
+from io import StringIO
 
 #Contants for set_fault_injection
 DF_META_WRITE = 1
@@ -124,7 +120,7 @@ verbosity_level = 0
 debug_level = 0
 skip_cleanup = False
 
-devnull = open(os.devnull, 'rw')
+devnull = open(os.devnull, 'w')
 
 
 def verbose(*args, **kwargs):
@@ -502,7 +498,7 @@ class Volumes(Collection):
                 jobfile.seek(0)
 
             logfile = open(prefix + '.log', 'w+')
-            logfile.write("## command: %s\n\N" % cmd)
+            logfile.write("## command: %s\n\n" % cmd)
             try:
                 node.run(cmd, stdin=jobfile, stdout=logfile)
                 if return_output:
@@ -727,7 +723,7 @@ class Resource(object):
         if args is None:
             args = []
         no = kwargs.get('no', [])
-        if isinstance(no, basestring):
+        if isinstance(no, str):
             no = [no]
 
         self.sync_events(collection.__class__)
@@ -751,7 +747,7 @@ class Resource(object):
             cmd.extend(['-n', expr])
         debug('# ' + ' '.join(pipes.quote(_) for _ in cmd + where))
 
-        result = subprocess.check_output(cmd + where)
+        result = subprocess.check_output(cmd + where).decode()
         print(result)
 
         lines = result.split("\n")
@@ -781,15 +777,15 @@ class Resource(object):
     def add_new_posfile(self, posfile):
         data = ''.join(['1 0 events-%s\n' % node.name for node in self.nodes])
         fd = os.open(os.path.join(os.environ['DRBD_LOG_DIR'], posfile),
-                     os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0666)
-        os.write(fd, data)
+                     os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+        os.write(fd, data.encode())
         os.close(fd)
 
     def append_to_posfile(self, posfile, node):
         data = '1 0 events-%s\n' % node.name
         pathname = os.path.join(os.environ['DRBD_LOG_DIR'], posfile)
         fd = os.open(pathname, os.O_WRONLY | os.O_APPEND)
-        os.write(fd, data)
+        os.write(fd, data.encode())
         os.close(fd)
 
     def posfiles_add_node(self, node):
@@ -1249,7 +1245,7 @@ class Node(exxe.Exxe):
                 with ConfigBlock(t='net'):
                     pass
 
-                for i, a1, a2 in zip(xrange(len(n1.addr)), n1.addrs, n2.addrs):
+                for i, a1, a2 in zip(range(len(n1.addr)), n1.addrs, n2.addrs):
                     with ConfigBlock(t='path') as path:
                         self._config_one_host_addr(n1, path, i)
                         self._config_one_host_addr(n2, path, i)
@@ -1344,9 +1340,7 @@ class Node(exxe.Exxe):
         pass
 
     def listen_to_events(self):
-        file = open(os.path.join(self.resource.logdir,
-                                 'events-%s' % self.name),
-                    'a')
+        f = open(os.path.join(self.resource.logdir, 'events-%s' % self.name), 'ab')
         try:
             if self.events:
                 self.events.terminate()
@@ -1357,7 +1351,7 @@ class Node(exxe.Exxe):
         self.events = subprocess.Popen(
             ['ssh', '-q', '-l', 'root', self.name,
              'drbdsetup', 'events2', 'all', '--statistics', '--timestamps'],
-            stdout=file, stderr=subprocess.STDOUT, stdin=devnull)
+            stdout=f, stderr=subprocess.STDOUT, stdin=devnull, close_fds=True)
 
     def run(self, *args, **kwargs):
         if not kwargs.pop('prepare', False):
@@ -1576,7 +1570,7 @@ class Node(exxe.Exxe):
             # Exactly two spaces, else it's a peer-disk
             vol_m = re.search(r'^  volume:(\d+)', l)
             if vol_m:
-                right_volume = (int(re.group(1)) == volume)
+                right_volume = (int(vol_m.group(1)) == volume)
 
             if right_volume:
                 m = re.findall(r'([a-z-]+):(\S+)', l)
@@ -1598,11 +1592,11 @@ class Node(exxe.Exxe):
             # Exactly four spaces for a peer-disk
             vol_m = re.search(r'^    volume:(\d+)', l)
             if vol_m:
-                right_volume = (int(re.group(1)) == volume)
+                right_volume = (int(vol_m.group(1)) == volume)
 
             host_m = re.search(r'^  (\S+) node-id:(\d+)', l)
             if host_m:
-                right_host = (re.group(1) == peer)
+                right_host = (host_m.group(1) == peer)
 
             if right_host and right_volume:
                 m = re.findall(r'([a-z-]+):(\S+)', l)
@@ -1781,7 +1775,7 @@ def setup(parser=argparse.ArgumentParser(),
     if job_symlink is not None:
         try:
             os.remove(os.path.join('log', job_symlink))
-        except OSError, e:
+        except OSError as e:
             if e.errno != errno.ENOENT:
                 raise e
         os.symlink(args.job, os.path.join('log', job_symlink))
@@ -1871,28 +1865,6 @@ def setup(parser=argparse.ArgumentParser(),
                        prepare=True)
     return resource
 
-
-# Python 2.6 compat
-# http://stackoverflow.com/questions/17539985/check-output-error-in-python
-def fake_check_output(*popenargs, **kwargs):
-    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
-    output, unused_err = process.communicate()
-    retcode = process.poll()
-    if retcode:
-        cmd = kwargs.get("args")
-        if cmd is None:
-            cmd = popenargs[0]
-        error = subprocess.CalledProcessError(retcode, cmd)
-        error.output = output
-        raise error
-    return output
-
-try:
-    subprocess.check_output
-except:
-    subprocess.check_output = fake_check_output
-
-
 class FioParser():
     def _unit_to_num(self, string):
         return {'': 1, 'K': 1e3, 'm': 1e-3, 'u': 1e-6}[string or '']
@@ -1981,7 +1953,7 @@ def ensure(want, have, explanation=None):
 
 def ensure_subset(smaller, bigger, explanation=None):
     """compares two dictionaries"""
-    if not all([smaller[k] == bigger[k] for k in smaller.iterkeys()]):
+    if not all([smaller[k] == bigger[k] for k in smaller.keys()]):
         sys.stderr.write("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
         if explanation:
             sys.stderr.write("%s\n" % explanation)

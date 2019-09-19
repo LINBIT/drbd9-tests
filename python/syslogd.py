@@ -2,7 +2,7 @@
 
 # A very primitive syslog server.
 
-from __future__ import print_function
+
 import re
 import socket
 import select
@@ -10,7 +10,7 @@ import os
 import sys
 import time
 from threading import Thread
-from SocketServer import (BaseRequestHandler, ThreadingTCPServer, UDPServer)
+from socketserver import (BaseRequestHandler, ThreadingTCPServer, UDPServer)
 
 
 class Hostnames(object):
@@ -95,12 +95,16 @@ class TCPSyslogHandler(SyslogHandler):
             if not data:
                 break
             lines = data.splitlines(True)
-            if part:
-                lines[0] = ''.join([part, lines[0]])
+            if len(part) > 0:
+                new_line = ''.join([part, lines[0].decode()])
+                # maybe there's some \n in there
+                new_lines = new_line.splitlines(True)
+                lines.pop(0)
+                lines = new_lines + lines
             part = ''
             for message in lines:
                 if message[-1] != '\n':
-                    part = message
+                    part = message.decode()
                     break
                 SyslogHandler.handle(self, message)
         if part:

@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # This test creats three different versions of the data. It let
 # the two older nodes begin a resync. When they are in the middle

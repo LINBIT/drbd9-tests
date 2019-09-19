@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # For your convenience, fence handler exit code map:
 # 3  Peer's disk state was already Inconsistent.

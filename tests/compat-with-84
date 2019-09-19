@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # Pass this script a list of host names to use as the test nodes.
 
@@ -32,11 +32,11 @@ for n in [first]:
     n.run(['insmod', '/data/drbd-8.4/drbd/drbd.ko'])
 
     verbose("8.4 is node %s" % n)
-    print(n.run(
+    print((n.run(
                 ['cat', '/proc/drbd'],
                 return_stdout=True,
                 prepare=True,
-                prefix=str(n) + ": "))
+                prefix=str(n) + ": ")))
 
     n.drbd_major_version = 8
     n.config_changed = True

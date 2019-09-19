@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # This test is run on a 3-node cluster.
 #   A = primary; B, C = secondary

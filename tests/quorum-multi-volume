@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # Tests the quorum feature with multiple volumes instead of just one.
 

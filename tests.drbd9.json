@@ -16,7 +16,8 @@
 	"switch-primaries",
 	"verify",
 	"busy-resync",
-	"allow-remote-read"
+	"allow-remote-read",
+	"force-resync"
     ],
     "samevms": [
 	"initial-resync"

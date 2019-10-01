@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 #
 # This test configures a 3 node system, with one node (A) diskless.
 # One node (C) is isolated, node A promotes and demotes 2 times. Then
@@ -64,7 +64,7 @@ resource.up_wait()
 verbose('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
-[node_b, node_c] = random.sample(diskful_nodes, 2)
+[node_b, node_c] = random.sample(list(diskful_nodes), 2)
 
 do_test(node_a, node_b, node_c, connect_to_diskless_first=True)
 do_test(node_a, node_b, node_c, connect_to_diskless_first=False)

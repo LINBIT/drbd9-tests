@@ -667,7 +667,8 @@ class Resource(object):
         self.num_volumes += 1
         return volume
 
-    def add_disk(self, size, meta_size=None, diskful_nodes=None, thin=False):
+    def add_disk(self, size, meta_size=None, diskful_nodes=None, thin=False,
+                 max_peers=None):
         """
         Create and add a new disk on some or all nodes.
 
@@ -681,7 +682,8 @@ class Resource(object):
         volume = self.next_volume()
         for node in self.nodes:
             if diskful_nodes is None or node in diskful_nodes:
-                node.add_disk(volume, size, meta_size, thin=thin)
+                node.add_disk(volume, size, meta_size, thin=thin,
+                              max_peers=max_peers)
             else:
                 node.add_disk(volume)
 
@@ -1202,7 +1204,7 @@ class Node(exxe.Exxe):
         self.minors += 1
         return self.minors
 
-    def add_disk(self, volume, size=None, meta_size=None, thin=False):
+    def add_disk(self, volume, size=None, meta_size=None, thin=False, max_peers=None):
         """
         Keyword arguments:
         volume -- volume number of the new disk
@@ -1211,7 +1213,8 @@ class Node(exxe.Exxe):
         """
         # FIXME: Volume is not added at the right index (by volume number)
         # here.  Does that matter?
-        self.disks.append(Volume(self, volume, size, meta_size, thin=thin))
+        self.disks.append(Volume(self, volume, size, meta_size, thin=thin,
+                                 max_peers=max_peers))
         self.config_changed = True
 
     def _config_conns_84(self):

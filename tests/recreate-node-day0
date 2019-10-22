@@ -1,0 +1,101 @@
+#! /usr/bin/env python3
+#
+# This tests mimics the actions that happen when LINSTOR re-creates
+# a node that had a thinly provisioned resource.
+# I.e. a node goes away and returns later with the day0 current UUID
+#
+
+import random
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+#random.seed()
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.add_disk('100M', max_peers=3) # That is one spare to keep day0 bitmap
+
+for n in resource.nodes:
+    n.run(["drbdmeta", n.disks[0].minor, "v09", n.disks[0].disk, "internal",
+	   "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"])
+
+verbose('* All nodes on same current UUID, waiting for them to connect.')
+resource.up()
+pds = drbdtest.PeerDevices()
+for n1 in resource.nodes:
+    for n2 in resource.nodes:
+        if n1 != n2:
+            for v in resource.nodes[0].volumes:
+                pds.add(drbdtest.PeerDevice(drbdtest.Connection(n1, n2), v))
+pds.event(r'peer-device .* peer-disk:UpToDate', timeout=30)
+
+#[node_a, node_b, node_c] = random.sample(resource.nodes, 3)
+[node_a, node_b, node_c] = resource.nodes
+
+verbose('* Create data file on node_a and verify it on node_c')
+
+dev_name = node_a.volumes[0].device()
+node_a.run(['mkfs.ext4', '-Elazy_itable_init=0', '-Elazy_journal_init=0',
+            '-Enodiscard', dev_name])
+node_a.run(['mkdir', '-p', '/mnt/1'])
+node_a.run(['mount', dev_name, '/mnt/1'])
+node_a.run(['dd', 'if=/dev/urandom', 'of=/mnt/1/file', 'bs=1M', 'count=1'])
+md5sum_a = node_a.run(['md5sum', '/mnt/1/file'], return_stdout=True)
+node_a.run(['umount', '/mnt/1'])
+
+node_c.run(['mkdir', '-p', '/mnt/1'])
+node_c.run(['mount', dev_name, '/mnt/1'])
+md5sum_c = node_c.run(['md5sum', '/mnt/1/file'], return_stdout=True)
+node_c.run(['umount', '/mnt/1'])
+
+if md5sum_a != md5sum_c:
+    raise Exception("Got back wrong data! %s %s" % (md5sum_a, md5sum_c))
+
+
+verbose('* Make the cluster to move to new current UUID (node_b away and back)')
+
+connections_b = resource.connections.from_node(node_b)
+connections_b.disconnect()
+node_a.run(['mount', dev_name, '/mnt/1'])
+node_a.run(['umount', '/mnt/1'])
+connections_b.connect()
+node_b.volumes.event(r'device .* disk:UpToDate')
+
+##
+#node_a.down()
+#node_a.run(['drbdadm', 'dump-md', '--force', resource.name])
+#node_a.up()
+##
+
+verbose('* node_c gets lost')
+node_c.down()
+
+verbose('* remaining nodes form new current UUID')
+
+node_a.run(['mount', dev_name, '/mnt/1'])
+node_a.run(['umount', '/mnt/1'])
+
+verbose('* node_c is repaired but returns with an empty disk (day0 current UUID)')
+bdev_name = '/dev/%s/%s' % (node_c.volume_group, node_c.volumes[0].disk_lv)
+try:
+    node_c.run(['dd', 'if=/dev/zero', 'of=%s' % (bdev_name), 'bs=1M'])
+except CalledProcessError:
+    pass #dd reports an error because it reaches end of device.
+
+node_c.run(['drbdadm', 'create-md', '--force', resource.name])
+node_c.run(["drbdmeta", n.disks[0].minor, "v09", n.disks[0].disk, "internal",
+	   "--node-id=1", "set-gi", "87236C45CB784220:", "--force"])
+
+node_c.adjust()
+node_c.volumes.event(r'device .* disk:UpToDate')
+
+node_c.run(['mkdir', '-p', '/mnt/1'])
+node_c.run(['mount', dev_name, '/mnt/1'])
+md5sum_c = node_c.run(['md5sum', '/mnt/1/file'], return_stdout=True)
+node_c.run(['umount', '/mnt/1'])
+
+if md5sum_a != md5sum_c:
+    raise Exception("Wrong data after re-create! %s %s" % (md5sum_a, md5sum_c))
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

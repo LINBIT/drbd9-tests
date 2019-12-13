@@ -7,6 +7,7 @@
 # Let C resync to A
 # Connect B to C and see a split brain up to DRBD 9.0.21!!
 
+# TODO: Execute all possible orders of nodes joining the primary
 
 from python import drbdtest
 from python.drbdtest import verbose
@@ -14,6 +15,7 @@ from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.disk_options = 'c-max-rate 250k;'
 resource.add_disk('10M')
 
 resource.up_wait()
@@ -40,8 +42,17 @@ node_c.volumes.event(r'device .* disk:UpToDate')
 connections_bc = drbdtest.Connections()
 connections_bc.bidir_add(node_b, node_c)
 connections_bc.connect()
-peer_devices = drbdtest.PeerDevices.from_connections(connections_bc)
-peer_devices.event(r'peer-device .* replication:Established')
+connections_bc.event(r'connection .* connection:Connected')
+
+connection_bc = resource.connections.from_node(node_b).to_node(node_c)
+peer_devices_bc = drbdtest.PeerDevices.from_connections(connection_bc)
+peer_devices_bc.event(r'peer-device .* replication:SyncTarget')
+
+connection_ba = drbdtest.Connection(node_b, node_a)
+connection_ba.connect();
+connection_ba.event(r'connection .* connection:Connected')
+
+node_b.volumes.event(r'device .* disk:UpToDate')
 
 verbose('* Shut down and clean up.')
 resource.down()

@@ -281,7 +281,7 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, statistics
             print(CR + 'running %s on %s: ' %
                   (WHITE + test + NORMAL, ', '.join(vm_names)), end='')
             num_total += 1
-            result = run_with_progress(["tests/" + test, '-v', '--cleanup=always', *vm_names], statistics.get(test))
+            result = run_with_progress(["tests/" + test, '--cleanup=always', *vm_names], statistics.get(test))
             result['nodes'] = len(vm_names)
             results[test] = result
             exit_code = result.get('exit_code')

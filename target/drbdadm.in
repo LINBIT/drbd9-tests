@@ -3,10 +3,7 @@
 export PATH=${PATH#@DRBD_TEST_DATA@:}
 export PATH=${PATH#@DRBD_TEST_DATA@/:}
 
-verbose=
-[ ${DRBD_TEST_VERBOSE:-0} -lt 3 ] || verbose=-v
-
 drbdadm \
     $DRBD_TEST_DRBDADM_OPTIONS \
-    $verbose \
+    -v \
     "$@"

@@ -116,7 +116,6 @@ TOP = os.getenv('TOP', os.path.join(os.path.dirname(sys.argv[0]), '..'))
 DRBD_TEST_DATA = os.getenv('DRBD_TEST_DATA', '/usr/share/drbd-test')
 
 silent = False
-verbosity_level = 0
 debug_level = 0
 skip_cleanup = False
 
@@ -124,19 +123,9 @@ devnull = open(os.devnull, 'w')
 
 
 def verbose(*args, **kwargs):
-    """ Print message according to configured verbosity level. """
-
-    level = 1
-    try:
-        level = kwargs.pop('level')
-    except:
-        pass
-    if level <= verbosity_level:
-        print(*args, file=sys.stderr)
-        sys.stderr.flush()
-    else:
-        print(*args, file=tee.file)
-        tee.file.flush()
+    """ Print message to stderr """
+    print(*args, file=sys.stderr)
+    sys.stderr.flush()
 
 
 def debug(*args, **kwargs):
@@ -493,9 +482,8 @@ class Volumes(Collection):
             jobfile.flush()
             jobfile.seek(0)
 
-            if verbosity_level >= 3:
-                sys.stderr.write(jobfile.read())
-                jobfile.seek(0)
+            sys.stderr.write(jobfile.read())
+            jobfile.seek(0)
 
             logfile = open(prefix + '.log', 'w+')
             logfile.write("## command: %s\n\n" % cmd)
@@ -509,9 +497,8 @@ class Volumes(Collection):
                 sys.stderr.write(logfile.read())
                 raise
             else:
-                if verbosity_level >= 3:
-                    logfile.seek(0)
-                    sys.stderr.write(logfile.read())
+                logfile.seek(0)
+                sys.stderr.write(logfile.read())
             finally:
                 logfile.close()
 
@@ -1151,8 +1138,7 @@ class Node(exxe.Exxe):
                  prepare=True)
         self.run(['export', 'DRBD_TEST_DATA=%s' % DRBD_TEST_DATA,
                   'DRBD_TEST_JOB=%s' % os.environ['DRBD_TEST_JOB'],
-                  'EXXE_IDENT=exxe/%s' % os.environ['DRBD_TEST_JOB'],
-                  'DRBD_TEST_VERBOSE=%s' % verbosity_level] + self._extra_environment(),
+                  'EXXE_IDENT=exxe/%s' % os.environ['DRBD_TEST_JOB']] + self._extra_environment(),
                  prepare=True)
         self.hostname = self.run(['hostname', '-f'], return_stdout=True,
                                  prepare=True)
@@ -1705,8 +1691,6 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--volume-group', default='scratch')
     parser.add_argument('--vconsole', action='store_true')
     parser.add_argument('--silent', action='store_true')
-    parser.add_argument('-v', action='count', dest='verbose')
-    parser.add_argument('--verbose', type=int)
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
     parser.add_argument('--rdma')
@@ -1742,10 +1726,6 @@ def setup(parser=argparse.ArgumentParser(),
 
     global silent
     silent = args.silent
-
-    global verbosity_level
-    if args.verbose is not None:
-        verbosity_level = args.verbose
 
     global debug_level
     if args.debug is not None:

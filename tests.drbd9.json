@@ -27,6 +27,9 @@
     "vms": 3,
     "tests": [
 	"resync-source-becomes-target",
+	"resync-downstream-upstream",
+	"resync-to-older",
+	"double-promote-diskless",
 	"diskless",
 	"stress-al",
 	"outdate",

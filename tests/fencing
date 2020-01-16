@@ -86,7 +86,7 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
     global peer_self_outdated
     global peer_fenced
 
-    [n1, n2] = random.sample(resource.nodes, 2)
+    [n1, n2] = random.sample(list(resource.nodes), 2)
     prepare("Promote before disconnect", fencing_mode, handler_exit, test_mode, [n1, n2])
 
     n1_to_n2 = drbdtest.Connections()
@@ -172,7 +172,7 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
         pds.event(r'peer-device .* peer-disk:UpToDate')
 
 def fencing_test2(fencing_mode, handler_exit, test_mode):
-    [n1, n2] = random.sample(resource.nodes, 2)
+    [n1, n2] = random.sample(list(resource.nodes), 2)
     prepare("Disconnect before promote", fencing_mode, handler_exit, test_mode, [n1, n2])
 
     n1_to_n2 = drbdtest.Connections()
@@ -191,10 +191,10 @@ def fencing_test2(fencing_mode, handler_exit, test_mode):
         n2.secondary()
     else:
         if test_mode == "RECONNECT":
-	    promote_pid = os.fork()
-	    if promote_pid == 0:
-		n2.primary(wait=False)
-		os._exit(0)
+            promote_pid = os.fork()
+            if promote_pid == 0:
+                n2.primary(wait=False)
+                os._exit(0)
             # n2.event(r'resource .* suspended:fencing') ??
             n1_to_n2.connect(wait=False)
             n1.event(r'connection .* connection:Connecting')

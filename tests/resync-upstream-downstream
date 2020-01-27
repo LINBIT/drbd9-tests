@@ -1,0 +1,78 @@
+#! /usr/bin/env python3
+
+# This test creates three different versions of the data.
+# Then resyncs upstream (that is, between the nodes with the newer data).
+# Then resyncs downstream.
+
+from python import drbdtest
+from python.drbdtest import verbose
+
+def connect_and_check(n1, n2):
+    cs = drbdtest.Connections()
+    cs.bidir_add(n1, n2)
+    cs.connect()
+    cs.event(r'connection .* connection:Connected')
+
+def wait_sync(node_source, node_target):
+    pd_source = drbdtest.PeerDevice(
+            drbdtest.Connection(node_source, node_target),
+            resource.volumes[0])
+    pd_target = drbdtest.PeerDevice(
+            drbdtest.Connection(node_target, node_source),
+            resource.volumes[0])
+
+    pd_source.event(r'peer-device .* replication:SyncSource')
+    pd_source.event(r'peer-device .* replication:Established')
+    pd_target.event(r'peer-device .* replication:SyncTarget')
+    pd_target.event(r'peer-device .* replication:Established')
+
+
+# main
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.add_disk('10M')
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+node_a = resource.nodes[0]
+node_b = resource.nodes[1]
+node_c = resource.nodes[2]
+dev_name = node_a.volumes[0].device()
+
+verbose('* Run test')
+node_a.primary()
+
+verbose('* Disconnect and write something so that the initial UUID is no longer current')
+resource.connections.from_node(node_c).disconnect()
+node_a.run(['dd', 'if=/dev/zero', 'of=' + dev_name,
+    'bs=1M', 'count=1', 'seek=1', 'conv=fsync'])
+drbdtest.Connection(node_c, node_a).connect()
+wait_sync(node_a, node_c)
+
+resource.connections.from_node(node_c).disconnect()
+node_a.run(['dd', 'if=/dev/zero', 'of=' + dev_name,
+    'bs=1M', 'count=1', 'conv=fsync'])
+
+resource.connections.from_node(node_b).disconnect()
+node_a.run(['dd', 'if=/dev/zero', 'of=' + dev_name,
+    'bs=1M', 'count=1', 'seek=1', 'conv=fsync'])
+
+resource.connections.from_node(node_a).disconnect()
+
+verbose('* Start upstream resync.')
+connect_and_check(node_a, node_b)
+
+wait_sync(node_a, node_b)
+
+verbose('* Start downstream resync after upstream resync finished')
+connect_and_check(node_b, node_c)
+
+wait_sync(node_b, node_c)
+
+connect_and_check(node_a, node_c)
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

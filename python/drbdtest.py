@@ -1531,7 +1531,7 @@ class Node(exxe.Exxe):
         Returns a list of tuples, containing (string, match object), for each line.
         If pattern is None, simply returns the list of lines."""
 
-        output = self.run(['dmesg', '-c'], return_stdout=True)
+        output = self.run(['dmesg', '--read-clear'], return_stdout=True)
         lines = output.splitlines()
         if not pattern:
             return lines

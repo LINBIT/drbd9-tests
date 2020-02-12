@@ -38,7 +38,7 @@ BLOCK_SIZE = 4096
 BLOCK_SIZE_2COMPARE = BLOCK_SIZE - 10
 
 make_difference_counter = 0
-make_difference_blob = (("-" * 63) + "\n") * (BLOCK_SIZE/64)
+make_difference_blob = (("-" * 63) + "\n") * (BLOCK_SIZE//64)
 
 def MakeDifference(node, do_changes):
     blocks = []
@@ -122,6 +122,8 @@ def GetDifferenceFromDmesg(node):
 
 
 def DoVerify(src_node, dst_node, expected):
+    src_node.run(["dmesg", "--clear"])
+    dst_node.run(["dmesg", "--clear"])
     src_node.run(["drbdadm", "verify", "-v", "--start=0", "%s:%s/0" % (resource.name, dst_node.name)])
 
     src_node.peer_devices.event(r'peer-device .* replication:VerifyS')

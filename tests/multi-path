@@ -48,7 +48,7 @@ for i in range(10):
 
     # allow second again
     A.unblock_path(B, 1)
-    
+
     # verify connection
     A.secondary()
     B.event(r'connection .* role:Secondary')

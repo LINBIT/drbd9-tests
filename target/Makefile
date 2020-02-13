@@ -32,7 +32,6 @@ data_scripts := \
 	install-config \
 	io-load-dd \
 	mark \
-	write-byte-O_DIRECT \
 	register-cleanup \
 	reset-iptables \
 	reset-rsyslogd \

@@ -45,8 +45,14 @@ def main():
     fd = os.open(sys.argv[1], os.O_RDWR | os.O_DIRECT)
     # will raise an exception if open fails
 
-    ioctl(fd, BLKZEROUT,     IOCTL_range(0 * size, 1 * size), "BLKZEROUT")
-    ioctl(fd, BLKDISCARD,    IOCTL_range(1 * size, 2 * size), "BLKDISCARD")
+    try:
+        ioctl(fd, BLKZEROUT,     IOCTL_range(0 * size, 1 * size), "BLKZEROUT")
+    except:
+        pass
+    try:
+        ioctl(fd, BLKDISCARD,    IOCTL_range(1 * size, 2 * size), "BLKDISCARD")
+    except:
+        pass
     try:
         ioctl(fd, BLKSECDISCARD, IOCTL_range(2 * size, 3 * size), "BLKSECDISCARD")
     except:

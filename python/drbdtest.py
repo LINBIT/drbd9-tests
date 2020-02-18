@@ -140,10 +140,10 @@ def debug(*args, **kwargs):
         print(*args, file=sys.stderr)
 
 def kib_to_blocks(b):
-    return n * 2**10 / 4096
+    return n * 2**10 // 4096
 
 def mib_to_blocks(n):
-    return n * 2**20 / 4096
+    return n * 2**20 // 4096
 
 class Cleanup(object):
     """ Catch uncaught exceptions and set skip_cleanup accordingly. """

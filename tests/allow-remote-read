@@ -37,7 +37,7 @@ resource.skip_initial_sync()
 primary_n.primary()
 
 # disallow remote reads from this node
-primary_n.run(['drbdsetup', 'net-options', resource.name, no_reads_n.id, '--allow-remote-read=no'])
+primary_n.run(['drbdsetup', 'net-options', resource.name, str(no_reads_n.id), '--allow-remote-read=no'])
 
 # kill disk of primary
 resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Failed'])

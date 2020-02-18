@@ -38,7 +38,7 @@ def pre_existing_test(write_between_actions = False):
         # Preset the bitmap to some randomly set bits...
 
         n.run(["drbdadm", "create-md", "--force", resource.name])
-        n.run(["drbdmeta", n.disks[0].minor, "v09", n.disks[0].disk, "internal",
+        n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
 	       "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"]);
 
     verbose('* Bringing up the diskless and one server, connect them')

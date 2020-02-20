@@ -75,14 +75,13 @@ def test_write_between_disconnects(resource):
     tmp_pri = cut1_sec
     tmp_pri.primary(wait=False)
 
-    tmp_pri.run(["setsid", "bash", "-c", "dd if=/dev/zero of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null &" % (dev_name, 4)])
-
     # Make sure the reconciliation resync happens
     reconciliation_c = resource.connections.from_node(cut1_sec).to_node(cut2_sec)[0]
     reconciliation_pd = drbdtest.PeerDevice(reconciliation_c, resource.volumes[0])
     reconciliation_pd.event(r'peer-device .* replication:SyncTarget')
     reconciliation_pd.event(r'peer-device .* replication:Established')
     tmp_pri.event(r'resource .* role:Primary')
+    tmp_pri.run(["dd", "if=/dev/zero", "of=%s" % (dev_name), "bs=%dk" % 4, "count=1",  "oflag=direct"])
 
     verbose('* re-integrating')
     tmp_pri.secondary()

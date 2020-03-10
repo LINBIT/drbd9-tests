@@ -372,13 +372,13 @@ class Nodes(Collection):
     def connections_to_node(self, new_node):
         cs = Connections()
         for n in self.members:
-            cs.bidir_add(Connection(n, new_node))
+            cs.add(Connection(n, new_node))
         return cs
 
     def connections_from_node(self, new_node):
         cs = Connections()
         for n in self.members:
-            cs.bidir_add(Connection(new_node, n))
+            cs.add(Connection(new_node, n))
         return cs
 
     def get_diskful(self):

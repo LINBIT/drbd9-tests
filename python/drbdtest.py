@@ -394,6 +394,10 @@ class Nodes(Collection):
                       if all(volume.disk is None for volume in node.volumes)])
     diskless = property(get_diskless)
 
+    def adjust(self):
+        for n in self.members:
+            n.adjust()
+
 
 class Volumes(Collection):
     def __init__(self, members=[]):
@@ -881,6 +885,17 @@ class Resource(object):
                         pds.add(PeerDevice(Connection(n1, n2), v))
         pds.event(r'peer-device .* peer-disk:UpToDate', timeout=300)
 
+    def touch_config(self):
+        for n in self.nodes:
+            n.config_changed = True
+
+    def add_node(self, new_node):
+        self.nodes.add(new_node)
+        self.touch_config()
+
+    def remove_node(self, del_node):
+        self.nodes.remove(del_node)
+        self.touch_config()
 
 class Volume(object):
     def __init__(self, node, volume, size=None, meta_size=None, minor=None,
@@ -1373,6 +1388,7 @@ class Node(exxe.Exxe):
                 self.connections.add(Connection(self, node))
 
     def adjust(self):
+        self.update_config()
         self.run(['drbdadm', 'adjust', 'all', '-v'])
 
     def up(self, extra_options=[]):

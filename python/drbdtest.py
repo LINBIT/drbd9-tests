@@ -573,6 +573,10 @@ class Connections(Collection):
             node0, node1 = connection.nodes
             node0.connections.remove(connection)
 
+    def run_cmd(self, *args):
+        for connection in self:
+            connection.run_cmd(*args)
+
     def bidir_add(self, node1, node2):
         self.add(Connection(node1, node2))
         self.add(Connection(node2, node1))
@@ -984,15 +988,15 @@ class Connection(object):
     def disconnect(self, *args, **kwargs):
         return Connections([self]).disconnect(*args, **kwargs)
 
-    def run_cmd(self, cmd):
-        self.nodes[0].run(['drbdadm', cmd, '%s:%s' %
+    def run_cmd(self, *args):
+        self.nodes[0].run(['drbdadm', *args, '%s:%s' %
                            (self.resource.name, self.nodes[1].hostname)])
 
     def pause_sync(self):
-        self.run_cmd('pause-sync')
+        self.run_cmd(['pause-sync'])
 
     def resume_sync(self):
-        self.run_cmd('resume-sync')
+        self.run_cmd(['resume-sync'])
 
     def block(self, *args, **kwargs):
         self.nodes[0].block_path(self.nodes[1], *args, **kwargs)

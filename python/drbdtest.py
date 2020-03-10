@@ -1244,12 +1244,12 @@ class Node(exxe.Exxe):
             for n2 in self.resource.nodes[start + 1:]:
                 self._config_one_connection(n1, n2)
 
-    def config_host(self, node, index):
+    def config_host(self, node):
         resource = self.resource
 
         with ConfigBlock(t='on %s' % node.hostname) as N:
             if self.drbd_major_version == 9:
-                N.write("node-id %d;" % index)
+                N.write("node-id %d;" % node.id)
             else:
                 # 8.4 compat
                 N.write("address %s:%d;" % (node.addr, node.port))
@@ -1301,8 +1301,8 @@ class Node(exxe.Exxe):
                     except:
                         pass
 
-            for index, n in enumerate(resource.nodes):
-                self.config_host(n, index=index)
+            for n in resource.nodes:
+                self.config_host(n)
 
             if self.drbd_major_version == 8:
                 self._config_conns_84()

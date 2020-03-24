@@ -43,7 +43,8 @@
 	"quorum-suspended-cancel",
 	"uuid_send_receive_race",
 	"quorum-multi-volume",
-	"resync-reconciliation"
+	"resync-reconciliation",
+	"io-errors-diskless"
     ],
     "samevms": [
 	"diskless"

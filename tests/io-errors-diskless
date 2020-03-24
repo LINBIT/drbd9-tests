@@ -1,0 +1,111 @@
+#! /usr/bin/env python3
+
+# This test simulates IO errors on diskfull nodes and verifies
+# that applications on diskless nodes are completely shieldet
+# from those.
+#
+# Up to DRBD-9.0.22 this test demonstrates a lost reference
+# on the DRBD module, and quite often a timer flooding the logs
+# with something like:
+# We did not send a P_BARRIER for 195358ms > ko-count (7) * timeout (60 * 0.1s); drbd kernel thread blocked?
+
+import time
+import random
+from python import drbdtest
+from python.drbdtest import verbose
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=5)
+diskless_n = random.choice(resource.nodes)
+diskful_nodes = resource.nodes.difference([diskless_n])
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.net_options = 'timeout 20; ko-count 1;' # 2 seconds
+
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+vol = resource.volumes[0]
+
+def heal_disk():
+    verbose('* Healing disk.')
+    diskless_n.secondary()
+    resource.connections.to_node(diskless_n).event(r'connection .* role:Secondary')
+
+    failing_n.disable_fault_injection(vol)
+    failing_n.adjust()
+    failing_n.volumes.event(r'device .* disk:UpToDate')
+    pds = drbdtest.PeerDevices.from_connections(resource.connections.to_node(failing_n))
+    pds.event(r'peer-device .* peer-disk:UpToDate')
+
+def wait_for_disk_failure():
+    failing_n.volumes.event(r'device .* disk:Failed')
+    failing_n.volumes.event(r'device .* disk:Diskless')
+    pds = drbdtest.PeerDevices.from_connections(resource.connections.to_node(failing_n))
+    pds.event(r'peer-device .* peer-disk:Failed')
+    pds.event(r'peer-device .* peer-disk:Diskless')
+
+
+resource.up_wait()
+resource.forbidden_patterns.remove(r'disk:Failed')
+resource.forbidden_patterns.remove(r'peer-disk:Failed')
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+verbose('* Preparing data for READ test.')
+failing_n = random.choice(diskful_nodes)
+failing_n.run(['dd', 'if=/dev/urandom', 'of=%s' % (vol.device()), 'bs=4096', 'oflag=direct', 'count=20'])
+md5sums = []
+for i in range(0, 20):
+    md5sum = failing_n.run(['/bin/bash', '-c',
+                            'dd if=%s bs=4096 iflag=direct count=1 skip=%d | md5sum' % (vol.device(), i)],
+                           return_stdout=True)
+    md5sums.append(md5sum)
+
+verbose('* Diskless primary is %s.' % (diskless_n.name))
+diskless_n.primary()
+
+failing_n.set_fault_injection(vol, drbdtest.DF_DATA_READ)
+for i in range(0, 20):
+    md5sum = diskless_n.run(['/bin/bash', '-c',
+                             'dd if=%s bs=4096 iflag=direct count=1 skip=%d | md5sum' % (vol.device(), i)],
+                            return_stdout=True)
+    if md5sum != md5sums[i]:
+        raise Exception("Got back wrong data! %s %s" % (md5sum, md5sums[i]))
+
+verbose('* Waiting for timers to expire...')
+wait_for_disk_failure()
+time.sleep(5) # Here we are waiting until the timeout timer expires
+
+heal_disk()
+verbose('* testing WRITE failure.')
+
+diskless_n.primary()
+failing_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
+for i in range(0, 20):
+    md5sum = diskless_n.run(['/bin/bash', '-c',
+                             'dd if=/dev/urandom bs=4096 count=1 | tee >( dd of=%s bs=4096 oflag=direct count=1 seek=%d ) | md5sum' %
+                             (vol.device(), i)],
+                            return_stdout=True)
+    md5sums[i] = md5sum
+
+wait_for_disk_failure()
+
+verbose('* Reading back data.')
+for i in range(0, 20):
+    md5sum = diskless_n.run(['/bin/bash', '-c',
+                             'dd if=%s bs=4096 iflag=direct count=1 skip=%d | md5sum' % (vol.device(), i)],
+                            return_stdout=True)
+    if md5sum != md5sums[i]:
+        raise Exception("Got back wrong data! %s %s" % (md5sum, md5sums[i]))
+
+heal_disk()
+verbose('* Reading back data a second time')
+for i in range(0, 20):
+    md5sum = diskless_n.run(['/bin/bash', '-c',
+                             'dd if=%s bs=4096 iflag=direct count=1 skip=%d | md5sum' % (vol.device(), i)],
+                            return_stdout=True)
+    if md5sum != md5sums[i]:
+        raise Exception("Got back wrong data! %s %s" % (md5sum, md5sums[i]))
+
+verbose('* Shut down and clean up.')
+resource.down()
+resource.rmmod()
+

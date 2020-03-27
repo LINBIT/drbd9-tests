@@ -49,7 +49,14 @@ resource.nodes.adjust()
 ed_connections.event(r'connection .* connection:Connecting')
 early_diskless_n.down()
 
+# This time remove a diskless and leave the connections from the diskful in place.
+# That is an other path in the DRBD code...
+verbose('* Removing the later joined diskless again (%s)' % (late_diskless_n.name))
+late_diskless_n.down();
+l_connections = diskful_nodes.connections_to_node(late_diskless_n)
+l_connections.event(r'connection .* connection:Connecting')
+
 verbose('* Shut down and clean up.')
-resource.down()
+diskful_nodes.down()
 resource.rmmod()
 

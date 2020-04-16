@@ -3,7 +3,7 @@
 import sys, os
 import argparse
 
-buf = 'drbd-testsuite-stress-al'
+buf = b'drbd-testsuite-stress-al'
 al_extent_len = 4 * 1024 * 1024;
 
 def stress_al(device_path, nr_writes):

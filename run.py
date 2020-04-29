@@ -116,26 +116,8 @@ def handle_down_error(vm, e):
 def try_down_all(vm, all_vm_names):
     try:
         drbdsetup_down(vm)
-    except TimeoutExpired as e:
-        print('  drbdsetup down is not responding, killing all nodes')
-        try:
-            for node in all_vm_names:
-                kill_node(node)
-        except Exception as e:
-            print('  sysrq-trigger failed, cannot continue')
-            raise e
     except CalledProcessError as e:
-        try:
-            handle_down_error(vm, e)
-        except Exception as e:
-            print('  Could not handle error, rebooting all nodes')
-            print(e)
-            try:
-                for node in all_vm_names:
-                    kill_node(node)
-            except Exception as e:
-                print('  sysrq-trigger failed, cannot continue')
-                raise e
+        handle_down_error(vm, e)
 
 def cleanup_and_prepare_vm(vm, all_vm_names, parallel=False):
     try_down_all(vm, all_vm_names)

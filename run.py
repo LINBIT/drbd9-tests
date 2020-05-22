@@ -242,12 +242,13 @@ def generate_test_set(tests, n_vms):
         result['tests'] = test_sets[n]
         yield result
 
-def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, statistics):
+def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, num_skip, statistics):
     original_lvs = {}
     results = {}
     global_exit_code = 0
     num_successful = 0
     num_total = 0
+    num_skipped = 0
 
     for vm in all_vm_names:
         original_lvs[vm] = list_LVs(vm)
@@ -259,9 +260,13 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, statistics
         for test in test_set['tests']:
             if test in exclude_tests:
                 continue
+            if num_total + num_skipped < num_skip:
+                print(CR + '%2d skipping %s' % (num_total + num_skipped, WHITE + test + NORMAL))
+                num_skipped += 1
+                continue
             cleanup_and_prepare_vms(vm_names)
-            print(CR + 'running %s on %s: ' %
-                  (WHITE + test + NORMAL, ', '.join(vm_names)), end='')
+            print(CR + '%2d running %s on %s: ' %
+                  (num_total + num_skipped, WHITE + test + NORMAL, ', '.join(vm_names)), end='')
             num_total += 1
             result = run_with_progress(["tests/" + test, '--cleanup=always', *vm_names], statistics.get(test))
             result['nodes'] = len(vm_names)
@@ -397,6 +402,9 @@ def main():
                                 help='view statistics about previous runs', default=False)
     cmdline_parser.add_argument('-i', '--iterations', type=int, dest='iterations',
                                 help='how many times to run the test suite', default=1)
+    cmdline_parser.add_argument('-s', '--skip', type=int, dest='num_skip',
+                                help='skip the first n tests', default=0)
+
     args = cmdline_parser.parse_args()
 
     if args.analyze:
@@ -437,7 +445,7 @@ def main():
 
         statistics = {}
         find_statistics(result_db, statistics)
-        (exit_code, results, num_successful, num_total) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, statistics)
+        (exit_code, results, num_successful, num_total) = run_tests(test_set_iter, all_vm_names, args.exclude, args.keep_going, args.num_skip, statistics)
         total_successful += num_successful
         total_ran += num_total
 

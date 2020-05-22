@@ -42,6 +42,7 @@ def do_test(mode):
         status_str = target_n.run(['drbdsetup', 'status', resource.name, '--statistics'], return_stdout=True)
         if not re.search(r'out-of-sync:8', status_str):
             raise Exception("bit(s) not set for the not peer-acked write-request(s)")
+        diskless_n.volumes.write(1, flags=['oflag=direct']) # to create a new current UUID on the primary.
 
     target_other_c.connect()
     other_target_c.connect()

@@ -28,7 +28,7 @@ def slow_down_connection(from_n, to_n, speed='', delay=''):
     dev = from_n.net_device_to_peer(to_n)
     ip = socket.gethostbyname(to_n.hostname)
     verbose('Slowing down connection from {0} to {1} ({2})'.format(from_n.hostname, to_n.hostname, ip))
-    from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'root', 'handle', '1:', 'prio'])
+    from_n.run(['tc', 'qdisc', 'replace', 'dev', dev, 'root', 'handle', '1:', 'prio'])
     if delay != '':
         from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'delay', delay])
     else:

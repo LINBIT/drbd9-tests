@@ -29,8 +29,8 @@ def do_test(mode):
         reconnect_regex = r'peer-device .* replication:SyncTarget .* out-of-sync:8'
 
     verbose('* verify peer-ack %s' % (verb_str))
-    isolated_target_c.disconnect()
-    target_isolated_c.disconnect()
+    other_target_c.disconnect()
+    target_other_c.disconnect()
 
     diskless_n.resource_options([res_opt_str])
     diskless_n.volumes.write(2, flags=['oflag=direct'])
@@ -43,10 +43,10 @@ def do_test(mode):
         if not re.search(r'out-of-sync:8', status_str):
             raise Exception("bit(s) not set for the not peer-acked write-request(s)")
 
-    target_isolated_c.connect()
-    isolated_target_c.connect()
-    target_isolated_pd.event(reconnect_regex)
-    isolated_target_pd.event(r'peer-device .* replication:Established')
+    target_other_c.connect()
+    other_target_c.connect()
+    target_other_pd.event(reconnect_regex)
+    other_target_pd.event(r'peer-device .* replication:Established')
 
     if mode == M_NOT_PEER_ACKED:
         diskless_target_c.connect()
@@ -60,17 +60,17 @@ diskless_n = random.choice(resource.nodes)
 diskful_nodes = resource.nodes.difference([diskless_n])
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 target_n = random.choice(diskful_nodes)
-isolated_n = resource.nodes.difference([diskless_n, target_n])[0]
+other_n = resource.nodes.difference([diskless_n, target_n])[0]
 resource.up_wait()
 
 verbose('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 vol = resource.volumes[0]
-isolated_target_c = drbdtest.Connection(isolated_n, target_n)
-isolated_target_pd = drbdtest.PeerDevice(isolated_target_c, isolated_n.volumes[0])
-target_isolated_c = drbdtest.Connection(target_n, isolated_n)
-target_isolated_pd = drbdtest.PeerDevice(target_isolated_c, target_n.volumes[0])
+other_target_c = drbdtest.Connection(other_n, target_n)
+other_target_pd = drbdtest.PeerDevice(other_target_c, other_n.volumes[0])
+target_other_c = drbdtest.Connection(target_n, other_n)
+target_other_pd = drbdtest.PeerDevice(target_other_c, target_n.volumes[0])
 diskless_target_c = drbdtest.Connection(diskless_n, target_n)
 target_diskless_c = drbdtest.Connection(target_n, diskless_n)
 target_diskless_pd = drbdtest.PeerDevice(target_diskless_c, target_n.volumes[0])

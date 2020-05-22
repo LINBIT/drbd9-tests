@@ -203,6 +203,7 @@ resource.forbidden_patterns.difference_update([
 
 connections_new.connect()
 connections_witness.event(r'connection .* connection:Connected')
+connections_new.event(r'connection .* connection:Connected')
 
 # ensure that partition_b sees the just joined disks as D_UP_TO_DATE
 peer_devices = drbdtest.PeerDevices()
@@ -211,10 +212,10 @@ for connection in connections_new:
 
 peer_devices.event(r'peer-device .* peer-disk:UpToDate')
 
-resource.forbidden_patterns.update([
-    r'connection:BrokenPipe',
-    r'connection:ProtocolError'
-])
+#resource.forbidden_patterns.update([
+#    r'connection:BrokenPipe',
+#    r'connection:ProtocolError'
+#])
 
 
 for node in partition_a:

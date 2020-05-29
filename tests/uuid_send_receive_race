@@ -43,6 +43,11 @@ my_verbose('* Preparing scenario.')
 from_a.disconnect()
 to_a.event(r'connection:Unconnected')
 
+resource.forbidden_patterns.difference_update([
+    r'connection:ProtocolError',
+    r'connection:BrokenPipe'
+])
+
 B.volumes.write(1, bs='1M', flags=['oflag=direct'])
 A.block_packet_type(drbdtest.P_UUIDS110, from_node=C)
 from_a.connect()
@@ -50,11 +55,6 @@ to_a.event(r'connection:Connected')
 
 a_b_pd.event(r'peer-device .* replication:SyncTarget')
 a_b_pd.event(r'peer-device .* replication:Established')
-
-resource.forbidden_patterns.difference_update([
-    r'connection:ProtocolError',
-    r'connection:BrokenPipe'
-])
 
 A.unblock_packet_type(drbdtest.P_UUIDS110, from_node=C)
 my_verbose('* Here is the test.')

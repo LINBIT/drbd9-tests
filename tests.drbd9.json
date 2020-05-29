@@ -17,7 +17,7 @@
 	"verify",
 	"busy-resync",
 	"allow-remote-read",
-	"force-resync"
+	"force-resync",
 	"promote_while_connecting"
     ],
     "samevms": [

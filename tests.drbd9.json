@@ -18,6 +18,7 @@
 	"busy-resync",
 	"allow-remote-read",
 	"force-resync"
+	"promote_while_connecting"
     ],
     "samevms": [
 	"initial-resync"

@@ -1,0 +1,49 @@
+#! /usr/bin/env python3
+#
+# Promote while we hole the uuid_sem . There was a locking bug
+# in the code that caused this to deadlock. Keep such a test
+# in the testsuite so that we see it quickly when we re-introduce
+# it.
+
+from python import drbdtest
+from python.drbdtest import verbose
+import time
+#import os
+
+def my_verbose(str):
+    verbose(str)
+    for node in resource.nodes:
+        node.run(["echo", str])
+
+resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource.add_disk('10M')
+resource.up_wait()
+
+A = resource.nodes[0]
+B = resource.nodes[1]
+a_b = resource.connections.from_node(A)
+b_a = resource.connections.from_node(B)
+pds = drbdtest.PeerDevices.from_connections(resource.connections)
+dev_name = A.volumes[0].device()
+
+my_verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+my_verbose('* Start by disconnect.')
+a_b.disconnect()
+b_a.event(r'connection:Connecting')
+
+A.block_packet_type(drbdtest.P_SIZES, from_node=B)
+A.primary()
+a_b.connect()
+time.sleep(0.8)
+my_verbose('* Creating new UUID while uuid_sem is locked.')
+A.run(["setsid", "bash", "-c", "dd if=/dev/zero of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null &" % (dev_name, 4)])
+A.unblock_packet_type(drbdtest.P_SIZES, from_node=B)
+
+pds.event(r'peer-device .* replication:Established')
+
+verbose('* Shut down and clean up.')
+
+resource.down()
+resource.rmmod()

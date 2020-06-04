@@ -629,6 +629,17 @@ class PeerDevices(Collection):
                        opts]
 
             node0.run(cmdline)
+    def from_node(self, node):
+        return self.from_nodes([node])
+
+    def from_nodes(self, nodes):
+        return PeerDevices([_ for _ in self if _.connection.nodes[0] in nodes])
+
+    def to_node(self, node):
+        return self.to_nodes([node])
+
+    def to_nodes(self, nodes):
+        return PeerDevices([_ for _ in self if _.connection.nodes[1] in nodes])
 
 # Now that all collection classes are defined, define inter-class dependencies:
 Nodes.finish()

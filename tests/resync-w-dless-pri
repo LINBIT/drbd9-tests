@@ -26,58 +26,63 @@ from_flapping_c = resource.connections.from_node(flapping_n)
 flapping_to_dless_c = from_flapping_c.to_node(diskless_n)
 flapping_to_stable_c = from_flapping_c.to_node(stable_n)
 
-def prelude(text):
+def prelude(do_resync, text):
     verbose(text)
     diskless_n.primary()
     diskless_v.write(count=1, flags=['oflag=direct'])
 
     from_flapping_c.disconnect()
     dless_to_flapping_pd.event(r'peer-device .* replication:Off')
-    diskless_v.write(bs=1024*1024, count=1, offset=1, flags=['oflag=direct'])
+    if do_resync:
+        diskless_v.write(bs=1024*1024, count=1, offset=1, flags=['oflag=direct'])
 
 def postlude():
     dless_to_flapping_pd.event(r'peer-device .* peer-disk:UpToDate')
     diskless_n.secondary()
 
-def test1():
-    prelude('* connect to diskless first ')
+def test1(do_resync):
+    prelude(do_resync, '* connect to diskless first ')
     flapping_to_dless_c.connect()
     dless_to_flapping_pd.event(r'peer-device .* peer-disk:Outdated')
     flapping_to_stable_c.connect()
-    resync_target_pd.event(r'peer-device .* replication:SyncTarget')
-    resync_source_pd.event(r'peer-device .* replication:SyncSource')
+    if do_resync:
+        resync_target_pd.event(r'peer-device .* replication:SyncTarget')
+        resync_source_pd.event(r'peer-device .* replication:SyncSource')
     resync_target_pd.event(r'peer-device .* replication:Established')
     resync_source_pd.event(r'peer-device .* replication:Established')
     postlude()
 
-def test2():
-    prelude('* connect to other diskfull first, connect to dless during resync')
+def test2(do_resync):
+    if do_resync:
+        prelude(do_resync, '* connect to other diskfull first, connect to dless during resync')
+        flapping_to_stable_c.connect()
+        resync_target_pd.event(r'peer-device .* replication:SyncTarget')
+        resync_source_pd.event(r'peer-device .* replication:SyncSource')
+        flapping_to_dless_c.connect()
+        dless_to_flapping_pd.event(r'peer-device .* peer-disk:Inconsistent')
+        resync_target_pd.event(r'peer-device .* replication:Established')
+        resync_source_pd.event(r'peer-device .* replication:Established')
+        postlude()
+
+def test3(do_resync):
+    prelude(do_resync, '* connect to other diskfull first, connect to dless after resync')
     flapping_to_stable_c.connect()
-    resync_target_pd.event(r'peer-device .* replication:SyncTarget')
-    resync_source_pd.event(r'peer-device .* replication:SyncSource')
-    flapping_to_dless_c.connect()
-    dless_to_flapping_pd.event(r'peer-device .* peer-disk:Inconsistent')
-    resync_target_pd.event(r'peer-device .* replication:Established')
-    resync_source_pd.event(r'peer-device .* replication:Established')
-    postlude()
-
-def test3():
-    prelude('* connect to other diskfull first, connect to dless after resync')
-    flapping_to_stable_c.connect()
-    resync_target_pd.event(r'peer-device .* replication:SyncTarget')
-    resync_source_pd.event(r'peer-device .* replication:SyncSource')
+    if do_resync:
+        resync_target_pd.event(r'peer-device .* replication:SyncTarget')
+        resync_source_pd.event(r'peer-device .* replication:SyncSource')
     resync_target_pd.event(r'peer-device .* replication:Established')
     resync_source_pd.event(r'peer-device .* replication:Established')
     flapping_to_dless_c.connect()
     postlude()
 
-def test():
-    test1()
-    test2()
-    test3()
+def test(do_resync):
+    test1(do_resync)
+    test2(do_resync)
+    test3(do_resync)
 
-for i in range(3):
-    test()
+
+test(do_resync=True)
+test(do_resync=False)
 
 verbose('* Shut down and clean up.')
 resource.rmmod()

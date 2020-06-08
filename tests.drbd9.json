@@ -33,6 +33,7 @@
 	"resync-to-older",
 	"resync-reconciliation",
 	"resync-w-dless-pri",
+	"resync-between-targets",
 	"double-promote-diskless",
 	"diskless",
 	"stress-al",

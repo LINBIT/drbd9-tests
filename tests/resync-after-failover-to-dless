@@ -1,0 +1,68 @@
+#! /usr/bin/env python3
+
+# This tests prepares a cluster with two storage nodes and a diskless node.
+# One of the storage nodes is primary. Then it gets restated, and the
+# primary role is moved to the diskless.
+# Then the test makes sure the rebooting storage node connects to the other
+# storage node first and last to the diskless.
+#
+# Up to drbd-9.0.23 it missed then to resync (again) from the other
+# storage node.
+
+from python import drbdtest
+from python.drbdtest import verbose
+import time
+
+resource = drbdtest.setup(nodes=3)
+diskful_nodes = resource.nodes[:2]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+
+resource.up_wait()
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+diskless_n = resource.nodes.diskless[0]
+target_n = resource.nodes[0]
+source_n = resource.nodes[1]
+target_diskless_c = resource.connections.from_node(target_n).to_node(diskless_n)
+target_source_c = resource.connections.from_node(target_n).to_node(source_n)
+to_target_c = resource.connections.to_node(target_n)
+source_target_pd = source_n.volumes[0].peer_devices.to_node(target_n)
+diskless_v = diskless_n.volumes[0]
+target_v = target_n.volumes[0]
+source_v = source_n.volumes[0]
+
+verbose('* Preparing.')
+resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
+target_n.primary()
+target_v.write(bs=4096, count=1, flags=['oflag=direct'])
+target_diskless_c.disconnect(wait=False,force=True)
+target_source_c.disconnect(wait=False,force=True)
+target_n.down()
+to_target_c.event(r'connection .* connection:Connecting')
+
+verbose('* The diskless becomes primary ')
+diskless_n.primary()
+diskless_v.write(bs=4096, count=1, flags=['oflag=direct'])
+
+verbose('* Reintegrating crashed primary')
+#target_n.up() But connect to diskless after resync, so open code:
+target_n.new_resource()
+target_n.new_minor()
+target_n.new_peer()
+target_n.resource_options()
+target_n.peer_device_options()
+target_n.new_path()
+target_n.attach()
+target_source_c.connect()
+source_target_pd.event(r'peer-device .* replication:SyncSource')
+source_target_pd.event(r'peer-device .* replication:Established')
+target_diskless_c.connect()
+
+verbose('* Verify that sync target becomes UpToDate')
+target_v.event(r'device .* disk:UpToDate')
+
+verbose('* Shut down and clean up.')
+diskless_n.secondary()
+resource.down()
+resource.rmmod()

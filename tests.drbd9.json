@@ -34,6 +34,7 @@
 	"resync-reconciliation",
 	"resync-w-dless-pri",
 	"resync-between-targets",
+	"resync-after-failover-to-dless",
 	"double-promote-diskless",
 	"diskless",
 	"stress-al",

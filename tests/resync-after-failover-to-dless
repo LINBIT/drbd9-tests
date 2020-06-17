@@ -15,6 +15,7 @@ import time
 
 resource = drbdtest.setup(nodes=3)
 diskful_nodes = resource.nodes[:2]
+resource.disk_options = 'c-max-rate 2M;'
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
 resource.up_wait()
@@ -32,37 +33,51 @@ diskless_v = diskless_n.volumes[0]
 target_v = target_n.volumes[0]
 source_v = source_n.volumes[0]
 
-verbose('* Preparing.')
+def test(write_in_between, crashed_primary):
+    verbose('* Preparing. with write_in_between=%d crashed_primary=%d' %
+            (write_in_between, crashed_primary))
+    target_n.primary()
+    target_v.write(bs=4096, count=1, flags=['oflag=direct'])
+    target_diskless_c.disconnect(wait=False,force=True)
+    target_source_c.disconnect(wait=False,force=True)
+    target_n.down()
+    if crashed_primary:
+        target_n.run(['drbdadm', '--force', '::::::1', 'set-gi',
+                      '%s:%s/%d' % (resource.name, source_n.name, target_v.volume)])
+    to_target_c.event(r'connection .* connection:Connecting')
+
+    verbose('* The diskless becomes primary ')
+    diskless_n.primary()
+    if write_in_between:
+        diskless_v.write(bs=4096, count=1, flags=['oflag=direct'])
+
+    verbose('* Reintegrating crashed primary')
+    #target_n.up() But connect to diskless after resync, so open code:
+    target_n.new_resource()
+    target_n.new_minor()
+    target_n.new_peer()
+    target_n.resource_options()
+    target_n.peer_device_options()
+    target_n.new_path()
+    target_n.attach()
+    target_source_c.connect()
+    if write_in_between or crashed_primary:
+        source_target_pd.event(r'peer-device .* replication:SyncSource')
+    target_diskless_c.connect()
+    ev = source_target_pd.event(r'peer-device .* replication:Established peer-disk:(UpToDate|Outdated)')
+
+    verbose('* Verify that sync target becomes UpToDate')
+    if ev[0][0] == 'Outdated':
+        target_v.event(r'device .* disk:UpToDate')
+    diskless_n.secondary()
+
+
 resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
-target_n.primary()
-target_v.write(bs=4096, count=1, flags=['oflag=direct'])
-target_diskless_c.disconnect(wait=False,force=True)
-target_source_c.disconnect(wait=False,force=True)
-target_n.down()
-to_target_c.event(r'connection .* connection:Connecting')
-
-verbose('* The diskless becomes primary ')
-diskless_n.primary()
-diskless_v.write(bs=4096, count=1, flags=['oflag=direct'])
-
-verbose('* Reintegrating crashed primary')
-#target_n.up() But connect to diskless after resync, so open code:
-target_n.new_resource()
-target_n.new_minor()
-target_n.new_peer()
-target_n.resource_options()
-target_n.peer_device_options()
-target_n.new_path()
-target_n.attach()
-target_source_c.connect()
-source_target_pd.event(r'peer-device .* replication:SyncSource')
-source_target_pd.event(r'peer-device .* replication:Established')
-target_diskless_c.connect()
-
-verbose('* Verify that sync target becomes UpToDate')
-target_v.event(r'device .* disk:UpToDate')
+test(write_in_between=False, crashed_primary=True)
+test(write_in_between=False, crashed_primary=False)
+test(write_in_between=True, crashed_primary=True)
+test(write_in_between=True, crashed_primary=False)
 
 verbose('* Shut down and clean up.')
-diskless_n.secondary()
 resource.down()
 resource.rmmod()

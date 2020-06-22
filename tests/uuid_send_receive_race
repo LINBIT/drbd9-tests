@@ -39,6 +39,9 @@ c_a_pd = drbdtest.PeerDevice(c_a, resource.volumes[0])
 my_verbose('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
+agreed_pro_versions = to_a.protocol_versions()
+print(agreed_pro_versions)
+
 my_verbose('* Preparing scenario.')
 from_a.disconnect()
 to_a.event(r'connection:Unconnected')
@@ -51,7 +54,10 @@ resource.forbidden_patterns.difference_update([
 B.volumes.write(1, bs='1M', flags=['oflag=direct'])
 A.block_packet_type(drbdtest.P_UUIDS110, from_node=C)
 from_a.connect()
-to_a.event(r'connection:Connected')
+
+#A.drbd_version_tuple < (9, 0, 24):
+if agreed_pro_versions < (117, 117):
+    to_a.event(r'connection:Connected')
 
 a_b_pd.event(r'peer-device .* replication:SyncTarget')
 a_b_pd.event(r'peer-device .* replication:Established')

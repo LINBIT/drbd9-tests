@@ -593,6 +593,12 @@ class Connections(Collection):
         for connection in self:
             connection.unblock(*args, **kwargs)
 
+    def protocol_versions(self):
+        versions = []
+        for connection in self:
+            versions.append(connection.protocol_version())
+        return tuple(versions)
+
 class PeerDevices(Collection):
     def __init__(self, members=[]):
         super(PeerDevices, self).__init__(PeerDevice, members)
@@ -714,7 +720,7 @@ class Resource(object):
         if no_rmmod:
             return
         for n in self.nodes:
-            if n.drbd_major_version == 9:
+            if n.drbd_version_tuple >= (9, 0, 0):
                 # might not even be loaded
                 try:
                     n.run(['rmmod', 'drbd_transport_tcp'])
@@ -1030,6 +1036,15 @@ class Connection(object):
     def unblock(self, *args, **kwargs):
         self.nodes[0].unblock_path(self.nodes[1], *args, **kwargs)
 
+    def protocol_version(self):
+        resname = self.nodes[0].resource.name
+        peer_name = self.nodes[1].name
+        str = self.nodes[0].run(['grep', 'agreed_pro_version:',
+                                 '/sys/kernel/debug/drbd/resources/%s/connections/%s/debug' % (resname, peer_name)],
+                                return_stdout=True)
+        m = re.match(r'\s*agreed_pro_version: ([0-9]+)', str);
+        return int(m.group(1))
+
 class PeerDevice(object):
     def __init__(self, connection, volume):
         self.connection = connection
@@ -1174,7 +1189,8 @@ class Node(exxe.Exxe):
                                  prepare=True)
         drbd_version = self.run(['drbd-version'], return_stdout=True,
                                 prepare=True)
-        self.drbd_major_version = int(re.sub(r'\..*', '', drbd_version))
+        m = re.match(r'([0-9]+)\.([0-9]+)\.([0-9]+)(.*)', drbd_version);
+        self.drbd_version_tuple = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
 
         self.addrs = [self.addr]
         if multi_paths:
@@ -1278,7 +1294,7 @@ class Node(exxe.Exxe):
         resource = self.resource
 
         with ConfigBlock(t='on %s' % node.hostname) as N:
-            if self.drbd_major_version == 9:
+            if self.drbd_version_tuple >= (9, 0, 0):
                 N.write("node-id %d;" % node.id)
             else:
                 # 8.4 compat
@@ -1334,10 +1350,11 @@ class Node(exxe.Exxe):
             for n in resource.nodes:
                 self.config_host(n)
 
-            if self.drbd_major_version == 8:
-                self._config_conns_84()
-            else:
+            if self.drbd_version_tuple >= (9, 0, 0):
                 self._config_conns_9()
+            else:
+                self._config_conns_84()
+
 
         return "".join(text)
 

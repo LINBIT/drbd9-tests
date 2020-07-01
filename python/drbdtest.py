@@ -1737,6 +1737,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--cleanup', default='success',
                         choices=('success', 'always', 'never'))
     parser.add_argument('--volume-group', default='scratch')
+    parser.add_argument('--no-syslog', action='store_true')
     parser.add_argument('--vconsole', action='store_true')
     parser.add_argument('--silent', action='store_true')
     parser.add_argument('-d', action='count', dest='debug')
@@ -1876,17 +1877,18 @@ def setup(parser=argparse.ArgumentParser(),
                 return func
             atexit.register(close_logfile(logfile))
 
-    syslog_port = 5140
-    syslog_server(args.node, port=syslog_port,
-                  acc_name=os.path.join(args.logdir, 'syslog.full.txt'),
-                  logfile_name=os.path.join(args.logdir, 'syslog-%s'))
-    resource.nodes.run(['rsyslogd', socket.gethostname(), str(syslog_port)],
-                       prepare=True)
-    # Wait for the syslog files to appear ...
-    for node in args.node:
-        while not os.path.exists(os.path.join(args.logdir, 'syslog-%s' % node)):
-            time.sleep(0.1)
-    atexit.register(scan_syslog_files(args.logdir))
+    if not args.no_syslog:
+        syslog_port = 5140
+        syslog_server(args.node, port=syslog_port,
+                      acc_name=os.path.join(args.logdir, 'syslog.full.txt'),
+                      logfile_name=os.path.join(args.logdir, 'syslog-%s'))
+        resource.nodes.run(['rsyslogd', socket.gethostname(), str(syslog_port)],
+                           prepare=True)
+        # Wait for the syslog files to appear ...
+        for node in args.node:
+            while not os.path.exists(os.path.join(args.logdir, 'syslog-%s' % node)):
+                time.sleep(0.1)
+        atexit.register(scan_syslog_files(args.logdir))
 
     for node in resource.nodes:
         node.listen_to_events()

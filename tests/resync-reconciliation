@@ -13,14 +13,40 @@ from python import drbdtest
 from python.drbdtest import verbose
 from subprocess import CalledProcessError
 
+NOT = 0
+EARLY = 1
+LATE = 2
+DURING_RESYNC = 3
+
 data_amount = 128
 
 random.seed()
 
-def my_verbose(str):
-    verbose(str)
-    for node in resource.nodes:
-        node.run(["echo", str])
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.add_disk('10M')
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.net_options = 'ping-int 2;'
+
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+[primary_n, secondary_slow, secondary_quick] = random.sample(list(resource.nodes), 3)
+conn_slow = drbdtest.Connections()
+conn_slow.bidir_add(primary_n, secondary_slow)
+conn_quick = drbdtest.Connections()
+conn_quick.bidir_add(primary_n, secondary_quick)
+
+forward_c = resource.connections.from_node(secondary_quick).to_node(secondary_slow)[0]
+backward_c = resource.connections.from_node(secondary_slow).to_node(secondary_quick)[0]
+forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
+backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
+
+slow_primary_c = resource.connections.from_node(secondary_slow).to_node(primary_n)[0]
+slow_primary_pd = drbdtest.PeerDevice(slow_primary_c, resource.volumes[0])
+
+resource.forbidden_patterns.difference_update([r'connection:NetworkFailure', r'connection:BrokenPipe'])
 
 def sectors_received(node, res_name, peer_node_name):
     status_str = node.run(["drbdsetup", "status", res_name, "--statistics"], return_stdout=True)
@@ -31,95 +57,97 @@ def sectors_received(node, res_name, peer_node_name):
     else:
         raise Exception("regex not matching. %s" % (status_str))
 
+def do_test(with_promote):
+    verbose('* Running variant %d' % (with_promote))
+    primary_n.primary()
+    dev_name = primary_n.volumes[0].device()
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
-resource.add_disk('10M')
-resource.resource_options = 'quorum majority; on-no-quorum io-error;'
-resource.net_options = 'ping-int 2;'
+    verbose('* Blocked network connetion to one peer & writing')
+    conn_slow.block()
 
-resource.up_wait()
+    primary_n.run(["dd", "if=/dev/urandom", "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
+    md5sum_p = primary_n.run(['md5sum', '/tmp/data'], return_stdout=True)
+    # The dd command itself will block since one of the secondaries is not reachable,
+    # and therefore DRBD will not complete the write before the timeout expires.
+    # Using setsid and bash background execution to ensure that the teststuite continues
+    # and does not wait for the dd to terminate.
+    primary_n.run(["setsid", "bash", "-c", "dd if=/tmp/data of=%s bs=%dk count=1 < /dev/null &> /dev/null &" % (dev_name, data_amount)])
 
-my_verbose('* Make up-to-date data available.')
-resource.skip_initial_sync()
+    # Wait until the "quick" secondary got at least one of those writes
+    for i in range(0, 40):
+        time.sleep(0.05)
+        slow_received = sectors_received(secondary_slow, resource.name, primary_n.name);
+        quick_received = sectors_received(secondary_quick, resource.name, primary_n.name);
 
-secondaries_n = resource.nodes
-primary_n = random.choice(secondaries_n)
-secondaries_n.remove(primary_n)
-secondary_slow = random.choice(secondaries_n)
-secondaries_n.remove(secondary_slow)
-secondary_quick = secondaries_n[0]
-conn_slow = drbdtest.Connections()
-conn_slow.bidir_add(primary_n, secondary_slow)
-conn_quick = drbdtest.Connections()
-conn_quick.bidir_add(primary_n, secondary_quick)
+        if quick_received - slow_received >= data_amount:
+            verbose('* The quick secondary is at least %d KiB writes ahead' %
+                       (quick_received - slow_received))
+            break
+    else:
+        raise Exception('No recieve progress!')
 
-primary_n.primary()
+    #resource.forbidden_patterns.difference_update([r'connection:NetworkFailure'])
+    conn_quick.block()
+    verbose('* Blocked network connetion to both secondaries')
 
-my_verbose('* Preparing FS')
+    if with_promote == EARLY:
+        secondary_slow.primary(wait=False)
 
-dev_name = primary_n.volumes[0].device()
+    conn_to_primary = resource.connections.to_node(primary_n)
+    conn_to_primary.event(r'connection .* connection:Unconnected')
 
-my_verbose('* Blocked network connetion to one peer & writing')
-conn_slow.block()
+    conn_to_secondaries = resource.connections.from_node(primary_n)
+    conn_to_secondaries.event(r'connection .* connection:Unconnected')
+    #resource.forbidden_patterns.update([r'connection:NetworkFailure'])
 
-primary_n.run(["dd", "if=/dev/urandom", "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
-md5sum_p = primary_n.run(['md5sum', '/tmp/data'], return_stdout=True)
-# The dd command itself will block since one of the secondaries is not reachable,
-# and therefore DRBD will not complete the write before the timeout expires.
-# Using setsid and bash background execution to ensure that the teststuite continues
-# and does not wait for the dd to terminate.
-primary_n.run(["setsid", "bash", "-c", "dd if=/tmp/data of=%s bs=%dk count=1 < /dev/null &> /dev/null &" % (dev_name, data_amount)])
+    if with_promote == LATE:
+        secondary_slow.primary(wait=False)
 
-# Wait until the "quick" secondary got at least one of those writes
-for i in range(0, 20):
-    time.sleep(0.2)
-    slow_received = sectors_received(secondary_slow, resource.name, primary_n.name);
-    quick_received = sectors_received(secondary_quick, resource.name, primary_n.name);
+    evf = forward_pd.event(r'peer-device .* replication:SyncSource .* out-of-sync:(\d+)')
+    evb = backward_pd.event(r'peer-device .* replication:SyncTarget .* out-of-sync:(\d+)')
+    source_amount = int(evf[0][0])
+    target_amount = int(evb[0][0])
+    if source_amount != data_amount and target_amount != data_amount:
+        raise Exception('Neither source(%d) nor destination(%d) see right resync amount(d)'
+                        % (source_amount, target_amount, data_amount))
 
-    if quick_received - slow_received >= data_amount:
-        my_verbose('* The quick secondary is at least %d KiB writes ahead' %
-                   (quick_received - slow_received))
-        break
-else:
-    raise Exception('No recieve progress!')
+    if with_promote == DURING_RESYNC:
+        secondary_slow.primary(wait=False)
 
-resource.forbidden_patterns.difference_update([r'connection:NetworkFailure'])
-conn_quick.block()
-my_verbose('* Blocked network connetion to both secondaries')
-conn_to_primary = resource.connections.to_node(primary_n)
-conn_to_primary.event(r'connection .* connection:Unconnected')
+    forward_pd.event(r'peer-device .* replication:Established')
+    backward_pd.event(r'peer-device .* replication:Established')
 
-conn_to_secondaries = resource.connections.from_node(primary_n)
-conn_to_secondaries.event(r'connection .* connection:Unconnected')
-#resource.forbidden_patterns.update([r'connection:NetworkFailure'])
+    if with_promote != NOT:
+        secondary_slow.secondary(wait=False)
 
-forward_c = drbdtest.Connection(secondary_quick, secondary_slow)
-backward_c = drbdtest.Connection(secondary_slow, secondary_quick)
-forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
-backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
+    secondary_slow.run(["dd", "if=%s" % (dev_name), "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
+    md5sum_ss = secondary_slow.run(['md5sum', '/tmp/data'], return_stdout=True)
+    secondary_slow.run(["rm", "/tmp/data"])
 
-forward_pd.event(r'peer-device .* replication:SyncSource .* out-of-sync:%d' % (data_amount))
-backward_pd.event(r'peer-device .* replication:SyncTarget .* out-of-sync:%d' % (data_amount))
+    secondary_quick.run(["dd", "if=%s" % (dev_name), "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
+    md5sum_sq = secondary_quick.run(['md5sum', '/tmp/data'], return_stdout=True)
+    secondary_quick.run(["rm", "/tmp/data"])
 
-forward_pd.event(r'peer-device .* replication:Established')
-backward_pd.event(r'peer-device .* replication:Established')
+    if md5sum_p != md5sum_ss or md5sum_p != md5sum_sq:
+        raise Exception('Md5 sums differ! %s %s %s' % (md5sum_p, md5sum_sq, md5sum_ss))
 
-verbose('* Shut down and clean up.')
-primary_n.run(["rm", "/tmp/data"])
-primary_n.secondary()
-primary_n.down()
+    primary_n.run(["rm", "/tmp/data"])
+    primary_n.secondary()
+    conn_slow.unblock()
+    conn_quick.unblock()
+    conn_slow.event(r'connection:Connected')
+    conn_quick.event(r'connection:Connected')
 
-secondary_slow.run(["dd", "if=%s" % (dev_name), "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
-md5sum_ss = secondary_slow.run(['md5sum', '/tmp/data'], return_stdout=True)
-secondary_slow.run(["rm", "/tmp/data"])
+    if with_promote == EARLY:
+        # Expect resync from secondary_slow to primary
+        slow_primary_pd.event(r'peer-device .* replication:SyncSource')
+        slow_primary_pd.event(r'peer-device .* replication:Established')
 
-secondary_quick.run(["dd", "if=%s" % (dev_name), "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
-md5sum_sq = secondary_quick.run(['md5sum', '/tmp/data'], return_stdout=True)
-secondary_quick.run(["rm", "/tmp/data"])
 
-secondary_slow.down()
-secondary_quick.down()
+do_test(with_promote=NOT)
+do_test(with_promote=EARLY)
+do_test(with_promote=LATE)
+do_test(with_promote=DURING_RESYNC)
+
+resource.down()
 resource.rmmod()
-
-if md5sum_p != md5sum_ss or md5sum_p != md5sum_sq:
-    raise Exception('Md5 sums differ! %s %s %s' % (md5sum_p, md5sum_sq, md5sum_ss))

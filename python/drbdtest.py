@@ -1478,9 +1478,10 @@ class Node(exxe.Exxe):
             if wait:
                 self.event(r'resource .* role:Primary')
 
-    def secondary(self, res="all"):
+    def secondary(self, res="all", wait=True):
         self.run(['drbdadm', 'secondary', res])
-        self.event(r'resource .* role:Secondary')
+        if wait:
+            self.event(r'resource .* role:Secondary')
 
     def connect(self, node):
         return Connections([Connection(self, node)]).connect()

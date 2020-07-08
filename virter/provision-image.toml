@@ -1,0 +1,107 @@
+[values]
+# Do not replace kernel by default
+KernelRelease = ""
+KernelRepositoryURL = ""
+
+# Disable SELinux
+[[steps]]
+[steps.shell]
+script = """
+if command -v setenforce > /dev/null; then
+	echo "Disabling SELinux"
+	setenforce 0
+	sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+fi
+"""
+
+# Disable IPv6
+[[steps]]
+[steps.shell]
+script = """
+# linbit network routes IPv6 traffic over a slow link
+echo net.ipv6.conf.all.disable_ipv6=1 >> /etc/sysctl.conf
+echo net.ipv6.conf.default.disable_ipv6=1 >> /etc/sysctl.conf
+sysctl -p
+"""
+
+# Install kernel
+[[steps]]
+[steps.shell]
+script = """
+set -e
+
+[ -z "$KERNEL_RELEASE" ] && exit 0
+
+kernel::rpm() {
+	install_package="kernel-core-$KERNEL_RELEASE"
+
+	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
+		cat <<- EOF > /etc/yum.repos.d/kernel.repo
+		[drbd-kernel]
+		name=Kernel for DRBD Tests
+		baseurl=$KERNEL_REPOSITORY_URL
+		gpgcheck=0
+		enabled=1
+		EOF
+	fi
+
+	rpm -qa | grep '^kernel-core-[0-9]\\+' | sort > /tmp/had
+	yum install -y "$install_package"
+	rpm -qa | grep '^kernel-core-[0-9]\\+' | sort > /tmp/have
+
+	for k in $(comm -12 /tmp/had /tmp/have); do
+		[ "$k" = "$install_package" ] && continue
+
+		meta=$(printf %s $k | sed s/kernel-core/kernel/)
+
+		to_remove=$k
+		rpm -q $meta && to_remove=$meta
+
+		printf "Removing '%s'\n" $to_remove
+		# yum autoremove does not like to remove the running kernel
+		rpm -e $to_remove
+	done
+}
+
+kernel::deb() {
+	install_package="linux-image-$KERNEL_RELEASE-generic"
+
+	dpkg-query -f '${Package}\\n' -W "linux-image-*" | grep 'linux-image-[0-9]\\+' | sort > /tmp/had
+	apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "$install_package"
+	dpkg-query -f '${Package}\\n' -W "linux-image-*" | grep 'linux-image-[0-9]\\+' | sort > /tmp/have
+
+	for k in $(comm -12 /tmp/had /tmp/have); do
+		[ "$k" = "$install_package" ] && continue
+		DEBIAN_FRONTEND=noninteractive apt-get autoremove -y $k
+	done
+}
+
+if command -v yum > /dev/null; then
+	kernel::rpm
+elif command -v apt-get > /dev/null; then
+	kernel::deb
+else
+	echo "Unknown package manager"
+	exit 1
+fi
+rm -f /tmp/ha{d,ve}
+"""
+
+[steps.shell.env]
+KERNEL_RELEASE = "{{.KernelRelease}}"
+KERNEL_REPOSITORY_URL = "{{.KernelRepositoryURL}}"
+
+# Install packages
+[[steps]]
+[steps.shell]
+script = """
+if command -v yum > /dev/null; then
+	yum install -y iptables fio lvm2 make python3
+elif command -v apt-get > /dev/null; then
+	apt-get update
+	apt-get -y install fio thin-provisioning-tools make
+else
+	echo "Unknown package manager"
+	exit 1
+fi
+"""

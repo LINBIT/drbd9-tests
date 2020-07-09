@@ -45,6 +45,8 @@ data_scripts := \
 extra_files := \
 	rsyslog-forward.conf.in
 
+tarball := $(PACKAGE)-target.tgz
+
 all: $(data_libs) $(data_scripts)
 
 $(data_libs) $(data_scripts): %: %.in
@@ -68,5 +70,8 @@ uninstall:
 	rmdir $(DESTDIR)$(DRBD_TEST_VAR) 2> /dev/null || :
 	rmdir $(DESTDIR)$(DRBD_TEST_DATA) 2> /dev/null || :
 
+tar: $(data_libs) $(data_scripts) $(extra_files) Makefile
+	tar -czf $(tarball) $^
+
 clean:
-	rm -f $(data_libs) $(data_scripts)
+	rm -f $(data_libs) $(data_scripts) $(tarball)

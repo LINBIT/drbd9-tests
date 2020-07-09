@@ -1,13 +1,14 @@
 /log
+/drbd-test-bundle.tgz
 
 .*.swp
 
 target/blkdiscard.py
 target/missaligned_bio.py
+target/drbd-test-target.tgz
 
 tests/*.new
 tests/log/
 
 python/__pycache__/
 python/*.py[cod]
-

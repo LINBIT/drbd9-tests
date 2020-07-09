@@ -70,8 +70,10 @@ uninstall:
 	rmdir $(DESTDIR)$(DRBD_TEST_VAR) 2> /dev/null || :
 	rmdir $(DESTDIR)$(DRBD_TEST_DATA) 2> /dev/null || :
 
-tar: $(data_libs) $(data_scripts) $(extra_files) Makefile
+$(tarball): $(data_libs) $(data_scripts) $(extra_files) Makefile
 	tar -czf $(tarball) $^
+
+tar: $(tarball)
 
 clean:
 	rm -f $(data_libs) $(data_scripts) $(tarball)

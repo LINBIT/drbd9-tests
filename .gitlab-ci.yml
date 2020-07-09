@@ -1,0 +1,26 @@
+image: nexus.at.linbit.com:5000/drbd-tests-build
+
+stages:
+  - build
+  - publish
+
+bundle:
+  stage: build
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_BRANCH == 'master'
+  script:
+    - make bundle
+  artifacts:
+    paths:
+      - drbd-test-bundle.tgz
+    expire_in: 1 week
+
+publish:
+  stage: publish
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'master'
+  script:
+    - curl -isSf -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD --upload-file drbd-test-bundle.tgz $LINBIT_REGISTRY_URL/repository/test-suite/
+  dependencies:
+    - bundle

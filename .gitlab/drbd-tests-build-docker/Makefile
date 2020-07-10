@@ -1,5 +1,11 @@
+DOCKER_IMAGE_NAME ?= drbd-tests-build
+
+ifneq ($(LINBIT_DOCKER_REGISTRY),)
+	DOCKER_IMAGE_NAME := $(LINBIT_DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME)
+endif
+
 all:
-	docker build -t nexus.at.linbit.com:5000/drbd-tests-build .
+	docker build -t $(DOCKER_IMAGE_NAME) .
 
 deploy:
-	docker push nexus.at.linbit.com:5000/drbd-tests-build
+	docker push $(DOCKER_IMAGE_NAME)

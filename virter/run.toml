@@ -1,0 +1,15 @@
+[values]
+ScratchDisk = "/dev/sda"
+TestSuiteImage = "drbd9-tests"
+
+[[steps]]
+[steps.shell]
+script = """
+vgcreate scratch "$SCRATCH_DISK"
+"""
+[steps.shell.env]
+SCRATCH_DISK = "{{.ScratchDisk}}"
+
+[[steps]]
+[steps.docker]
+image = "{{.TestSuiteImage}}"

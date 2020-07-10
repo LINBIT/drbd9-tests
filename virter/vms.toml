@@ -2,8 +2,12 @@
 name = "t"
 provision_file = "provision-test.toml"
 
+
 [[vms]]
 base_image = "centos-8-drbd-k147"
+
+[vms.values]
+RepositoryURL = "http://10.43.224.1:8020/repository/yum/rhel8/"
 
 [vms.metadata]
 BuildDistribution = "rhel8.1"
@@ -11,24 +15,39 @@ KernelRelease = "4.18.0-147.el8"
 SourceImage = "centos-8"
 KernelRepositoryURL = "http://10.43.224.1:8020/repository/rhel-kernels/rhel8/"
 
+
 [[vms]]
 base_image = "ubuntu-xenial-drbd-k185"
+
+[vms.values]
+RepositoryURL = "http://10.43.224.1:8020/repository/ubuntu-xenial/"
+RepositoryDistribution = "xenial"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-xenial"
 KernelRelease = "4.4.0-185"
 SourceImage = "ubuntu-xenial"
 
+
 [[vms]]
 base_image = "ubuntu-bionic-drbd-k109"
+
+[vms.values]
+RepositoryURL = "http://10.43.224.1:8020/repository/ubuntu-bionic/"
+RepositoryDistribution = "bionic"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-bionic"
 KernelRelease = "4.15.0-109"
 SourceImage = "ubuntu-bionic"
 
+
 [[vms]]
 base_image = "ubuntu-focal-drbd-k40"
+
+[vms.values]
+RepositoryURL = "http://10.43.224.1:8020/repository/ubuntu-focal/"
+RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"

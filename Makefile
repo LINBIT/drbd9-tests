@@ -10,7 +10,7 @@ all install uninstall:
 target/%:
 	$(MAKE) -C target $*
 
-bundle: target/drbd-test-target.tgz virter/vms.toml virter/provision-test.toml
+bundle: target/drbd-test-target.tgz virter/vms.toml virter/tests.toml virter/provision-test.toml virter/run.toml
 	tar -czf $(BUNDLE) $^
 
 clean:

@@ -18,4 +18,4 @@ IFS=,; for t in $TARGETS; do
     nodes+=( "$t_host" )
 done
 
-tests/$DRBD_TEST ${nodes[@]}
+tests/$DRBD_TEST --no-syslog ${nodes[@]}

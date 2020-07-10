@@ -9,6 +9,6 @@ base_image_%:
 	virter image build "$$(get_meta SourceImage)" "$*" \
 		--set values.KernelRelease="$$(get_meta KernelRelease)" \
 		--set values.KernelRepositoryURL="$$(get_meta KernelRepositoryURL)" \
-		-p provision-image.toml
+		-p provision-base.toml
 
 all_base_images: $(BASE_IMAGE_TARGETS)

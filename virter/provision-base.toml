@@ -24,6 +24,17 @@ echo net.ipv6.conf.default.disable_ipv6=1 >> /etc/sysctl.conf
 sysctl -p
 """
 
+# Disable unwanted services
+[[steps]]
+[steps.shell]
+script = """
+for u in unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer; do
+	if systemctl list-unit-files | grep -Fq $u; then
+		systemctl disable --now $u
+	fi
+done
+"""
+
 # Install kernel
 [[steps]]
 [steps.shell]

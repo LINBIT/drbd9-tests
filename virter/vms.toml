@@ -1,3 +1,7 @@
+# This is appended to the base image name to form the test image name
+name = "t"
+provision_file = "provision-test.toml"
+
 [[vms]]
 base_image = "centos-8-drbd-k147"
 

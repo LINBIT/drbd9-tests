@@ -1,4 +1,4 @@
-image: nexus.at.linbit.com:5000/drbd-tests-build
+image: $LINBIT_DOCKER_REGISTRY/drbd-tests-build
 
 stages:
   - build
@@ -16,6 +16,15 @@ bundle:
       - drbd-test-bundle.tgz
     expire_in: 1 week
 
+build-docker:
+  stage: build
+  tags:
+    - shell
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_BRANCH == 'master'
+  script: make DOCKER_IMAGE_NAME=$LINBIT_DOCKER_REGISTRY/drbd9-tests docker
+
 publish:
   stage: publish
   rules:
@@ -24,3 +33,13 @@ publish:
     - curl -isSf -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD --upload-file drbd-test-bundle.tgz $LINBIT_REGISTRY_URL/repository/test-suite/
   dependencies:
     - bundle
+
+push-docker:
+  stage: publish
+  tags:
+    - shell
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'master'
+  script:
+    - docker login -u $LINBIT_REGISTRY_USER -p $LINBIT_REGISTRY_PASSWORD $LINBIT_DOCKER_REGISTRY
+    - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests

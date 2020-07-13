@@ -48,7 +48,8 @@
 	"quorum-multi-volume",
 	"write-during-resync",
 	"uuid_send_receive_race",
-	"io-errors-diskless"
+	"io-errors-diskless",
+	"twopc_abort_connect"
     ],
     "samevms": [
 	"diskless"

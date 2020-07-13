@@ -1,0 +1,76 @@
+#! /usr/bin/env python3
+#
+# This test examines how DRBD behaves when the loss of a connection leads
+# to a two-phase-commit can not complete. It does that by blocking the
+# P_TWO_PC yes and then completely blocking the connection.
+#
+# Up to (including) 9.0.24 this was broken in DRBD.
+
+import re
+import time
+from operator import attrgetter
+from python import drbdtest
+from python.drbdtest import verbose
+
+def executing_2pc(node):
+    str = node.run(['cat',
+                      '/sys/kernel/debug/drbd/resources/%s/state_twopc' % (resource.name)],
+                     return_stdout=True)
+    m = re.search(r'Executing tid: ([0-9]+)', str)
+    if m:
+        return int(m.group(1))
+    else:
+        return None
+
+def assert_no_2pc(resource):
+    msg = ''
+    for node in resource.nodes:
+        transaction_id = executing_2pc(node)
+        if transaction_id is not None:
+            msg += 'Node %s: executes %d\n' % (node, transaction_id)
+
+    if len(msg):
+        print(msg)
+        raise Exception('No two-phase commits expected at this moment')
+
+
+def do_test(resource):
+    [node_a, node_b, node_c] = list(resource.nodes)
+
+    assert node_a.id < node_b.id and node_b.id < node_c.id
+
+    conn_a_b = resource.connections.from_node(node_a).to_node(node_b)[0]
+    conn_c_b = resource.connections.from_node(node_c).to_node(node_b)[0]
+    conn_a_b.disconnect()
+    conn_c_b.disconnect()
+
+    node_a.block_packet_type(drbdtest.P_TWOPC_YES, from_node=node_b, volume=0xffff)
+    conn_a_b.connect()
+    time.sleep(2)
+    conn_a_b.block()
+    node_a.unblock_packet_type(drbdtest.P_TWOPC_YES, from_node=node_b, volume=0xffff)
+    conn_c_b.connect()
+    time.sleep(3)
+    assert_no_2pc(resource)
+    conn_c_b.event(r'connection:Connected')
+
+resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource.net_options = 'ping-int 1;'
+resource.add_disk('10M')
+
+resource.up_wait()
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+resource.forbidden_patterns.difference_update([r'connection:NetworkFailure', r'connection:BrokenPipe'])
+[node_a, node_b, node_c] = list(resource.nodes)
+conn_a_c = resource.connections.from_node(node_a).to_node(node_c)[0]
+
+do_test(resource)
+conn_a_c.disconnect()
+do_test(resource)
+conn_a_c.connect()
+conn_a_c.event(r'connection:Connected')
+
+resource.down()
+resource.rmmod()

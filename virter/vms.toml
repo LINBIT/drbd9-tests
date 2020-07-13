@@ -7,20 +7,20 @@ provision_file = "provision-test.toml"
 base_image = "centos-8-drbd-k147"
 
 [vms.values]
-RepositoryURL = "http://10.43.224.1:8020/repository/rhel8/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
 
 [vms.metadata]
 BuildDistribution = "rhel8.1"
 KernelRelease = "4.18.0-147.el8"
 SourceImage = "centos-8"
-KernelRepositoryURL = "http://10.43.224.1:8020/repository/rhel-kernels/rhel8/"
+KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
 
 
 [[vms]]
 base_image = "ubuntu-xenial-drbd-k185"
 
 [vms.values]
-RepositoryURL = "http://10.43.224.1:8020/repository/ubuntu-xenial/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-xenial/"
 RepositoryDistribution = "xenial"
 
 [vms.metadata]
@@ -33,7 +33,7 @@ SourceImage = "ubuntu-xenial"
 base_image = "ubuntu-bionic-drbd-k109"
 
 [vms.values]
-RepositoryURL = "http://10.43.224.1:8020/repository/ubuntu-bionic/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-bionic/"
 RepositoryDistribution = "bionic"
 
 [vms.metadata]
@@ -46,7 +46,7 @@ SourceImage = "ubuntu-bionic"
 base_image = "ubuntu-focal-drbd-k40"
 
 [vms.values]
-RepositoryURL = "http://10.43.224.1:8020/repository/ubuntu-focal/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-focal/"
 RepositoryDistribution = "focal"
 
 [vms.metadata]

@@ -116,3 +116,16 @@ else
 	exit 1
 fi
 """
+
+# Install lbdisttool.py (only for yum)
+[[steps]]
+[steps.shell]
+script = """
+if command -v yum > /dev/null; then
+	curl -sSLo python-lbdist.tar.gz https://github.com/LINBIT/python-lbdist/archive/master.tar.gz
+	tar xvf python-lbdist.tar.gz
+	cd python-lbdist-master
+	mkdir -p /usr/local/lib/python3.6/site-packages/
+	python3 setup.py install
+fi
+"""

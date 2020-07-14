@@ -28,8 +28,16 @@ as `rpm` or `deb` packages in this directory or via a repository.
 * `drbd-utils`
 * `exxe`
 
+An Ubuntu-based test image can be built using a comand command like:
+
 ```
-virter image build ubuntu-focal-drbd-k40 ubuntu-focal-drbd-k40-t -p virter/provision-test.toml --set values.RepositoryURL=http://10.43.224.1:8020/repository/ubuntu-focal/ --set values.RepositoryDistribution=focal --set values.RepositoryPackages=drbd-module-5.4.0-40-generic=9.0.0.0369cc16dded15d28007cfd2e90776820f842890+5.4.0-40.44
+virter image build ubuntu-focal-drbd-k40 ubuntu-focal-drbd-k40-t -p virter/provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/ubuntu-focal/ --set values.RepositoryDistribution=focal --set values.DrbdVersion=9.0.0.0369cc16dded15d28007cfd2e90776820f842890
+```
+
+And similarly for RedHat-based images:
+
+```
+virter image build centos-8-drbd-k193 centos-8-drbd-k193-t -p provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/rhel8/ --set values.DrbdVersion=9.0.0.0db548ca455a85569031337991f1527cbe34c437
 ```
 
 ### Start cluster

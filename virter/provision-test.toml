@@ -22,6 +22,21 @@ if command -v yum > /dev/null; then
 		gpgcheck=0
 		enabled=1
 		EOF
+
+		if [ -n "$DRBD_VERSION" ]; then
+			AVAILABLE=$(yum list available --quiet --showduplicates \
+				--disablerepo="*" --enablerepo="drbd" \
+				"kmod-drbd-${DRBD_VERSION}_*" \
+					| grep '^kmod-drbd' \
+					| awk '{print "kmod-drbd-" $2}')
+
+			echo "Available drbd packages for version $DRBD_VERSION:"
+			echo "$AVAILABLE" | tr ' ' '\n'
+
+			BEST=$(lbdisttool.py --kmods $AVAILABLE)
+			echo "Best kmod: $BEST"
+			PACKAGES="$PACKAGES $BEST"
+		fi
 	fi
 
 	PACKAGES="$PACKAGES $(find /opt/packages -maxdepth 1 -name "*.rpm")"
@@ -32,6 +47,10 @@ elif command -v apt-get > /dev/null; then
 	if [ -n "$REPOSITORY_URL" ]; then
 		echo deb [trusted=yes] $REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/drbd.list
 		apt-get update
+
+		if [ -n "$DRBD_VERSION" ]; then
+			PACKAGES="$PACKAGES drbd-module-$(uname -r)=${DRBD_VERSION}+*"
+		fi
 	fi
 
 	PACKAGES="$PACKAGES $(find /opt/packages -maxdepth 1 -name "*.deb")"
@@ -48,6 +67,7 @@ fi
 REPOSITORY_URL = "{{.RepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
 REPOSITORY_PACKAGES = "{{.RepositoryPackages}}"
+DRBD_VERSION = "{{.DrbdVersion}}"
 
 [[steps]]
 [steps.shell]

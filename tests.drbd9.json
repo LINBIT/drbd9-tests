@@ -28,6 +28,7 @@
     "vms": 3,
     "tests": [
 	"resync-source-becomes-target",
+	"resync-source-becomes-target2",
 	"resync-upstream-downstream",
 	"resync-downstream-upstream",
 	"resync-to-older",

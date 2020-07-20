@@ -1,8 +1,43 @@
 image: $LINBIT_DOCKER_REGISTRY/drbd-tests-build
 
+variables:
+  VIRTER_VERSION: v0.3.1
+
 stages:
+  - base_image
   - build
   - publish
+
+base_image:
+  stage: base_image
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+      when: manual
+    - if: $CI_COMMIT_BRANCH == 'master'
+      when: manual
+  tags:
+    - libvirt
+  # avoid blocking the pipeline with a manual job
+  allow_failure: true
+  cache:
+    paths:
+      - download
+  script:
+    - |
+      mkdir -p download bin
+      [ -e download/virter-$VIRTER_VERSION ] || { curl -sSfL https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64 > download/virter-$VIRTER_VERSION && chmod +x download/virter-$VIRTER_VERSION ; }
+      [ -e download/rq ] || curl -sSfL https://github.com/dflemstr/rq/releases/download/v1.0.2/rq-v1.0.2-x86_64-unknown-linux-gnu.tar.gz | tar -C download -xvzf -
+      ln -s ../download/virter-$VIRTER_VERSION bin/virter
+      ln -s ../download/rq bin/rq
+      export PATH="$(readlink -f bin):$PATH"
+    - |
+      cd virter
+      virter image rm drbd-base-image
+      for image in $(make -s print_base_images); do
+        make "base_image_$image" BASE_IMAGE_NAME=drbd-base-image
+        virter image save drbd-base-image | curl -isSf -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD -H "Tranfer-Encoding: chunked" -F raw.directory=/ -F raw.asset0=@- -F "raw.asset0.filename=$image" "$LINBIT_REGISTRY_URL/service/rest/v1/components?repository=vm-image"
+        virter image rm drbd-base-image
+      done
 
 bundle:
   stage: build

@@ -77,6 +77,9 @@ kernel::rpm() {
 kernel::deb() {
 	install_package="linux-image-$KERNEL_RELEASE-generic"
 
+	# Prevent the newest kernel from being installed automatically
+	DEBIAN_FRONTEND=noninteractive apt-get autoremove -y linux-virtual linux-image-virtual
+
 	dpkg-query -f '${Package}\\n' -W "linux-image-*" | grep 'linux-image-[0-9]\\+' | sort > /tmp/had
 	apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "$install_package"
 	dpkg-query -f '${Package}\\n' -W "linux-image-*" | grep 'linux-image-[0-9]\\+' | sort > /tmp/have

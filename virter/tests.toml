@@ -3,6 +3,18 @@ test_suite_file = "run.toml"
 [[group]]
 vms = 2
 tests = [
-  "connect",
   "add-connect-delete",
+  "add-path-multiple-times",
+  "connect",
+  "fencing",
+  "io-errors",
+  "initial-resync",
+  "promote_while_connecting",
+  "verify",
+]
+
+[[group]]
+vms = 3
+tests = [
+  "resync-downstream-upstream",
 ]

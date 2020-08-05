@@ -1,5 +1,15 @@
 #!/bin/bash
 
+if [ -z "$TEST_NAME" ]; then
+    echo "No test specified"
+    exit 1
+fi
+
+if [ ! -e tests/"$TEST_NAME" ]; then
+    echo "Unknown test '$TEST_NAME'"
+    exit 1
+fi
+
 echo "===== Prepare SSH access"
 
 mkdir -p /root/.ssh
@@ -18,4 +28,4 @@ IFS=,; for t in $TARGETS; do
     nodes+=( "$t_host" )
 done
 
-tests/$DRBD_TEST --no-syslog ${nodes[@]}
+tests/$TEST_NAME --no-syslog ${nodes[@]}

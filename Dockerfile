@@ -35,7 +35,7 @@ RUN mkdir -p /drbd-tests
 COPY . /drbd-tests
 COPY docker/entry.sh /
 
-ENV DRBD_TEST=connect
+ENV TEST_NAME=
 ENV TARGETS=
 
 WORKDIR /drbd-tests

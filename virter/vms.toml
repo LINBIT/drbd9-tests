@@ -5,6 +5,8 @@ provision_file = "provision-test.toml"
 
 [[vms]]
 base_image = "centos-8-drbd-k193"
+vcpus = 1
+memory = "1G"
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
@@ -18,6 +20,8 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 
 [[vms]]
 base_image = "centos-8-drbd-k147"
+vcpus = 1
+memory = "1G"
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
@@ -31,6 +35,8 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 
 [[vms]]
 base_image = "ubuntu-xenial-drbd-k185"
+vcpus = 1
+memory = "1G"
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-xenial/"
@@ -44,6 +50,8 @@ SourceImage = "ubuntu-xenial"
 
 [[vms]]
 base_image = "ubuntu-bionic-drbd-k109"
+vcpus = 1
+memory = "1G"
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-bionic/"
@@ -57,6 +65,8 @@ SourceImage = "ubuntu-bionic"
 
 [[vms]]
 base_image = "ubuntu-focal-drbd-k40"
+vcpus = 1
+memory = "1G"
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-focal/"

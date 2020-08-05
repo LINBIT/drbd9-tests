@@ -5,7 +5,9 @@ TestSuiteImage = "drbd9-tests"
 [[steps]]
 [steps.shell]
 script = """
-vgcreate scratch "$SCRATCH_DISK"
+if ! vgs scratch; then
+	vgcreate scratch "$SCRATCH_DISK"
+fi
 """
 [steps.shell.env]
 SCRATCH_DISK = "{{.ScratchDisk}}"

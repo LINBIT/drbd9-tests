@@ -39,6 +39,15 @@ for u in unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer; do
 done
 """
 
+# Uninstall snapd
+[[steps]]
+[steps.shell]
+script = """
+if command -v snap > /dev/null; then
+	apt-get purge snapd
+fi
+"""
+
 # Install kernel
 [[steps]]
 [steps.shell]

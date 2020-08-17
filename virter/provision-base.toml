@@ -48,7 +48,12 @@ set -e
 [ -z "$KERNEL_RELEASE" ] && exit 0
 
 kernel::rpm() {
-	install_package="kernel-core-$KERNEL_RELEASE"
+	if yum list kernel-core >/dev/null 2>/dev/null; then
+		kernel_prefix=kernel-core
+	else
+		kernel_prefix=kernel
+	fi
+	install_package="${kernel_prefix}-$KERNEL_RELEASE"
 
 	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/kernel.repo
@@ -60,13 +65,15 @@ kernel::rpm() {
 		EOF
 	fi
 
-	rpm -qa | grep '^kernel-core-[0-9]\\+' | sort > /tmp/had
+	rpm -qa | grep "^${kernel_prefix}-[0-9]\\+" | sort > /tmp/had
 	yum install -y "$install_package"
-	rpm -qa | grep '^kernel-core-[0-9]\\+' | sort > /tmp/have
+	rpm -qa | grep "^${kernel_prefix}-[0-9]\\+" | sort > /tmp/have
 
 	for k in $(comm -12 /tmp/had /tmp/have); do
 		[ "$k" = "$install_package" ] && continue
 
+		# on RHEL8 the kernel package is called kernel-core, but we
+		# want to remove the kernel metapackage
 		meta=$(printf %s $k | sed s/kernel-core/kernel/)
 
 		to_remove=$k

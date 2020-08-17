@@ -34,6 +34,51 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 
 
 [[vms]]
+base_image = "centos-7-drbd-k1127"
+vcpus = 1
+memory = "1G"
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
+
+[vms.metadata]
+BuildDistribution = "rhel7.8"
+KernelRelease = "3.10.0-1127.el7"
+SourceImage = "centos-7"
+KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
+
+
+[[vms]]
+base_image = "centos-7-drbd-k862"
+vcpus = 1
+memory = "1G"
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
+
+[vms.metadata]
+BuildDistribution = "rhel7.5"
+KernelRelease = "3.10.0-862.el7"
+SourceImage = "centos-7"
+KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
+
+
+[[vms]]
+base_image = "centos-7-drbd-k229"
+vcpus = 1
+memory = "1G"
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
+
+[vms.metadata]
+BuildDistribution = "rhel7.1"
+KernelRelease = "3.10.0-229.el7"
+SourceImage = "centos-7"
+KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
+
+
+[[vms]]
 base_image = "ubuntu-xenial-drbd-k185"
 vcpus = 1
 memory = "1G"

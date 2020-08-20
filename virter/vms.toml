@@ -73,7 +73,7 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
 
 [vms.metadata]
 BuildDistribution = "rhel7.1"
-KernelRelease = "3.10.0-229.el7"
+KernelRelease = "3.10.0-229.1.2.el7"
 SourceImage = "centos-7"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
 

@@ -72,6 +72,8 @@ echo "Output of 'drbdadm --version':"
 drbdadm --version || die "drbd-utils not installed"
 
 modinfo drbd > /dev/null || die "DRBD not installed"
+
+sed -i 's/usage-count yes/usage-count no/' /etc/drbd.d/global_common.conf
 '''
 
 [steps.shell.env]

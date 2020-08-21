@@ -2,6 +2,7 @@
 RepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
 RepositoryPackages = "" # comma separated
+DrbdVersion = ""
 
 [[steps]]
 [steps.rsync]
@@ -10,7 +11,11 @@ dest = "/opt/packages/"
 
 [[steps]]
 [steps.shell]
-script = """
+script = '''
+set -e
+
+die() { >&2 printf "\nError: %s\n" "$*"; exit 1; }
+
 PACKAGES=$(printf %s "$REPOSITORY_PACKAGES" | tr , " ")
 
 if command -v yum > /dev/null; then
@@ -58,10 +63,16 @@ elif command -v apt-get > /dev/null; then
 	DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends $PACKAGES
 
 else
-	echo "Unknown package manager"
-	exit 1
+	die "Unknown package manager"
 fi
-"""
+
+command -v exxe > /dev/null || die "exxe not installed"
+
+echo "Output of 'drbdadm --version':"
+drbdadm --version || die "drbd-utils not installed"
+
+modinfo drbd > /dev/null || die "DRBD not installed"
+'''
 
 [steps.shell.env]
 REPOSITORY_URL = "{{.RepositoryURL}}"

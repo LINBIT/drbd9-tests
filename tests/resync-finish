@@ -1,0 +1,57 @@
+#! /usr/bin/env python3
+
+# Break the connection between two resynching nodes so that the final P_UUIDS110
+# packet does not get through. The resync-target sends that to signal the
+# sync-source node that it adopted the current-uuid of the sync-source.
+
+# This tests demonstrates that then that DRBD "forgets" to do the next resnyc
+# after such an event. Up to version (including) 9.0.24.
+
+from python import drbdtest
+from python.drbdtest import verbose
+
+MB = 1024*1024
+
+resource = drbdtest.setup(nodes=2)
+resource.disk_options = 'c-max-rate 5M;'
+resource.add_disk('10M')
+resource.up_wait()
+
+resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
+    r'connection:BrokenPipe'
+])
+
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+[source_n, target_n] = resource.nodes
+forward_c = resource.connections.from_node(source_n).to_node(target_n)[0]
+backward_c = resource.connections.from_node(target_n).to_node(source_n)[0]
+forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
+backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
+
+forward_c.disconnect()
+source_n.volumes[0].write(count=8, bs=MB, flags=['oflag=direct'])
+forward_c.connect()
+
+forward_pd.event(r'peer-device .* replication:SyncSource')
+backward_pd.event(r'peer-device .* replication:SyncTarget')
+source_n.block_packet_type(drbdtest.P_UUIDS110, from_node=target_n)
+backward_pd.event(r'peer-device .* replication:Established')
+backward_c.disconnect(force = True)
+forward_c.event(r'connection .* connection:Unconnected')
+source_n.unblock_packet_type(drbdtest.P_UUIDS110, from_node=target_n)
+
+forward_c.disconnect()
+source_n.volumes[0].write(offset=9*MB//4096, count=10, bs=4096, flags=['oflag=direct'])
+forward_c.connect()
+backward_c.connect()
+
+forward_pd.event(r'peer-device .* replication:SyncSource')
+backward_pd.event(r'peer-device .* replication:SyncTarget')
+forward_pd.event(r'peer-device .* replication:Established')
+backward_pd.event(r'peer-device .* replication:Established')
+
+resource.down()
+resource.rmmod()

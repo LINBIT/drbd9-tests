@@ -327,7 +327,7 @@ def find_statistics(result_db, statistics):
                 total_successes[name] = {'successes': 0, 'count': 0}
 
             total_successes[name]['count'] += 1
-            if params.get('exit_code') is 0:
+            if params.get('exit_code') == 0:
                 total_successes[name]['successes'] += 1
             else:
                 continue

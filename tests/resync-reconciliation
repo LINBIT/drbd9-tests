@@ -50,7 +50,7 @@ resource.forbidden_patterns.difference_update([r'connection:NetworkFailure', r'c
 
 def sectors_received(node, res_name, peer_node_name):
     status_str = node.run(["drbdsetup", "status", res_name, "--statistics"], return_stdout=True)
-    m = re.search(r'%s role:.*?\n\s+peer-disk:.*\n\s+received:([0-9]+) sent:' % (peer_node_name), status_str)
+    m = re.search(r'%s(?:\.\w+)? role:.*?\n\s+peer-disk:.*\n\s+received:([0-9]+) sent:' % (peer_node_name), status_str)
     if m:
         received = int(m.group(1))
         return received

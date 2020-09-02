@@ -72,7 +72,7 @@ def test(write_in_between, crashed_primary):
     diskless_n.secondary()
 
 
-resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
+resource.forbidden_patterns.difference_update([r'connection:NetworkFailure', r'connection:BrokenPipe'])
 test(write_in_between=False, crashed_primary=True)
 test(write_in_between=False, crashed_primary=False)
 test(write_in_between=True, crashed_primary=True)

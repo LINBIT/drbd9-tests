@@ -62,7 +62,7 @@ kernel::rpm() {
 	else
 		kernel_prefix=kernel
 	fi
-	install_package="${kernel_prefix}-$KERNEL_RELEASE"
+	install_package="${kernel_prefix}-$KERNEL_RELEASE.$(uname -m)"
 
 	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/kernel.repo

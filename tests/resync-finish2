@@ -1,0 +1,57 @@
+#! /usr/bin/env python3
+
+# Two concurrent resyncs from one source. one resync finishes earlier
+# than the other one. This test verifies that the SyncTarget of the
+# quicker resync does not mark the other SyncTarget's disk as
+# Outdated.
+#
+# That happened up to (including) 9.0.24
+
+import re
+import time
+from python import drbdtest
+from python.drbdtest import verbose
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(nodes=3)
+resource.add_disk('50M')
+
+source_n = resource.nodes[0]
+resource.forbidden_patterns.add(r'peer-disk:Outdated')
+
+def test():
+    resource.nodes.run(['drbdadm', '--force', 'create-md', resource.name])
+    resource.nodes.new_resource()
+    resource.nodes.new_minor()
+    resource.nodes.attach()
+
+    source_n.primary(force=True)
+    source_n.secondary()
+    source_n.primary()
+    source_n.secondary()
+    source_n.primary()
+
+    resource.nodes.adjust()
+    resource.nodes.after_up()
+
+    source_pds = resource.peer_devices.from_node(source_n)
+    target_pds = resource.peer_devices.to_node(source_n)
+    try:
+        source_pds.event(r'peer-device .* replication:SyncSource')
+        target_pds.event(r'peer-device .* replication:SyncTarget')
+
+        source_pds.event(r'peer-device .* replication:Established peer-disk:UpToDate')
+        target_pds.event(r'peer-device .* replication:Established')
+    except CalledProcessError:
+        time.sleep(2)
+        for n in resource.nodes:
+            status_str = n.run(['drbdsetup', 'status', resource.name], return_stdout=True)
+            if re.search(r'peer-disk:Outdated', status_str):
+                raise Exception("It is broken\n%s" % (status_str))
+
+    resource.down()
+
+for x in range(0, 40):
+    test()
+
+#resource.rmmod()

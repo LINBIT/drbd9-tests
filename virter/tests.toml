@@ -17,4 +17,5 @@ tests = [
 vms = 3
 tests = [
   "resync-downstream-upstream",
+  "outdate",
 ]

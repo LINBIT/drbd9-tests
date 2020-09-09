@@ -8,7 +8,7 @@ tests = [
   "connect",
   "fencing",
   "io-errors",
-  "initial-resync",
+  "resync-initial",
   "promote_while_connecting",
   "verify",
 ]

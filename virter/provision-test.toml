@@ -19,6 +19,9 @@ die() { >&2 printf "\nError: %s\n" "$*"; exit 1; }
 PACKAGES=$(printf %s "$REPOSITORY_PACKAGES" | tr , " ")
 
 if command -v yum > /dev/null; then
+	# Cheap hack to allow versions to be specified the same for apt and yum
+	PACKAGES=$(printf %s "$PACKAGES" | tr = -)
+
 	if [ -n "$REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/drbd.repo
 		[drbd]

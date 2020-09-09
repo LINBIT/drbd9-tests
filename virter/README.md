@@ -28,6 +28,10 @@ as `rpm` or `deb` packages in this directory or via a repository.
 * `drbd-utils`
 * `exxe`
 
+Packages to be installed from the repository should be specified using
+`values.RepositoryPackages`. The package name and version should be separated
+by `=`. This will be converted to `-` for `yum` based distributions.
+
 An Ubuntu-based test image can be built using a comand command like:
 
 ```

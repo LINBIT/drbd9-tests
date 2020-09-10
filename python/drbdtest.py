@@ -1039,8 +1039,8 @@ class Connection(object):
     def protocol_version(self):
         resname = self.nodes[0].resource.name
         peer_name = self.nodes[1].name
-        str = self.nodes[0].run(['grep', 'agreed_pro_version:',
-                                 '/sys/kernel/debug/drbd/resources/%s/connections/%s/debug' % (resname, peer_name)],
+        str = self.nodes[0].run(['sh', '-c',
+                                 'grep agreed_pro_version: /sys/kernel/debug/drbd/resources/%s/connections/%s*/debug' % (resname, peer_name)],
                                 return_stdout=True)
         m = re.match(r'\s*agreed_pro_version: ([0-9]+)', str);
         return int(m.group(1))

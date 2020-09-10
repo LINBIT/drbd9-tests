@@ -47,6 +47,7 @@ from_a.disconnect()
 to_a.event(r'connection:Unconnected')
 
 resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
     r'connection:ProtocolError',
     r'connection:BrokenPipe'
 ])

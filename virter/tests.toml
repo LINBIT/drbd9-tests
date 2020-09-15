@@ -5,19 +5,73 @@ vms = 2
 tests = [
   "add-connect-delete",
   "add-path-multiple-times",
+  "allow-remote-read",
+# "busy-resync", # known broken
   "connect",
-  "fencing",
+# "fencing",
   "io-errors",
   "resync-initial",
   "promote_while_connecting",
-  "verify",
-  "resync-finish",
+# "verify",
+  "force-resync",
+# "misaligned-bio", # known unstable (~30% success rate)
+# "multi-path", # known broken
+# "ref-count", # known unstable (~70% success rate)
+  "resize",
+# "resync-finish",
+# "stress-al", # known unstable (~65% success rate)
+  "stress-connect-and-2pc",
+  "switch-primaries",
 ]
 
 [[group]]
 vms = 3
 tests = [
-  "resync-downstream-upstream",
+# "resync-downstream-upstream",
+  "diskless",
+# "double-promote-diskless",
+# "io-errors-diskless",
   "outdate",
-  "resync-finish2",
+  "peer-acks",
+# "pre-existing-data", # known unstable (~60% success rate)
+  "quorum",
+# "quorum-isolate-primary",
+  "quorum-multi-volume",
+# "quorum-suspended-cancel",
+# "quorum-tiebreaker",
+# "resync-after-failover-to-dless", # known unstable (~65% success rate)
+# "resync-between-targets", # known unstable (~70% success rate)
+# "resync-downstream-upstream",
+# "resync-finish2",
+# "resync-reconciliation",
+# "resync-source-becomes-target", # known unstable (~40% success rate)
+# "resync-source-becomes-target2", # known unstable (~50% success rate)
+# "resync-to-older",
+  "resync-upstream-downstream",
+# "resync-w-dless-pri", # known unstable (~85% success rate)
+# "stress-al", # known unstable (~65% success rate)
+  "twopc_abort_connect",
+# "uuid_send_receive_race",
+# "write-during-resync", # known unstable (~50% success rate)
+]
+
+[[group]]
+vms = 4
+tests = [
+# "diskless-join-leave",
+ "migrate",
+]
+
+[[group]]
+vms = 5
+tests = [
+# "connect",
+  "fencing",
+# "diskless", # known broken
+# "outdate", # known unstable (~60% success rate)
+# "quorum", # known unstable (~20% success rate)
+# "resize",
+  "resync-initial",
+# "stress-connect-and-2pc", # known unstable (~85% success rate)
+  "switch-primaries",
 ]

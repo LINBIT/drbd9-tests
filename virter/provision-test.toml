@@ -57,7 +57,7 @@ elif command -v apt-get > /dev/null; then
 		apt-get update
 
 		if [ -n "$DRBD_VERSION" ]; then
-			PACKAGES="$PACKAGES drbd-module-$(uname -r)=${DRBD_VERSION}+*"
+			PACKAGES="$PACKAGES drbd-module-$(uname -r)=${DRBD_VERSION}-1+*"
 		fi
 	fi
 

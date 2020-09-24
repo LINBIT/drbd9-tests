@@ -69,6 +69,18 @@ else
 	die "Unknown package manager"
 fi
 
+# For convenience, DRBD can be provided as a module rather than a package
+if [ -n "$(find /opt/packages -maxdepth 1 -name '*.ko' -print -quit)" ]; then
+	mkdir -p /lib/modules/`uname -r`/updates
+	cp -v /opt/packages/*.ko /lib/modules/`uname -r`/updates/
+	depmod -a
+fi
+
+# For convenience, binaries can be provided instead of packages
+if [ -n "$(find /opt/packages/bin -maxdepth 1 -type f -print -quit)" ]; then
+	cp -v /opt/packages/bin/* /usr/local/bin/
+fi
+
 command -v exxe > /dev/null || die "exxe not installed"
 
 echo "Output of 'drbdadm --version':"

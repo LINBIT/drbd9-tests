@@ -116,6 +116,7 @@ test:
     - |
       export DRBD_VERSION=9.0.0.latest
       export DRBD_UTILS_VERSION=9.0.0.latest-*
+      export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
       ./drbd-test-bundle/virter/run-test.sh
   dependencies:
     - bundle

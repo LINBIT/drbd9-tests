@@ -7,6 +7,7 @@ die() {
 
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
+[ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
 
 for BASE_IMAGE in $(rq -t < drbd-test-bundle/virter/vms.toml | jq -r '.vms[] | .base_image'); do
 	if ! virsh vol-info --pool default $BASE_IMAGE; then
@@ -23,6 +24,6 @@ vmshed										\
 	--nvms 20								\
 	--vms drbd-test-bundle/virter/vms.toml					\
 	--tests drbd-test-bundle/virter/tests.toml				\
-	--set values.TestSuiteImage=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA \
+	--set values.TestSuiteImage=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$DRBD9_TESTS_VERSION \
 	--set values.DrbdVersion=$DRBD_VERSION					\
 	--set '"""values.RepositoryPackages=exxe\,drbd-utils='$DRBD_UTILS_VERSION'"""'

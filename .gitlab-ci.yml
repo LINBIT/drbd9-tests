@@ -1,11 +1,14 @@
 image: $LINBIT_DOCKER_REGISTRY/drbd-tests-build
 
 variables:
-  VIRTER_VERSION: v0.3.1
+  VIRTER_VERSION: v0.5.0
+  VMSHED_VERSION: v0.5.0
+  BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
 
 stages:
   - base_image
   - build
+  - test
   - publish
 
 base_image:
@@ -58,7 +61,25 @@ build-docker:
   rules:
     - if: $CI_MERGE_REQUEST_ID
     - if: $CI_COMMIT_BRANCH == 'master'
-  script: make DOCKER_IMAGE_NAME=$LINBIT_DOCKER_REGISTRY/drbd9-tests docker
+  script:
+    - docker login -u $LINBIT_REGISTRY_USER -p $LINBIT_REGISTRY_PASSWORD $LINBIT_DOCKER_REGISTRY
+    - make DOCKER_IMAGE_NAME=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA docker
+    - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
+
+push-docker:
+  stage: publish
+  tags:
+    - shell
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'master'
+  dependencies:
+    - build-docker
+  script:
+    - docker login -u $LINBIT_REGISTRY_USER -p $LINBIT_REGISTRY_PASSWORD $LINBIT_DOCKER_REGISTRY
+    - docker pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
+    - docker tag $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA $LINBIT_DOCKER_REGISTRY/drbd9-tests:latest
+    - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests:latest
+
 
 publish:
   stage: publish
@@ -69,12 +90,41 @@ publish:
   dependencies:
     - bundle
 
-push-docker:
-  stage: publish
-  tags:
-    - shell
+
+test:
+  stage: test
   rules:
-    - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_MERGE_REQUEST_ID
+  tags:
+    - libvirt
+  cache:
+    paths:
+      - download
   script:
-    - docker login -u $LINBIT_REGISTRY_USER -p $LINBIT_REGISTRY_PASSWORD $LINBIT_DOCKER_REGISTRY
-    - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests
+    - curl -sSfL -u gitlab-ci-token:$CI_JOB_TOKEN $CI_SERVER_URL/linbit/build-helpers/-/archive/$BUILD_HELPERS_VERSION/ignored.tar.gz | tar -xvzf -
+    - mv build-helpers-* build-helpers
+    - . build-helpers/gitlab-utils.sh
+    - |
+      ci_prepare_tools
+      ci_fetch_rq
+      ci_fetch_binary virter virter-$VIRTER_VERSION https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64
+      ci_fetch_binary vmshed vmshed-$VMSHED_VERSION https://github.com/LINBIT/vmshed/releases/download/$VMSHED_VERSION/vmshed-linux-amd64
+    - |
+      mkdir -p drbd-test-bundle
+      tar -C drbd-test-bundle -xvf drbd-test-bundle.tgz
+    - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
+    - |
+      export DRBD_VERSION=9.0.0.latest
+      export DRBD_UTILS_VERSION=9.0.0.latest-*
+      ./drbd-test-bundle/virter/run-test.sh
+  dependencies:
+    - bundle
+    - build-docker
+  artifacts:
+    # provide a convenient name so that the downloaded artifacts can be identified
+    name: $CI_PROJECT_NAME-$CI_JOB_ID
+    paths:
+      - tests-out/
+    when: always
+    reports:
+      junit: tests-out/test-results/*.xml

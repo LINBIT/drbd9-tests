@@ -11,6 +11,7 @@
 import time
 from python import drbdtest
 from python.drbdtest import verbose
+from subprocess import CalledProcessError
 
 resource = drbdtest.setup(nodes=3)
 resource.resource_options = 'quorum majority;'
@@ -53,6 +54,7 @@ def md5sum_first_1k(node):
 
 
 def test():
+    witnessed_resync_from_primary = False
     source_n.primary()
     source_n.volumes[0].write(count=1, bs=1024, flags=['oflag=direct'])
     md5sum = md5sum_first_1k(source_n)
@@ -65,15 +67,28 @@ def test():
     pd.event(r'peer-device .* replication:SyncTarget')
     ev = secondary_n.volumes[0].event(r'device .* disk:(UpToDate|Outdated)')
     pd.event(r'peer-device .* replication:Established')
+    if ev[0][0] == 'Outdated':
+        # Expecting a second resync from the primary
+        try:
+            secondary_n.volumes[0].event(r'device .* disk:Inconsistent', timeout=5)
+        except CalledProcessError:
+            raise Exception('Sync Target is Outdated after resync')
+
+        ev = secondary_n.volumes[0].event(r'device .* disk:UpToDate')
+        witnessed_resync_from_primary = True
+
     verify_md5sum = md5sum_first_1k(secondary_n)
-    if ev[0][0] != 'UpToDate' or md5sum != verify_md5sum:
-        raise Exception('Sync Target %s after resync. %s %s' % (ev[0][0], md5sum, verify_md5sum))
+    if md5sum != verify_md5sum:
+        raise Exception('Sync Target data mismatch: %s %s' % (md5sum, verify_md5sum))
 
     primary_n.secondary()
-
+    return witnessed_resync_from_primary
 #
 for i in range(10):
-    test()
+    if test():
+        break
 
 resource.down()
 resource.rmmod()
+
+verbose(" * Verified that resync from primary happens. It took %d runs." % (i+1))

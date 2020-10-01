@@ -1,9 +1,10 @@
 image: $LINBIT_DOCKER_REGISTRY/drbd-tests-build
 
 variables:
-  VIRTER_VERSION: v0.5.0
-  VMSHED_VERSION: v0.6.0
+  VIRTER_VERSION: v0.6.0
+  VMSHED_VERSION: v0.7.0
   BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
+  STABILITY_TEST_COUNT: 50
 
 stages:
   - base_image
@@ -71,7 +72,7 @@ push-docker:
   tags:
     - shell
   rules:
-    - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_COMMIT_BRANCH == 'master' && $CI_PIPELINE_SOURCE != 'schedule'
   dependencies:
     - build-docker
   script:
@@ -84,7 +85,7 @@ push-docker:
 publish:
   stage: publish
   rules:
-    - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_COMMIT_BRANCH == 'master' && $CI_PIPELINE_SOURCE != 'schedule'
   script:
     - curl -isSf -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD --upload-file drbd-test-bundle.tgz $LINBIT_REGISTRY_URL/repository/test-suite/
   dependencies:
@@ -129,3 +130,37 @@ test:
     when: always
     reports:
       junit: tests-out/test-results/*.xml
+
+
+stability-test:
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
+  tags:
+    - libvirt
+  cache:
+    paths:
+      - download
+  timeout: 12h
+  script:
+    - curl -sSfL -u gitlab-ci-token:$CI_JOB_TOKEN $CI_SERVER_URL/linbit/build-helpers/-/archive/$BUILD_HELPERS_VERSION/ignored.tar.gz | tar -xvzf -
+    - mv build-helpers-* build-helpers
+    - . build-helpers/gitlab-utils.sh
+    - |
+      ci_prepare_tools
+      ci_fetch_rq
+      ci_fetch_binary virter virter-$VIRTER_VERSION https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64
+      ci_fetch_binary vmshed vmshed-$VMSHED_VERSION https://github.com/LINBIT/vmshed/releases/download/$VMSHED_VERSION/vmshed-linux-amd64
+    - |
+      mkdir -p drbd-test-bundle
+      tar -C drbd-test-bundle -xvf drbd-test-bundle.tgz
+    - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
+    - |
+      export DRBD_VERSION=9.0.0.latest
+      export DRBD_UTILS_VERSION=9.0.0.latest-*
+      export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
+      ./drbd-test-bundle/virter/run-test.sh $STABILITY_TEST_COUNT drbd-test-bundle/virter/tests.all.toml || true
+      ./drbd-test-bundle/virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json
+  dependencies:
+    - bundle
+    - build-docker

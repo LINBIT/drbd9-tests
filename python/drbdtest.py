@@ -1218,12 +1218,12 @@ class Node(exxe.Exxe):
 
         self.addrs = [self.addr]
         if multi_paths:
-            net_2 = self.run(['ip', '-oneline', 'a', 'show', 'label', 'eth0:1'],
+            net_2 = self.run(['ip', '-oneline', 'a', 'show', 'label', '*:1'],
                              return_stdout=True)
             log("got further path %s", net_2)
             m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', net_2)
             if not m:
-                raise RuntimeError("%s has no eth0:1", self)
+                raise RuntimeError("%s has no *:1", self)
             self.addrs.append(m.group(1))
 
         self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'])

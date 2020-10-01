@@ -4,11 +4,27 @@ TestSuiteImage = "drbd9-tests"
 
 [[steps]]
 [steps.shell]
-script = """
+script = '''
+set -e
+
 if ! vgs scratch; then
 	vgcreate scratch "$SCRATCH_DISK"
 fi
-"""
+
+# Ensure that an additional labeled address is available for multi-path tests.
+# This assumes that the machines communicate over the first address in 192.168.0.0/16.
+if ! ip -oneline address show label "*:1" | grep ^ ; then
+	address_line=$(ip -oneline address show to 192.168.0.0/16 | head -n1)
+	dev=$(printf "%s" "$address_line" | awk '{print $2}')
+	original_address=$(printf "%s" "$address_line" | grep -o '192\.168\.[0-9]*\.[0-9]*' | head -n1)
+	original_address_3=$(printf "%s" "$original_address" | cut -d. -f3)
+	original_address_4=$(printf "%s" "$original_address" | cut -d. -f4)
+	new_address_3=$((original_address_3 ^ 0x80))
+	new_address=192.168.$new_address_3.$original_address_4
+	echo "Adding address $new_address"
+	ip address add dev $dev label $dev:1 $new_address/24
+fi
+'''
 [steps.shell.env]
 SCRATCH_DISK = "{{.ScratchDisk}}"
 

@@ -33,6 +33,7 @@ for i in range(10):
     A.block_path(B, 0)
     A.event(r'change path .* established:no')
     A.event(r'change path .* established:yes')
+    A.event(r'connection .* connection:Connected')
 
     # allow first again
     A.unblock_path(B, 0)
@@ -45,6 +46,7 @@ for i in range(10):
     A.block_path(B, 1)
     A.event(r'change path .* established:no')
     A.event(r'change path .* established:yes')
+    A.event(r'connection .* connection:Connected')
 
     # allow second again
     A.unblock_path(B, 1)

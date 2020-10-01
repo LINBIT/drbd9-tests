@@ -22,6 +22,7 @@ B.event(r'connection .* role:Primary', r'peer-device .* peer-disk:UpToDate')
 B.event(r'connection .* role:Secondary', r'device .* disk:UpToDate')
 
 resource.forbidden_patterns.difference_update([
+    r'connection:BrokenPipe',
     r'connection:NetworkFailure',
 ])
 

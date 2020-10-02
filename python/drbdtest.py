@@ -121,11 +121,31 @@ skip_cleanup = False
 
 devnull = open(os.devnull, 'w')
 
+# stream to write output to
+logstream = None
+
+
+class Tee(object):
+    """
+    replicates writes to streams
+    """
+
+    def __init__(self, streams):
+        self.streams = streams
+
+    def write(self, message):
+        for stream in self.streams:
+            stream.write(message)
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
 
 def verbose(*args, **kwargs):
     """ Print message to stderr """
-    print(*args, file=sys.stderr)
-    sys.stderr.flush()
+    print(*args, file=logstream)
+    logstream.flush()
 
 
 def debug(*args, **kwargs):
@@ -137,7 +157,7 @@ def debug(*args, **kwargs):
     except:
         pass
     if level <= debug_level:
-        print(*args, file=sys.stderr)
+        print(*args, file=logstream)
 
 def kib_to_blocks(b):
     return n * 2**10 // 4096
@@ -299,6 +319,11 @@ class Nodes(Collection):
 
         if not kwargs.pop('prepare', False):
             self.update_config()
+        # by default send all output to the log
+        if not 'stdout' in kwargs:
+            kwargs['stdout'] = logstream
+        if not 'stderr' in kwargs:
+            kwargs['stderr'] = logstream
         verbose(' '.join([node.name for node in self]) + ': ' +
                 ' '.join(pipes.quote(str(x)) for x in args[0]))
         exxe.run(self, *args, **kwargs)
@@ -486,7 +511,7 @@ class Volumes(Collection):
             jobfile.flush()
             jobfile.seek(0)
 
-            sys.stderr.write(jobfile.read())
+            verbose(jobfile.read())
             jobfile.seek(0)
 
             logfile = open(prefix + '.log', 'w+')
@@ -498,11 +523,11 @@ class Volumes(Collection):
                     result = FioParser(logfile.readlines())
             except CalledProcessError:
                 logfile.seek(0)
-                sys.stderr.write(logfile.read())
+                verbose(logfile.read())
                 raise
             else:
                 logfile.seek(0)
-                sys.stderr.write(logfile.read())
+                verbose(logfile.read())
             finally:
                 logfile.close()
 
@@ -761,7 +786,7 @@ class Resource(object):
         debug('# ' + ' '.join(pipes.quote(_) for _ in cmd + where))
 
         result = subprocess.check_output(cmd + where).decode()
-        print(result)
+        verbose(result)
 
         lines = result.split("\n")
         match_results = []
@@ -1391,6 +1416,11 @@ class Node(exxe.Exxe):
     def run(self, *args, **kwargs):
         if not kwargs.pop('prepare', False):
             self.update_config()
+        # by default send all output to the log
+        if not 'stdout' in kwargs:
+            kwargs['stdout'] = logstream
+        if not 'stderr' in kwargs:
+            kwargs['stderr'] = logstream
         verbose(self.name + ': ' + ' '.join(pipes.quote(str(x)) for x in args[0]))
         return super(Node, self).run(*args, **kwargs)
 
@@ -1656,7 +1686,7 @@ class Node(exxe.Exxe):
 
 
 def skip_test(text):
-    print(text)
+    print(text, file=sys.stderr)
     sys.exit(100)
 
 
@@ -1672,7 +1702,7 @@ def scan_syslog_files(logdir):
             if os.path.isfile(path) and match:
                 for line in open(path):
                     if re.search(r'(BUG:|INFO:|ASSERTION|general protection fault)', line):
-                        sys.stderr.write('%s: %s' % (match.group(1), line))
+                        verbose('%s: %s' % (match.group(1), line))
                         found = True
 
         if found:
@@ -1765,7 +1795,7 @@ def setup(parser=argparse.ArgumentParser(),
     os.environ['TOP'] = TOP
 
     if not silent:
-        print('Logging to directory %s' % args.logdir)
+        print('Logging to directory %s' % args.logdir, file=sys.stderr)
 
     if not os.access(args.logdir, os.R_OK + os.X_OK + os.W_OK):
         os.makedirs(args.logdir)
@@ -1776,6 +1806,11 @@ def setup(parser=argparse.ArgumentParser(),
             if e.errno != errno.ENOENT:
                 raise e
         os.symlink(args.job, os.path.join('log', job_symlink))
+
+    logfile = open(os.path.join(args.logdir, 'test.log'), 'w', encoding='utf-8')
+    # no need to close logfile - it is kept open until the program terminates
+    global logstream
+    logstream = Tee([sys.stderr, logfile])
 
     global proxy_enable
     proxy_enable = args.proxy
@@ -1871,7 +1906,7 @@ class FioParser():
         # http://stackoverflow.com/questions/9764930/capturing-repeating-subpatterns-in-python-regex
         for part in string.split(", "):
             kv = re.search("(\w+)\s*=\s*([\d\.]+)(K|m)?(B|B/s|sec)?", part)
-            # print(part)
+            # verbose(part)
 
             unit2 = unit * self._unit_to_num(kv.group(3))
             dest[kv.group(1)] = float(kv.group(2)) * unit2
@@ -1906,7 +1941,7 @@ class FioParser():
                 unit = self._unit_to_num(n.group(1))
                 self._kv_into_dict(res, n.group(2), unit)
 
-            print(res)
+            verbose(res)
 
     def latency(self, what="write"):
         """returns a dict with min/max/avg/... in sec"""
@@ -1941,32 +1976,32 @@ class Measurement():
 # is assert(), but with non-conflicting name
 def ensure(want, have, explanation=None):
     if want != have:
-        sys.stderr.write("Wanted '%s', but got '%s'.\n" % (repr(want), repr(have)))
+        verbose("Wanted '%s', but got '%s'.\n" % (repr(want), repr(have)))
         if explanation:
-            sys.stderr.write("%s\n" % explanation)
+            verbose("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
 
 def ensure_subset(smaller, bigger, explanation=None):
     """compares two dictionaries"""
     if not all([smaller[k] == bigger[k] for k in smaller.keys()]):
-        sys.stderr.write("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
+        verbose("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
         if explanation:
-            sys.stderr.write("%s\n" % explanation)
+            verbose("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
 
 def ensure_not(want, have, explanation=None):
     if want == have:
-        sys.stderr.write("Wanted something but '%s', got '%s'.\n" % (repr(want), repr(have)))
+        verbose("Wanted something but '%s', got '%s'.\n" % (repr(want), repr(have)))
         if explanation:
-            sys.stderr.write("%s\n" % explanation)
+            verbose("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
 
 def ensure_not_in_set(search, data, explanation=None):
     if search in data:
-        sys.stderr.write("Wanted something but '%s', got '%s'.\n" % (repr(search), repr(data)))
+        verbose("Wanted something but '%s', got '%s'.\n" % (repr(search), repr(data)))
         if explanation:
-            sys.stderr.write("%s\n" % explanation)
+            verbose("%s\n" % explanation)
         raise RuntimeError('assert trigger')

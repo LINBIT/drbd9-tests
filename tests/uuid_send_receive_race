@@ -40,7 +40,7 @@ my_verbose('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 agreed_pro_versions = to_a.protocol_versions()
-print(agreed_pro_versions)
+verbose(agreed_pro_versions)
 
 my_verbose('* Preparing scenario.')
 from_a.disconnect()

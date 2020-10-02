@@ -21,7 +21,7 @@ def set_gi(n, peer, uuids):
     for i in range(index,4):
         uuid_str += ':'
     uuid_str += '1:1'
-    print(uuid_str)
+    verbose(uuid_str)
     n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
            "--node-id=%d" % (peer.id), "set-gi", uuid_str, "--force"]);
 

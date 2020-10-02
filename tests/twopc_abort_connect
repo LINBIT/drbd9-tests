@@ -30,7 +30,7 @@ def assert_no_2pc(resource):
             msg += 'Node %s: executes %d\n' % (node, transaction_id)
 
     if len(msg):
-        print(msg)
+        verbose(msg)
         raise Exception('No two-phase commits expected at this moment')
 
 

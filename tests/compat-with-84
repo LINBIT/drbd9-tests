@@ -32,7 +32,7 @@ for n in [first]:
     n.run(['insmod', '/data/drbd-8.4/drbd/drbd.ko'])
 
     verbose("8.4 is node %s" % n)
-    print((n.run(
+    verbose((n.run(
                 ['cat', '/proc/drbd'],
                 return_stdout=True,
                 prepare=True,

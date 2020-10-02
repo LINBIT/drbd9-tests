@@ -28,7 +28,7 @@ verbose('* Bring up all other nodes as well, wait until they have all the data, 
 other_nodes.up()
 resource.initial_resync(first_node)
 
-# print("---------sleeping")
+# verbose("---------sleeping")
 # time.sleep(20)
 
 for node in other_nodes:

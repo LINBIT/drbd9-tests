@@ -30,7 +30,7 @@ def simulate_node_crash(node):
     node.run(['drbdadm', 'apply-al', resource.name])
 
     # setting UUID_FLAG_CRASHED_PRIMARY UUID_FLAG_PRIMARY_LOST_QUORUM
-    node.run(['drbdmeta', node.disks[0].minor, 'v09', node.disks[0].disk, 'internal',
+    node.run(['drbdmeta', str(node.disks[0].minor), 'v09', node.disks[0].disk, 'internal',
               '--node-id=1', 'set-gi', ':::1::::1', '--force'])
 
     # Setting some bits in the bitmap, like entries in the activity log would do
@@ -39,7 +39,7 @@ def simulate_node_crash(node):
               's/([0-9]+) times 0x0000000000000000/echo \\"0xFFFFFFFFFFFFFFFF; $((\\1-1)) times 0x0000000000000000; \\"/ge',
               '/tmp/md.txt'])
     node.run(['sed', '-i', '1d', '/tmp/md.txt'])
-    node.run(['drbdmeta', node.disks[0].minor, 'v09', node.disks[0].disk, 'internal',
+    node.run(['drbdmeta', str(node.disks[0].minor), 'v09', node.disks[0].disk, 'internal',
               'restore-md', '/tmp/md.txt', '--force'])
     node.run(['rm', '/tmp/md.txt'])
 

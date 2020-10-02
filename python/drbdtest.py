@@ -710,7 +710,6 @@ class Resource(object):
         return PeerDevices([pd for pd in pds if peer == pd.connection.nodes[1]])
 
     def cleanup(self):
-        os.kill(output_catcher_pid, signal.SIGTERM)
         if not skip_cleanup:
             self.nodes.run(['cleanup'], prepare=True, catch=True)
         for node in self.nodes:
@@ -1656,41 +1655,6 @@ class Node(exxe.Exxe):
         self.run(['disable-faults', '--devs=%d' % (1 << volume.minor)])
 
 
-def output_cachter_io_loop(stdout_pipe_r, stderr_pipe_r, logfile):
-    poll = select.poll()
-    READ_FLAGS = select.POLLIN | select.POLLPRI | select.POLLHUP | select.POLLERR
-    poll.register(stdout_pipe_r, READ_FLAGS)
-    poll.register(stderr_pipe_r, READ_FLAGS)
-    while True:
-        events = poll.poll()
-        for fd, flag in events:
-            if flag & (select.POLLIN | select.POLLPRI):
-                bytes = os.read(fd, 4096)
-                os.write(logfile.fileno(), bytes)
-                if fd == stdout_pipe_r:
-                    os.write(sys.stdout.fileno(), bytes)
-                elif fd == stderr_pipe_r:
-                    os.write(sys.stderr.fileno(), bytes)
-            else:
-                return
-
-def output_catcher(file_name):
-    stdout_pipe_r, stdout_pipe_w = os.pipe()
-    stderr_pipe_r, stderr_pipe_w = os.pipe()
-
-    with open(file_name, 'w') as logfile:
-        pid = os.fork()
-        if pid == 0:
-            output_cachter_io_loop(stdout_pipe_r, stderr_pipe_r, logfile)
-            exit(0)
-        else:
-            global output_catcher_pid
-            output_catcher_pid = pid
-
-            os.dup2(stdout_pipe_w, sys.stdout.fileno())
-            os.dup2(stderr_pipe_w, sys.stderr.fileno())
-    return
-
 def skip_test(text):
     print(text)
     sys.exit(100)
@@ -1812,8 +1776,6 @@ def setup(parser=argparse.ArgumentParser(),
             if e.errno != errno.ENOENT:
                 raise e
         os.symlink(args.job, os.path.join('log', job_symlink))
-
-    output_catcher(os.path.join(args.logdir, 'test.log'))
 
     global proxy_enable
     proxy_enable = args.proxy

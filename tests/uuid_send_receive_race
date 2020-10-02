@@ -11,11 +11,11 @@
 # replication:WFBitMapS and the other end in eplication:Established
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 import os
 
-def my_verbose(str):
-    verbose(str)
+def my_log(str):
+    log(str)
     for node in resource.nodes:
         node.run(["echo", str])
 
@@ -36,13 +36,13 @@ a_b_pd = drbdtest.PeerDevice(a_b, resource.volumes[0])
 c_a = drbdtest.Connection(C, A)
 c_a_pd = drbdtest.PeerDevice(c_a, resource.volumes[0])
 
-my_verbose('* Make up-to-date data available.')
+my_log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 agreed_pro_versions = to_a.protocol_versions()
-verbose(agreed_pro_versions)
+log(agreed_pro_versions)
 
-my_verbose('* Preparing scenario.')
+my_log('* Preparing scenario.')
 from_a.disconnect()
 to_a.event(r'connection:Unconnected')
 
@@ -64,11 +64,11 @@ a_b_pd.event(r'peer-device .* replication:SyncTarget')
 a_b_pd.event(r'peer-device .* replication:Established')
 
 A.unblock_packet_type(drbdtest.P_UUIDS110, from_node=C)
-my_verbose('* Here is the test.')
+my_log('* Here is the test.')
 
 c_a_pd.event(r'peer-device .* replication:Established')
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

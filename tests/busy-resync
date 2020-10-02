@@ -15,7 +15,7 @@
 # 4) Slowly but surely, the resync should finish in finite time.
 
 from python import drbdtest
-from python.drbdtest import verbose, mib_to_blocks
+from python.drbdtest import log, mib_to_blocks
 import time
 from threading import Thread
 
@@ -34,7 +34,7 @@ to_writing = drbdtest.Connection(other_nodes[0], writing_n)
 resource.add_disk('128M')
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 writing_n.primary()
@@ -82,7 +82,7 @@ writing_n.run(['killall', '-9', 'fio'])
 
 thread.join()
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

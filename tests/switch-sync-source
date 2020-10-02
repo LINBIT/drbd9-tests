@@ -22,14 +22,14 @@
 import time
 import random
 from python import drbdtest
-from python.drbdtest import verbose, mib_to_blocks
+from python.drbdtest import log, mib_to_blocks
 from subprocess import CalledProcessError
 import socket
 
 def slow_down_connection(from_n, to_n, speed='', delay=''):
     dev = from_n.net_device_to_peer(to_n)
     ip = socket.gethostbyname(to_n.hostname)
-    verbose('Slowing down connection from {0} to {1} ({2})'.format(from_n.hostname, to_n.hostname, ip))
+    log('Slowing down connection from {0} to {1} ({2})'.format(from_n.hostname, to_n.hostname, ip))
     from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'root', 'handle', '1:', 'prio'])
     if delay != '':
         from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'delay', delay])
@@ -50,11 +50,11 @@ slow = resource.nodes[2]
 resource.add_disk('128M')
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 primary.primary()
-verbose('* All nodes connected')
+log('* All nodes connected')
 
 fast.detach()
 slow.detach()
@@ -74,7 +74,7 @@ primary.down()
 
 slow.event('response helper .* helper:after-resync-target')
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 restore_slow_down(primary, slow)
 resource.down()
 resource.rmmod()

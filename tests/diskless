@@ -3,7 +3,7 @@
 # Pass this script a list of host names to use as the test nodes.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=5)
@@ -19,7 +19,7 @@ resource.up_wait()
 # primary.  Until then, we have to make one of the diskful nodes primary and then
 # secondary again to make it UpToDate.
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 nfnr = 0
@@ -43,7 +43,7 @@ diskless_node = resource.nodes.diskless[0]
 dev_name = diskless_node.volumes[0].device()
 
 
-verbose('* Test loosing all but one server, and reintegrating them in the same order')
+log('* Test loosing all but one server, and reintegrating them in the same order')
 diskless_node.run(['mkfs', '-t', 'ext4', dev_name])
 diskless_node.run(['mkdir', '-p', '/mnt/1'])
 diskless_node.run(['mount', dev_name, '/mnt/1'])
@@ -53,7 +53,7 @@ nr_nodes = len(resource.nodes)
 
 # Disconnect nearly all servers
 for n in resource.nodes.diskful[1:]:
-    verbose('* taking downing %s' % (n.name))
+    log('* taking downing %s' % (n.name))
     n.down()
     create_file(diskless_node, 100);
 
@@ -67,7 +67,7 @@ for n in resource.nodes.diskful[1:]:
     n.new_path()
     n.attach()
 
-    verbose('* re-integrating %s' % (n.name))
+    log('* re-integrating %s' % (n.name))
     # TODO Sometimes to diskles first, sometimes to the others first
 
     cs = drbdtest.Connections() # Connections from n to all other diskful_nodes
@@ -114,16 +114,16 @@ for n in resource.nodes.diskful[1:]:
 # Early Exit
 diskless_node.run(['umount', '/mnt/1'])
 
-verbose('* Writing from diskless node.')
+log('* Writing from diskless node.')
 
 diskless_node.primary()
 diskless_node.fio(section='write')
 diskless_node.secondary()
 
-verbose('* Verifying on diskful node.')
+log('* Verifying on diskful node.')
 diskful_nodes[0].fio(section='verify')
 
-verbose('* Disconnecting nodes.')
+log('* Disconnecting nodes.')
 diskless_node.primary()
 resource.connections. \
     from_node(diskless_node). \
@@ -165,6 +165,6 @@ try:
 except:
     pass
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

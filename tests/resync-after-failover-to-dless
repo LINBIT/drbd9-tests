@@ -10,7 +10,7 @@
 # storage node.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 import time
 
 resource = drbdtest.setup(nodes=3)
@@ -19,7 +19,7 @@ resource.disk_options = 'c-max-rate 2M;'
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
 resource.up_wait()
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 diskless_n = resource.nodes.diskless[0]
@@ -34,7 +34,7 @@ target_v = target_n.volumes[0]
 source_v = source_n.volumes[0]
 
 def test(write_in_between, crashed_primary):
-    verbose('* Preparing. with write_in_between=%d crashed_primary=%d' %
+    log('* Preparing. with write_in_between=%d crashed_primary=%d' %
             (write_in_between, crashed_primary))
     target_n.primary()
     target_v.write(bs=4096, count=1, flags=['oflag=direct'])
@@ -46,12 +46,12 @@ def test(write_in_between, crashed_primary):
                       '%s:%s/%d' % (resource.name, source_n.name, target_v.volume)])
     to_target_c.event(r'connection .* connection:Connecting')
 
-    verbose('* The diskless becomes primary ')
+    log('* The diskless becomes primary ')
     diskless_n.primary()
     if write_in_between:
         diskless_v.write(bs=4096, count=1, flags=['oflag=direct'])
 
-    verbose('* Reintegrating crashed primary')
+    log('* Reintegrating crashed primary')
     #target_n.up() But connect to diskless after resync, so open code:
     target_n.new_resource()
     target_n.new_minor()
@@ -66,7 +66,7 @@ def test(write_in_between, crashed_primary):
     target_diskless_c.connect()
     ev = source_target_pd.event(r'peer-device .* replication:Established peer-disk:(UpToDate|Outdated)')
 
-    verbose('* Verify that sync target becomes UpToDate')
+    log('* Verify that sync target becomes UpToDate')
     if ev[0][0] == 'Outdated':
         target_v.event(r'device .* disk:UpToDate')
     diskless_n.secondary()
@@ -78,6 +78,6 @@ test(write_in_between=False, crashed_primary=False)
 test(write_in_between=True, crashed_primary=True)
 test(write_in_between=True, crashed_primary=False)
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

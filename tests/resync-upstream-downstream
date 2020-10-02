@@ -5,7 +5,7 @@
 # Then resyncs downstream.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 def connect_and_check(n1, n2):
     cs = drbdtest.Connections()
@@ -33,7 +33,7 @@ resource.add_disk('10M')
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 node_a = resource.nodes[0]
@@ -41,10 +41,10 @@ node_b = resource.nodes[1]
 node_c = resource.nodes[2]
 dev_name = node_a.volumes[0].device()
 
-verbose('* Run test')
+log('* Run test')
 node_a.primary()
 
-verbose('* Disconnect and write something so that the initial UUID is no longer current')
+log('* Disconnect and write something so that the initial UUID is no longer current')
 resource.connections.from_node(node_c).disconnect()
 node_a.run(['dd', 'if=/dev/zero', 'of=' + dev_name,
     'bs=1M', 'count=1', 'seek=1', 'conv=fsync'])
@@ -61,18 +61,18 @@ node_a.run(['dd', 'if=/dev/zero', 'of=' + dev_name,
 
 resource.connections.from_node(node_a).disconnect()
 
-verbose('* Start upstream resync.')
+log('* Start upstream resync.')
 connect_and_check(node_a, node_b)
 
 wait_sync(node_a, node_b)
 
-verbose('* Start downstream resync after upstream resync finished')
+log('* Start downstream resync after upstream resync finished')
 connect_and_check(node_b, node_c)
 
 wait_sync(node_b, node_c)
 
 connect_and_check(node_a, node_c)
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

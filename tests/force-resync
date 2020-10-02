@@ -2,7 +2,7 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 import os
 
@@ -37,13 +37,13 @@ A.run(['drbdsetup', 'status', '--verbose'])
 
 resource.up_wait()
 
-verbose('* Force resync on volume 0 (empty)')
+log('* Force resync on volume 0 (empty)')
 A.run(['drbdsetup', 'new-current-uuid', '--force-resync', '1'])
 A.volumes[0].event(r'device .* disk:UpToDate')
 conn.event(r'peer-device .* replication:SyncSource')
 conn.event(r'peer-device .* replication:Established')
 
-verbose('* Force resync on volume 1 (with data)')
+log('* Force resync on volume 1 (with data)')
 A.run(['drbdsetup', 'new-current-uuid', '--force-resync', '2'])
 A.volumes[1].event(r'device .* disk:UpToDate')
 conn.event(r'peer-device .* replication:SyncSource')
@@ -52,7 +52,7 @@ conn.event(r'peer-device .* replication:Established')
 # verify that the data on volume 1 was transmitted correctly
 md5sum = B.run(['bash', '-c', 'dd if={} 2>/dev/null | md5sum'.format(resource.volumes[1].device())],
       return_stdout=True)
-verbose('md5sum: ' + md5sum)
+log('md5sum: ' + md5sum)
 
 # hash corresponds to 8M of the character 'A'
 if md5sum != '806d84898df229fa45ac16346525319d  -':

@@ -5,7 +5,7 @@
 import random
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=2, max_nodes=3)

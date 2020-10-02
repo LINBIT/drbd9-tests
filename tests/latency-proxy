@@ -7,7 +7,7 @@ from subprocess import CalledProcessError
 import sys
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from python.drbdtest import Measurement
 
 sys.argv.extend(['--proxy'])
@@ -25,12 +25,12 @@ def report(test, fio):
     lat = fio.latency("write")
     if lat:
         meas_w.save(test, lat.iops)
-        verbose(("%s: write %f IOPs (%s)" % (test, lat.iops, lat)))
+        log(("%s: write %f IOPs (%s)" % (test, lat.iops, lat)))
 
     lat = fio.latency("read")
     if lat:
         meas_r.save(test, lat.iops)
-        verbose(("%s: read  %f IOPs (%s)" % (test, lat.iops, lat)))
+        log(("%s: read  %f IOPs (%s)" % (test, lat.iops, lat)))
 
 def r_w_rw(name):
     n = 'rd-%s' % name
@@ -96,7 +96,7 @@ first.primary()
 r_w_rw('unconnected')
 
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 # INFO: (wap) helps w/ proxy connection clean up
 try:

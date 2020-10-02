@@ -6,7 +6,7 @@
 import sys
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 sys.argv.extend(['--proxy'])
 
@@ -16,19 +16,19 @@ other_nodes = resource.nodes.difference([first_node])
 
 resource.add_disk('10M')
 
-verbose('* Bring up the first node, make it primary, and write defined data onto all volumes.')
+log('* Bring up the first node, make it primary, and write defined data onto all volumes.')
 first_node.up_wait()
 first_node.primary(force=True)
 first_node.volumes.fio(section='write')
 
-verbose('* Make the first node secondary again to allow read access on the other nodes.')
+log('* Make the first node secondary again to allow read access on the other nodes.')
 first_node.secondary()
 
-verbose('* Bring up all other nodes as well, wait until they have all the data, and verify the data received.')
+log('* Bring up all other nodes as well, wait until they have all the data, and verify the data received.')
 other_nodes.up()
 resource.initial_resync(first_node)
 
-# verbose("---------sleeping")
+# log("---------sleeping")
 # time.sleep(20)
 
 for node in other_nodes:
@@ -36,6 +36,6 @@ for node in other_nodes:
     node.volumes.diskful.fio(section='verify')
     node.secondary()
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

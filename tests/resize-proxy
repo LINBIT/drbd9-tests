@@ -7,7 +7,7 @@ import sys
 import time
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 sys.argv.extend(['--proxy'])
 
@@ -59,7 +59,7 @@ first_node = diskful_nodes[0]
 resource.add_disk('%dM' % size, diskful_nodes=diskful_nodes)
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 # make one node "weakly" connected
@@ -73,13 +73,13 @@ resource.skip_initial_sync();
 
 ## TODOs: add some test for --assume-peer-has-space
 
-verbose('* Resize on each diskfull node once. Testing --size and --assume-clean')
+log('* Resize on each diskfull node once. Testing --size and --assume-clean')
 for n in diskful_nodes:
     # new values
     size += step
     size_str = "%dM" % size
 
-    verbose('* Node %s wants to use %dMB;' % (n, size - 1))
+    log('* Node %s wants to use %dMB;' % (n, size - 1))
 
     # Only if same VG everywhere
     diskful_nodes.volumes.resize(size_str)
@@ -93,15 +93,15 @@ for n in diskful_nodes:
 
 # This is also a test of two-phase-commit serializing concurrent transactions,
 # since starting the transaction al all nodes concurrently.
-verbose('* Get rid of the user supplied size')
+log('* Get rid of the user supplied size')
 diskful_nodes.run(['drbdadm', 'resize', '--assume-clean', resource.name])
 
-verbose('* Resize on each diskfull node once. Testing --assume-clean')
+log('* Resize on each diskfull node once. Testing --assume-clean')
 for n in diskful_nodes:
     size += step
     size_str = "%dM" % size
 
-    verbose('* Node %s wants to use %dMB;' % (n, size))
+    log('* Node %s wants to use %dMB;' % (n, size))
 
     diskful_nodes.volumes.resize(size_str)
 
@@ -111,7 +111,7 @@ for n in diskful_nodes:
     verify_size()
 
 
-verbose('* Check resync after resize.')
+log('* Check resync after resize.')
 size += step
 size_str = "%dM" % size
 diskful_nodes.volumes.resize(size_str)
@@ -127,7 +127,7 @@ rstn.volumes.event(r'device .* disk:Inconsistent')
 rstn.volumes.event(r'device .* disk:UpToDate')
 
 if nr_nodes >= 5:
-    verbose('* Forming a sigma-shaped cluster')
+    log('* Forming a sigma-shaped cluster')
     #
     # This tests what the two-phase-commit logic does at node 3
     # where the prepare (and commit) arrives two times.
@@ -151,7 +151,7 @@ if nr_nodes >= 5:
     size += step
     size_str = "%dM" % size
 
-    verbose('* Resizing disks to %dMB;' % (size))
+    log('* Resizing disks to %dMB;' % (size))
 
     diskful_nodes.volumes.resize(size_str)
 
@@ -160,7 +160,7 @@ if nr_nodes >= 5:
     verify_size()
 
 if len(resource.nodes.diskless) >= 1:
-    verbose('* Verify consistency between old resize code an 2pc code')
+    log('* Verify consistency between old resize code an 2pc code')
     # Resize using 2pc code. The connect of the diskless works only if
     # some caching members (like peer_device->max_size) in DRBD where
     # updated correctly by the 2pc code.
@@ -199,14 +199,14 @@ if len(resource.nodes.diskless) >= 1:
     diskless_node.secondary()
     time.sleep(settle_time)
 
-    verbose('* Shut down and clean up.')
+    log('* Shut down and clean up.')
     try:
         diskless_node.down()
         two_nodes.down()
     except:
         pass
 else:
-    verbose('* Shut down and clean up.')
+    log('* Shut down and clean up.')
     try:
         resource.down()
     except:

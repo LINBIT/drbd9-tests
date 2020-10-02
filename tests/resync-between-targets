@@ -12,14 +12,14 @@
 # this bug was fixed in drbd-9.0.23
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 resource = drbdtest.setup(nodes=3)
 resource.disk_options = 'c-max-rate 500k;'
 resource.add_disk('10M')
 
 resource.up_wait()
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 ahead_n = resource.nodes[0]
@@ -34,7 +34,7 @@ ahead_v = ahead_n.volumes[0]
 target_v = target_n.volumes[0]
 source_v = source_n.volumes[0]
 
-verbose('* Preparing.')
+log('* Preparing.')
 source_target_c.disconnect()
 ahead_c.disconnect()
 ahead_n.primary()
@@ -49,21 +49,21 @@ source_n.up()
 source_target_c.disconnect()
 target_n.up()
 
-verbose('* Start resync from the ahead node.')
+log('* Start resync from the ahead node.')
 ahead_target_c.connect()
 target_v.event(r'device .* disk:Inconsistent')
 
-verbose('* Let the two behinds connect')
+log('* Let the two behinds connect')
 source_target_c.connect()
 source_target_pd.event(r'peer-device .* replication:PausedSyncS')
 
-verbose('* Start resync from ahead to source node.')
+log('* Start resync from ahead to source node.')
 ahead_source_c.connect()
 
-verbose('* Verify.')
+log('* Verify.')
 source_target_pd.event(r'peer-device .* replication:Established')
 source_v.event(r'device .* disk:UpToDate')
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 ahead_n.secondary()
 resource.rmmod()

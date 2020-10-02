@@ -6,7 +6,7 @@ from subprocess import CalledProcessError
 import sys
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 sys.argv.extend(['--proxy'])
 

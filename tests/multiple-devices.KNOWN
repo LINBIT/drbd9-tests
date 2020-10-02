@@ -4,7 +4,7 @@
 # Pass this script two host names to use as the test nodes.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from python.drbdtest import Measurement
 from subprocess import CalledProcessError
 

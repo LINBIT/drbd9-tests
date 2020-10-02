@@ -10,14 +10,14 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(nodes=3)
 resource.resource_options = 'quorum majority;'
 resource.add_disk('10M')
 resource.up_wait()
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')
 
@@ -94,4 +94,4 @@ for i in range(10):
 resource.down()
 resource.rmmod()
 
-verbose(" * Verified that resync from primary happens. It took %d runs." % (i+1))
+log(" * Verified that resync from primary happens. It took %d runs." % (i+1))

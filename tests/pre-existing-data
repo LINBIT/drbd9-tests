@@ -20,7 +20,7 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
@@ -31,7 +31,7 @@ resource.add_disk('10M', diskful_nodes=diskful_nodes)
 diskless_node = resource.nodes.diskless[0]
 
 def pre_existing_test(write_between_actions = False):
-    verbose('* Pretending both servers have up-to-date data.')
+    log('* Pretending both servers have up-to-date data.')
     for n in diskful_nodes:
         n.run(["/bin/bash", "-c",
                "dd if=/dev/urandom of=%s seek=2000 bs=4096 || true" % (n.disks[0].disk)])
@@ -41,7 +41,7 @@ def pre_existing_test(write_between_actions = False):
         n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
 	       "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"]);
 
-    verbose('* Bringing up the diskless and one server, connect them')
+    log('* Bringing up the diskless and one server, connect them')
     resource.nodes.diskful[1].up()
     diskless_node.up()
     cs = drbdtest.Connections()
@@ -51,12 +51,12 @@ def pre_existing_test(write_between_actions = False):
     pds.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, resource.nodes.diskful[1]), diskless_node.volumes[0]))
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
-    verbose('* Promoting the diskless')
+    log('* Promoting the diskless')
     diskless_node.primary()
     if write_between_actions:
         diskless_node.volumes.write(1, flags=['conv=fsync'])
 
-    verbose('* Connect the remaining server to the server that is already up')
+    log('* Connect the remaining server to the server that is already up')
     n = resource.nodes.diskful[0]
     n.new_resource()
     n.new_minor()
@@ -69,7 +69,7 @@ def pre_existing_test(write_between_actions = False):
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 
-    verbose('* Asserting that it goes Outdated now')
+    log('* Asserting that it goes Outdated now')
     n.volumes[0].event(r'device .* disk:Outdated')
 
     # Ensure nothing is out of sync!
@@ -85,7 +85,7 @@ def pre_existing_test(write_between_actions = False):
     cs = resource.connections.to_node(diskless_node);
     cs.event(r'connection .* role:Secondary')
 
-    verbose('* Shut down and clean up.')
+    log('* Shut down and clean up.')
     resource.down()
 
 pre_existing_test(write_between_actions = True)

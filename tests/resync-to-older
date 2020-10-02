@@ -10,7 +10,7 @@
 # TODO: Execute all possible orders of nodes joining the primary
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
@@ -20,7 +20,7 @@ resource.add_disk('10M')
 
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 [node_a, node_b, node_c] = resource.nodes
@@ -54,6 +54,6 @@ connection_ba.event(r'connection .* connection:Connected')
 
 node_b.volumes.event(r'device .* disk:UpToDate')
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

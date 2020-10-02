@@ -4,7 +4,7 @@
 # diskless primary present
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 resource = drbdtest.setup(nodes=3)
 resource.disk_options = 'c-max-rate 500k;'
@@ -12,7 +12,7 @@ diskful_nodes = resource.nodes[1:]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
 resource.up_wait()
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 diskless_n = resource.nodes.diskless[0]
@@ -27,7 +27,7 @@ flapping_to_dless_c = from_flapping_c.to_node(diskless_n)
 flapping_to_stable_c = from_flapping_c.to_node(stable_n)
 
 def prelude(do_resync, text):
-    verbose(text)
+    log(text)
     diskless_n.primary()
     diskless_v.write(count=1, flags=['oflag=direct'])
 
@@ -84,5 +84,5 @@ def test(do_resync):
 test(do_resync=True)
 test(do_resync=False)
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.rmmod()

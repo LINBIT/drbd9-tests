@@ -10,7 +10,7 @@ import re
 import time
 from operator import attrgetter
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 def executing_2pc(node):
     str = node.run(['cat',
@@ -30,7 +30,7 @@ def assert_no_2pc(resource):
             msg += 'Node %s: executes %d\n' % (node, transaction_id)
 
     if len(msg):
-        verbose(msg)
+        log(msg)
         raise Exception('No two-phase commits expected at this moment')
 
 
@@ -60,7 +60,7 @@ resource.add_disk('10M')
 
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 resource.forbidden_patterns.difference_update([r'connection:NetworkFailure', r'connection:BrokenPipe'])
 [node_a, node_b, node_c] = list(resource.nodes)

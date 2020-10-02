@@ -15,7 +15,7 @@ import os
 import time
 import random
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 random.seed()
@@ -24,7 +24,7 @@ resource = drbdtest.setup(min_nodes=2, max_nodes=5)
 resource.add_disk('10M')
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 #
@@ -46,7 +46,7 @@ def prepare(description, fencing_mode, handler_exit, test_mode, nodes):
     global test_run
 
     test_run += 1
-    verbose('* %s; fencing = %s; handler_exit = %d; test = %s; case_nr = %d'
+    log('* %s; fencing = %s; handler_exit = %d; test = %s; case_nr = %d'
             % (description, fencing_mode, handler_exit, test_mode, test_run))
 
     resource.net_options = 'fencing %s;' % (fencing_mode)
@@ -255,7 +255,7 @@ def execute_test_cases(test_func):
 
 #If you want to call a specific test firs/only:
 #fencing_test2("resource-only", 0, "RECONNECT")
-#verbose('* Shut down and clean up.')
+#log('* Shut down and clean up.')
 #time.sleep(0.1)
 #resource.down()
 #resource.rmmod()
@@ -264,9 +264,9 @@ def execute_test_cases(test_func):
 execute_test_cases(fencing_test1)
 execute_test_cases(fencing_test2)
 
-verbose('%d times the fence-peer handler was called' % peer_fenced)
-verbose('%d times the self-outdate of the disconnected node was quicker' % peer_self_outdated)
-verbose('* Shut down and clean up.')
+log('%d times the fence-peer handler was called' % peer_fenced)
+log('%d times the self-outdate of the disconnected node was quicker' % peer_self_outdated)
+log('* Shut down and clean up.')
 time.sleep(0.1)
 resource.down()
 resource.rmmod()

@@ -7,7 +7,7 @@ import signal
 import sys
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 sys.argv.extend(['--proxy'])
 
@@ -28,10 +28,10 @@ diskful_nodes = resource.nodes.difference([diskless_n])
 resource.add_disk('512M', diskful_nodes=diskful_nodes)
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
-verbose('* Beginning AL stress test')
+log('* Beginning AL stress test')
 diskless_n.primary()
 
 
@@ -43,7 +43,7 @@ for i in range(1, 5):
         signal.alarm(0) #disarm
         signal.signal(signal.SIGALRM, old_sig)
     except Exception as e:
-        verbose('* Test failed, IO blocked! %s' % (e))
+        log('* Test failed, IO blocked! %s' % (e))
         signal.alarm(0) #disarm
         signal.signal(signal.SIGALRM, old_sig)
         resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
@@ -67,7 +67,7 @@ diskless_n.secondary()
 diskful_nodes.connections.to_node(diskless_n).event(r'connection .* role:Secondary')
 time.sleep(1)
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 try:
     resource.down()
 except:

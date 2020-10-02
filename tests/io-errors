@@ -4,14 +4,14 @@
 import time
 import random
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 M_REATTACH=1
 M_RECREATE_MD=2
 
 def test_writes(fault_type):
-    verbose('* Writing on primary (autopromote) secondary should detach')
+    log('* Writing on primary (autopromote) secondary should detach')
     secondary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
     primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=1'])
 
@@ -20,7 +20,7 @@ def test_writes(fault_type):
     primary_n.peer_devices.event(r'peer-device .* peer-disk:Failed')
     primary_n.peer_devices.event(r'peer-device .* peer-disk:Diskless')
 
-    verbose('* down/up secondary, check resync')
+    log('* down/up secondary, check resync')
     secondary_n.disable_fault_injection(vol)
     secondary_n.down()
     secondary_n.up()
@@ -36,7 +36,7 @@ def test_writes(fault_type):
     # This primary/secondary seems pointless, but triggers what was fixed with
     # b5f48453e1b95d7a53bee1820f2ff1d5b23cb6f1 in drbd9
 
-    verbose('* Testing IO error on primary (autopromote), should detach')
+    log('* Testing IO error on primary (autopromote), should detach')
     primary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
     primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=1'])
 
@@ -45,7 +45,7 @@ def test_writes(fault_type):
     secondary_n.volumes.event(r'peer-device .* peer-disk:Failed')
     secondary_n.volumes.event(r'peer-device .* peer-disk:Diskless')
 
-    verbose('* down/up primary, check resync')
+    log('* down/up primary, check resync')
     primary_n.disable_fault_injection(vol)
     primary_n.down()
     primary_n.up()
@@ -60,7 +60,7 @@ def test_tracking_writes(mode):
     # check the resync of blocks while the disk on the primary is away. Do it in a way the
     # AL does not get applied, so that we verify that the diskfull secondary tracked the
     # changes.
-    verbose('* verify resync amount %s' % ("after reattach" if mode == M_REATTACH else "with replaced backing disk"))
+    log('* verify resync amount %s' % ("after reattach" if mode == M_REATTACH else "with replaced backing disk"))
     primary_n.detach()
     primary_n.primary()
     primary_n.run(['dd', 'if=/dev/urandom', 'of=/tmp/data', 'bs=1024', 'count=12'])
@@ -95,7 +95,7 @@ resource = drbdtest.setup(min_nodes=2, max_nodes=2)
 resource.add_disk('10M')
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 primary_n = random.choice(resource.nodes)
@@ -112,6 +112,6 @@ test_tracking_writes(M_RECREATE_MD)
 
 # TODOs: read errors, IO errors during resync, allocation errors
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

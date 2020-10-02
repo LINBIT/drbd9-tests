@@ -13,7 +13,7 @@
 #    reads now fail.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 import time
 
@@ -31,7 +31,7 @@ no_reads_n = resource.nodes[1]
 resource.add_disk('128M')
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 primary_n.primary()
@@ -59,14 +59,14 @@ except CalledProcessError:
     # it failed, good
     pass
 
-verbose('* Recover disk')
+log('* Recover disk')
 primary_n.disable_fault_injection(resource.volumes[0])
 primary_n.down()
 primary_n.up()
 
 time.sleep(5)
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

@@ -7,7 +7,7 @@
 
 import random
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 #random.seed()
@@ -18,7 +18,7 @@ for n in resource.nodes:
     n.run(["drbdmeta", n.disks[0].minor, "v09", n.disks[0].disk, "internal",
 	   "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"])
 
-verbose('* All nodes on same current UUID, waiting for them to connect.')
+log('* All nodes on same current UUID, waiting for them to connect.')
 resource.up()
 pds = drbdtest.PeerDevices()
 for n1 in resource.nodes:
@@ -31,7 +31,7 @@ pds.event(r'peer-device .* peer-disk:UpToDate', timeout=30)
 #[node_a, node_b, node_c] = random.sample(resource.nodes, 3)
 [node_a, node_b, node_c] = resource.nodes
 
-verbose('* Create data file on node_a and verify it on node_c')
+log('* Create data file on node_a and verify it on node_c')
 
 dev_name = node_a.volumes[0].device()
 node_a.run(['mkfs.ext4', '-Elazy_itable_init=0', '-Elazy_journal_init=0',
@@ -51,7 +51,7 @@ if md5sum_a != md5sum_c:
     raise Exception("Got back wrong data! %s %s" % (md5sum_a, md5sum_c))
 
 
-verbose('* Make the cluster to move to new current UUID (node_b away and back)')
+log('* Make the cluster to move to new current UUID (node_b away and back)')
 
 connections_b = resource.connections.from_node(node_b)
 connections_b.disconnect()
@@ -66,15 +66,15 @@ node_b.volumes.event(r'device .* disk:UpToDate')
 #node_a.up()
 ##
 
-verbose('* node_c gets lost')
+log('* node_c gets lost')
 node_c.down()
 
-verbose('* remaining nodes form new current UUID')
+log('* remaining nodes form new current UUID')
 
 node_a.run(['mount', dev_name, '/mnt/1'])
 node_a.run(['umount', '/mnt/1'])
 
-verbose('* node_c is repaired but returns with an empty disk (day0 current UUID)')
+log('* node_c is repaired but returns with an empty disk (day0 current UUID)')
 bdev_name = '/dev/%s/%s' % (node_c.volume_group, node_c.volumes[0].disk_lv)
 try:
     node_c.run(['dd', 'if=/dev/zero', 'of=%s' % (bdev_name), 'bs=1M'])
@@ -96,6 +96,6 @@ node_c.run(['umount', '/mnt/1'])
 if md5sum_a != md5sum_c:
     raise Exception("Wrong data after re-create! %s %s" % (md5sum_a, md5sum_c))
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

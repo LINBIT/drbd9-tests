@@ -22,7 +22,7 @@
 import time
 import random
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 random.seed()
@@ -31,7 +31,7 @@ def test_write_between_disconnects(resource):
     primary_n = random.choice(resource.nodes)
     secondaries_n = drbdtest.Nodes(resource.nodes)
     secondaries_n.remove(primary_n)
-    verbose('* %s is the primary' % primary_n.name)
+    log('* %s is the primary' % primary_n.name)
     primary_n.primary()
 
     cut1_sec = random.choice(secondaries_n)
@@ -39,7 +39,7 @@ def test_write_between_disconnects(resource):
     rem_sec.remove(cut1_sec)
     cut2_sec = rem_sec[0]
 
-    verbose('* cutting off first secondary (%s) from primary' % (cut1_sec.name))
+    log('* cutting off first secondary (%s) from primary' % (cut1_sec.name))
     connection_to_cut1 = resource.connections.to_node(primary_n).from_node(cut1_sec)[0]
     connection_witness1 = resource.connections.from_node(primary_n).to_node(cut1_sec)[0]
 
@@ -56,7 +56,7 @@ def test_write_between_disconnects(resource):
     primary_n.run(["setsid", "bash", "-c", "dd if=/dev/zero of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null &" % (dev_name, 4)])
     connection_witness1.event(r'connection .* connection:NetworkFailure')
 
-    verbose('* silently cutting off other secondary (%s) from primary' % (cut2_sec.name))
+    log('* silently cutting off other secondary (%s) from primary' % (cut2_sec.name))
 
     connection_to_cut2 = resource.connections.to_node(primary_n).from_node(cut2_sec)[0]
     connection_to_cut2.block(jump_to="DROP")
@@ -67,7 +67,7 @@ def test_write_between_disconnects(resource):
     except CalledProcessError:
         pass # Expect the IO error in case quorum was lost
 
-    verbose('* Checking promote & IO in larger partition')
+    log('* Checking promote & IO in larger partition')
 
     connection_to_cut1.event(r'connection .* connection:Unconnected')
     connection_to_cut2.event(r'connection .* connection:Unconnected')
@@ -83,7 +83,7 @@ def test_write_between_disconnects(resource):
     tmp_pri.event(r'resource .* role:Primary')
     tmp_pri.run(["dd", "if=/dev/zero", "of=%s" % (dev_name), "bs=%dk" % 4, "count=1",  "oflag=direct"])
 
-    verbose('* re-integrating')
+    log('* re-integrating')
     tmp_pri.secondary()
     primary_n.secondary()
 
@@ -102,11 +102,11 @@ def test_quick_promote(resource):
     primary_n = random.choice(resource.nodes)
     secondaries_n = drbdtest.Nodes(resource.nodes)
     secondaries_n.remove(primary_n)
-    verbose('* %s is the primary' % primary_n.name)
+    log('* %s is the primary' % primary_n.name)
     primary_n.primary()
     primary_n.volumes.write(1, flags=['oflag=direct'])
 
-    verbose('* Isolating the primary, while writing at the same time')
+    log('* Isolating the primary, while writing at the same time')
     tmp_pri = random.choice(secondaries_n)
     connections_to_cut = resource.connections.to_node(primary_n)
     connections_witness = resource.connections.from_node(primary_n)
@@ -125,7 +125,7 @@ def test_quick_promote(resource):
 
     connections_to_cut.unblock(jump_to="REJECT")
 
-    verbose('* re-integrating')
+    log('* re-integrating')
     tmp_pri.secondary()
     primary_n.secondary()
     connections_to_cut.connect()
@@ -142,7 +142,7 @@ resource.net_options = 'ping-int 2;'
 
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 resource.forbidden_patterns.difference_update([

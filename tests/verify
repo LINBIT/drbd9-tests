@@ -7,7 +7,7 @@ import re
 import time
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
@@ -62,7 +62,7 @@ def MakeDifference(node, do_changes):
                 (node.name, time.ctime(),
                  make_difference_counter, i,
                  byte, byte))
-        verbose(text)
+        log(text)
 
         block = text + make_difference_blob[len(text):]
 
@@ -88,7 +88,7 @@ def CheckContent(node, blocks):
                 return_stdout=True)
 
         lines = content.split("\n")
-        verbose("node %s has '%s'\n" % (node, lines[0]))
+        log("node %s has '%s'\n" % (node, lines[0]))
 
         # There's a problem with 4kB, only check a bit less.
         drbdtest.ensure(block[:BLOCK_SIZE_2COMPARE], content[:BLOCK_SIZE_2COMPARE])
@@ -115,7 +115,7 @@ def GetDifferenceFromDmesg(node):
             if length == 0:
                 break
 
-        drbdtest.verbose("on node %s found change at sector %d (byte %d, 0x%x)" % (node, sector, byte, byte))
+        drbdtest.log("on node %s found change at sector %d (byte %d, 0x%x)" % (node, sector, byte, byte))
 
     # [4508807.046923] drbd ramdisk/0 drbd28 much: Online verify found 2 4k block out of sync!
     return set(blks)
@@ -155,7 +155,7 @@ def DoSync(node1, node2):
 for with_changes in (0, 1):
     w_c_text = "with changes" if with_changes else "no changes"
 
-    drbdtest.verbose("*** 1) Primary verifies against Secondary, %s" % w_c_text)
+    drbdtest.log("*** 1) Primary verifies against Secondary, %s" % w_c_text)
 
     with first.asPrimary():
         changed = MakeDifference(first, with_changes)
@@ -165,7 +165,7 @@ for with_changes in (0, 1):
             CheckContent(n, changed)
 
 
-    drbdtest.verbose("*** 2) Secondary verifies against Primary, %s" % w_c_text)
+    drbdtest.log("*** 2) Secondary verifies against Primary, %s" % w_c_text)
 
     with first.asPrimary():
         changed = MakeDifference(first, with_changes)
@@ -176,7 +176,7 @@ for with_changes in (0, 1):
 
 
     # TODO: which should/would win??
-    # drbdtest.verbose("*** 3) Secondary to Secondary")
+    # drbdtest.log("*** 3) Secondary to Secondary")
     # with first.asPrimary():
     #     changed = MakeDifference(first)
     # DoVerify(first, other, changed)

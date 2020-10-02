@@ -142,7 +142,7 @@ class Tee(object):
             stream.flush()
 
 
-def verbose(*args, **kwargs):
+def log(*args, **kwargs):
     """ Print message to stderr """
     print(*args, file=logstream)
     logstream.flush()
@@ -324,7 +324,7 @@ class Nodes(Collection):
             kwargs['stdout'] = logstream
         if not 'stderr' in kwargs:
             kwargs['stderr'] = logstream
-        verbose(' '.join([node.name for node in self]) + ': ' +
+        log(' '.join([node.name for node in self]) + ': ' +
                 ' '.join(pipes.quote(str(x)) for x in args[0]))
         exxe.run(self, *args, **kwargs)
 
@@ -511,7 +511,7 @@ class Volumes(Collection):
             jobfile.flush()
             jobfile.seek(0)
 
-            verbose(jobfile.read())
+            log(jobfile.read())
             jobfile.seek(0)
 
             logfile = open(prefix + '.log', 'w+')
@@ -523,11 +523,11 @@ class Volumes(Collection):
                     result = FioParser(logfile.readlines())
             except CalledProcessError:
                 logfile.seek(0)
-                verbose(logfile.read())
+                log(logfile.read())
                 raise
             else:
                 logfile.seek(0)
-                verbose(logfile.read())
+                log(logfile.read())
             finally:
                 logfile.close()
 
@@ -731,7 +731,7 @@ class Resource(object):
     def peer_devices_to_peer(self, peer):
         pds = self.peer_devices
         for pd in pds:
-            verbose("** %s to %s" % pd.connection.nodes)
+            log("** %s to %s" % pd.connection.nodes)
         return PeerDevices([pd for pd in pds if peer == pd.connection.nodes[1]])
 
     def cleanup(self):
@@ -766,7 +766,7 @@ class Resource(object):
 
         self.sync_events(collection.__class__)
 
-        verbose('Waiting for event ' +
+        log('Waiting for event ' +
                 ' '.join([str(_) for _ in collection]) + ' ' +
                 ' '.join(['-y ' + _ for _ in args]) +
                 ' '.join(['-n ' + _ for _ in no]))
@@ -786,7 +786,7 @@ class Resource(object):
         debug('# ' + ' '.join(pipes.quote(_) for _ in cmd + where))
 
         result = subprocess.check_output(cmd + where).decode()
-        verbose(result)
+        log(result)
 
         lines = result.split("\n")
         match_results = []
@@ -1220,7 +1220,7 @@ class Node(exxe.Exxe):
         if multi_paths:
             net_2 = self.run(['ip', '-oneline', 'a', 'show', 'label', 'eth0:1'],
                              return_stdout=True)
-            verbose("got further path %s", net_2)
+            log("got further path %s", net_2)
             m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', net_2)
             if not m:
                 raise RuntimeError("%s has no eth0:1", self)
@@ -1421,7 +1421,7 @@ class Node(exxe.Exxe):
             kwargs['stdout'] = logstream
         if not 'stderr' in kwargs:
             kwargs['stderr'] = logstream
-        verbose(self.name + ': ' + ' '.join(pipes.quote(str(x)) for x in args[0]))
+        log(self.name + ': ' + ' '.join(pipes.quote(str(x)) for x in args[0]))
         return super(Node, self).run(*args, **kwargs)
 
     def get_volumes(self):
@@ -1568,7 +1568,7 @@ class Node(exxe.Exxe):
 
     def block_path(self, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
         """Uses iptables to block one network path."""
-        verbose("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
+        log("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
         cmds = self._iptables_cmd(other_node, jump_to, net_number, "-I", iptables_filter)
         for c in cmds:
             self.run(c)
@@ -1579,7 +1579,7 @@ class Node(exxe.Exxe):
 
     def unblock_path(self, other_node, net_number=0, jump_to="DROP"):
         """Uses iptables to unblock one network path."""
-        verbose("Unblocking path #%d from %s to %s" % (net_number, self, other_node))
+        log("Unblocking path #%d from %s to %s" % (net_number, self, other_node))
         cmds = self._iptables_cmd(other_node, jump_to, net_number, "-D")
         for c in cmds:
             self.run(c)
@@ -1618,7 +1618,7 @@ class Node(exxe.Exxe):
         for l in lines:
             m = re.search(pattern, l)
             if m:
-                verbose("line %s, match %s" % (l, m))
+                log("line %s, match %s" % (l, m))
                 result.append((l, m))
 
         return result
@@ -1702,7 +1702,7 @@ def scan_syslog_files(logdir):
             if os.path.isfile(path) and match:
                 for line in open(path):
                     if re.search(r'(BUG:|INFO:|ASSERTION|general protection fault)', line):
-                        verbose('%s: %s' % (match.group(1), line))
+                        log('%s: %s' % (match.group(1), line))
                         found = True
 
         if found:
@@ -1866,7 +1866,7 @@ def setup(parser=argparse.ArgumentParser(),
                                                 'console-%s.log' % node)])
             subprocess.check_call(['screen', '-S', logfile, '-p',
                                    '0', '-X', 'log', 'on'])
-            verbose("%s: capturing console" % node, level=2)
+            log("%s: capturing console" % node, level=2)
 
             def close_logfile(logfile):
                 def func():
@@ -1906,7 +1906,7 @@ class FioParser():
         # http://stackoverflow.com/questions/9764930/capturing-repeating-subpatterns-in-python-regex
         for part in string.split(", "):
             kv = re.search("(\w+)\s*=\s*([\d\.]+)(K|m)?(B|B/s|sec)?", part)
-            # verbose(part)
+            # log(part)
 
             unit2 = unit * self._unit_to_num(kv.group(3))
             dest[kv.group(1)] = float(kv.group(2)) * unit2
@@ -1941,7 +1941,7 @@ class FioParser():
                 unit = self._unit_to_num(n.group(1))
                 self._kv_into_dict(res, n.group(2), unit)
 
-            verbose(res)
+            log(res)
 
     def latency(self, what="write"):
         """returns a dict with min/max/avg/... in sec"""
@@ -1976,32 +1976,32 @@ class Measurement():
 # is assert(), but with non-conflicting name
 def ensure(want, have, explanation=None):
     if want != have:
-        verbose("Wanted '%s', but got '%s'.\n" % (repr(want), repr(have)))
+        log("Wanted '%s', but got '%s'.\n" % (repr(want), repr(have)))
         if explanation:
-            verbose("%s\n" % explanation)
+            log("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
 
 def ensure_subset(smaller, bigger, explanation=None):
     """compares two dictionaries"""
     if not all([smaller[k] == bigger[k] for k in smaller.keys()]):
-        verbose("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
+        log("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
         if explanation:
-            verbose("%s\n" % explanation)
+            log("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
 
 def ensure_not(want, have, explanation=None):
     if want == have:
-        verbose("Wanted something but '%s', got '%s'.\n" % (repr(want), repr(have)))
+        log("Wanted something but '%s', got '%s'.\n" % (repr(want), repr(have)))
         if explanation:
-            verbose("%s\n" % explanation)
+            log("%s\n" % explanation)
         raise RuntimeError('assert trigger')
 
 
 def ensure_not_in_set(search, data, explanation=None):
     if search in data:
-        verbose("Wanted something but '%s', got '%s'.\n" % (repr(search), repr(data)))
+        log("Wanted something but '%s', got '%s'.\n" % (repr(search), repr(data)))
         if explanation:
-            verbose("%s\n" % explanation)
+            log("%s\n" % explanation)
         raise RuntimeError('assert trigger')

@@ -10,7 +10,7 @@
 import re
 import time
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(nodes=3)

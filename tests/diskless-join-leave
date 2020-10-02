@@ -7,7 +7,7 @@
 import random
 import time
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 random.seed()
 resource = drbdtest.setup(min_nodes=4, max_nodes=4)
@@ -22,26 +22,26 @@ late_diskless_n = random.choice(diskless_nodes)
 resource.remove_node(late_diskless_n)
 resource.up_wait()
 
-verbose('* Make up-to-date data available (%s is not part)' % (late_diskless_n.name))
+log('* Make up-to-date data available (%s is not part)' % (late_diskless_n.name))
 resource.skip_initial_sync()
 
 primary_n = random.choice(diskful_nodes)
 primary_n.primary()
 resource.connections.to_node(primary_n).event(r'connection .* role:Primary')
 
-verbose('* Preparing existing nodes for new diskless')
+log('* Preparing existing nodes for new diskless')
 early_set = drbdtest.Nodes(resource.nodes)
 ld_connections = early_set.connections_to_node(late_diskless_n)
 ld_connections.extend(early_set.connections_from_node(late_diskless_n))
 resource.add_node(late_diskless_n)
 early_set.adjust()
 
-verbose('* New diskless node joins (%s)' % (late_diskless_n.name))
+log('* New diskless node joins (%s)' % (late_diskless_n.name))
 
 late_diskless_n.adjust()
 ld_connections.event(r'connection .* connection:Connected')
 
-verbose('* Removing other diskless (%s)' % (early_diskless_n.name))
+log('* Removing other diskless (%s)' % (early_diskless_n.name))
 
 ed_connections = resource.connections.from_node(early_diskless_n)
 resource.remove_node(early_diskless_n)
@@ -51,12 +51,12 @@ early_diskless_n.down()
 
 # This time remove a diskless and leave the connections from the diskful in place.
 # That is an other path in the DRBD code...
-verbose('* Removing the later joined diskless again (%s)' % (late_diskless_n.name))
+log('* Removing the later joined diskless again (%s)' % (late_diskless_n.name))
 late_diskless_n.down();
 l_connections = diskful_nodes.connections_to_node(late_diskless_n)
 l_connections.event(r'connection .* connection:Connecting')
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 diskful_nodes.down()
 resource.rmmod()
 

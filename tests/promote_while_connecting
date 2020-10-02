@@ -6,12 +6,12 @@
 # it.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 import time
 #import os
 
-def my_verbose(str):
-    verbose(str)
+def my_log(str):
+    log(str)
     for node in resource.nodes:
         node.run(["echo", str])
 
@@ -26,10 +26,10 @@ b_a = resource.connections.from_node(B)
 pds = drbdtest.PeerDevices.from_connections(resource.connections)
 dev_name = A.volumes[0].device()
 
-my_verbose('* Make up-to-date data available.')
+my_log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
-my_verbose('* Start by disconnect.')
+my_log('* Start by disconnect.')
 a_b.disconnect()
 b_a.event(r'connection:Connecting')
 
@@ -37,13 +37,13 @@ A.block_packet_type(drbdtest.P_SIZES, from_node=B)
 A.primary()
 a_b.connect()
 time.sleep(0.8)
-my_verbose('* Creating new UUID while uuid_sem is locked.')
+my_log('* Creating new UUID while uuid_sem is locked.')
 A.run(["setsid", "bash", "-c", "dd if=/dev/zero of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null &" % (dev_name, 4)])
 A.unblock_packet_type(drbdtest.P_SIZES, from_node=B)
 
 pds.event(r'peer-device .* replication:Established')
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

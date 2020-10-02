@@ -22,7 +22,7 @@
 # transfer lock and cancel it with an io error.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 import time
 
 def write_on_node(node):
@@ -78,7 +78,7 @@ other_nodes = resource.nodes.difference([primary_n])
 resource.add_disk('100M')
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 primary_n.primary()
@@ -89,12 +89,12 @@ resource.forbidden_patterns.difference_update([
     r'connection:ProtocolError'
 ])
 
-verbose('* Test Case 1')
+log('* Test Case 1')
 do_test(primary_n, other_nodes, wait_before_write=True)
-verbose('* Test Case 2')
+log('* Test Case 2')
 do_test(primary_n, other_nodes, wait_before_write=False)
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

@@ -5,7 +5,7 @@
 import random
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=2, max_nodes=5)
@@ -22,7 +22,7 @@ resource.skip_initial_sync()
 for i in range(40):
     node = random.choice(resource.nodes)
     others = resource.nodes.difference( [node] )
-    verbose('Loop #%d: node %s' % (i, node))
+    log('Loop #%d: node %s' % (i, node))
     node.primary()
     node.fio(section='write')
     node.secondary()
@@ -32,14 +32,14 @@ for i in range(40):
 # If that did work, run again _without_ event checking ... this way the transitions happen faster.
 for i in range(40):
     node = random.choice(resource.nodes)
-    verbose('Unchecked loop #%d: node %s' % (i, node))
+    log('Unchecked loop #%d: node %s' % (i, node))
     node.primary()
     node.secondary()
 
 # and once more, with implicit transitions via open()
 for i in range(40):
     node = random.choice(resource.nodes)
-    verbose('open loop #%d: node %s' % (i, node))
+    log('open loop #%d: node %s' % (i, node))
     node.fio(section='write')
 
 
@@ -52,7 +52,7 @@ resource.connections.from_node(first).connect()
 others.event(r'connection .* role:Primary')
 first.secondary()
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

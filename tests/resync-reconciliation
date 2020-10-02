@@ -10,7 +10,7 @@ import time
 import random
 import re
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 NOT = 0
@@ -29,7 +29,7 @@ resource.net_options = 'ping-int 2;'
 
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 [primary_n, secondary_slow, secondary_quick] = random.sample(list(resource.nodes), 3)
@@ -58,11 +58,11 @@ def sectors_received(node, res_name, peer_node_name):
         raise Exception("regex not matching. %s" % (status_str))
 
 def do_test(with_promote):
-    verbose('* Running variant %d' % (with_promote))
+    log('* Running variant %d' % (with_promote))
     primary_n.primary()
     dev_name = primary_n.volumes[0].device()
 
-    verbose('* Blocked network connetion to one peer & writing')
+    log('* Blocked network connetion to one peer & writing')
     conn_slow.block()
 
     primary_n.run(["dd", "if=/dev/urandom", "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
@@ -80,7 +80,7 @@ def do_test(with_promote):
         quick_received = sectors_received(secondary_quick, resource.name, primary_n.name);
 
         if quick_received - slow_received >= data_amount:
-            verbose('* The quick secondary is at least %d KiB writes ahead' %
+            log('* The quick secondary is at least %d KiB writes ahead' %
                        (quick_received - slow_received))
             break
     else:
@@ -88,7 +88,7 @@ def do_test(with_promote):
 
     #resource.forbidden_patterns.difference_update([r'connection:NetworkFailure'])
     conn_quick.block()
-    verbose('* Blocked network connetion to both secondaries')
+    log('* Blocked network connetion to both secondaries')
 
     if with_promote == EARLY:
         secondary_slow.primary(wait=False)

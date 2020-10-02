@@ -8,7 +8,7 @@
 # after such an event. Up to version (including) 9.0.24.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 MB = 1024*1024
 
@@ -22,7 +22,7 @@ resource.forbidden_patterns.difference_update([
     r'connection:BrokenPipe'
 ])
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 [source_n, target_n] = resource.nodes

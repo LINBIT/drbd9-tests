@@ -5,7 +5,7 @@
 import time
 import random
 from python import drbdtest
-from python.drbdtest import verbose, mib_to_blocks
+from python.drbdtest import log, mib_to_blocks
 from subprocess import CalledProcessError
 
 def test_io_errors():
@@ -13,7 +13,7 @@ def test_io_errors():
     Make one of the disks fail (which makes it lose quorum), and then try to
     write on the other one. The request should still fail.
     '''
-    verbose('* Kill disk 0')
+    log('* Kill disk 0')
     resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Failed'])
     primary_n.set_fault_injection(resource.volumes[0], drbdtest.DF_DATA_WRITE)
     try:
@@ -32,7 +32,7 @@ def test_io_errors():
         # it failed, good
         pass
 
-    verbose('* Recover disk')
+    log('* Recover disk')
     primary_n.disable_fault_injection(resource.volumes[0])
     primary_n.down()
     primary_n.up()
@@ -44,7 +44,7 @@ resource.resource_options = 'auto-promote no; quorum majority; on-no-quorum io-e
 
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 primary_n = resource.nodes[0]
@@ -56,7 +56,7 @@ c.block()
 
 test_io_errors()
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

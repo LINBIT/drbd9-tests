@@ -10,7 +10,7 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 def set_gi(n, peer, uuids):
     uuid_str = ''
@@ -21,7 +21,7 @@ def set_gi(n, peer, uuids):
     for i in range(index,4):
         uuid_str += ':'
     uuid_str += '1:1'
-    verbose(uuid_str)
+    log(uuid_str)
     n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
            "--node-id=%d" % (peer.id), "set-gi", uuid_str, "--force"]);
 
@@ -31,7 +31,7 @@ resource.add_disk('600M')
 
 [node_a, node_b, node_c] = list(resource.nodes)
 
-verbose('* Preparing')
+log('* Preparing')
 set_gi(node_a, node_b, [0xAAA, 0xBBB, 0xCCC])
 set_gi(node_a, node_c, [0xAAA, 0xBBB, 0xCCC])
 set_gi(node_b, node_c, [0xBBB, 0xCCC])
@@ -48,7 +48,7 @@ node_b.new_path()
 node_b.attach()
 node_b.volumes[0].write(count=300, offset=0, bs='1M', flags=['oflag=direct'])
 
-verbose('* Testing')
+log('* Testing')
 node_c.up()
 conn_c_a = resource.connections.from_node(node_c).to_node(node_a)[0]
 pd_c_a = drbdtest.PeerDevice(conn_c_a, resource.volumes[0])

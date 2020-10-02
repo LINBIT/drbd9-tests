@@ -11,7 +11,7 @@ import time
 import random
 import re
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 M_PEER_ACKED=1
 M_NOT_PEER_ACKED=2
@@ -28,7 +28,7 @@ def do_test(mode):
         verb_str = "does not get through/resync"
         reconnect_regex = r'peer-device .* replication:SyncTarget .* out-of-sync:8'
 
-    verbose('* verify peer-ack %s' % (verb_str))
+    log('* verify peer-ack %s' % (verb_str))
     other_target_c.disconnect()
     target_other_c.disconnect()
 
@@ -64,7 +64,7 @@ target_n = random.choice(diskful_nodes)
 other_n = resource.nodes.difference([diskless_n, target_n])[0]
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 vol = resource.volumes[0]

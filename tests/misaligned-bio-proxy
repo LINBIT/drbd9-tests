@@ -5,7 +5,7 @@
 import sys
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 sys.argv.extend(['--proxy'])
 
@@ -15,7 +15,7 @@ other_node = resource.nodes.difference([first_node])
 
 resource.add_disk('10M')
 
-verbose('* Bring up the first node, make it primary, and write defined data onto all volumes.')
+log('* Bring up the first node, make it primary, and write defined data onto all volumes.')
 resource.up_wait()
 resource.skip_initial_sync()
 
@@ -24,7 +24,7 @@ first_node.run(['misaligned_bio.py', dev_name, 'write'])
 first_node.run(['misaligned_bio.py', dev_name, 'verify'])
 other_node.run(['misaligned_bio.py', dev_name, 'verify'])
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 try:
     resource.down()
 except:

@@ -5,7 +5,7 @@
 import random
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=2, max_nodes=5)
@@ -28,7 +28,7 @@ for i in range(30):
     node = random.choice(resource.nodes)
     is_a = is_attached[node]
     is_attached[node] = 1 - is_a
-    verbose('Loop #%d: node %s was %d now %d' % (i, node, is_a, is_attached[node]))
+    log('Loop #%d: node %s was %d now %d' % (i, node, is_a, is_attached[node]))
     if is_a == 1:
         node.detach()
     else:
@@ -39,7 +39,7 @@ for i in range(30):
     node = random.choice(resource.nodes)
     is_a = is_attached[node]
     is_attached[node] = 1 - is_a
-    verbose('Loop #%d: node %s was %d now %d' % (i, node, is_a, is_attached[node]))
+    log('Loop #%d: node %s was %d now %d' % (i, node, is_a, is_attached[node]))
     if is_a == 1:
         node.detach()
     else:
@@ -47,7 +47,7 @@ for i in range(30):
         attached_count = sum( is_attached.values() )
         # await majority to avoid split brains
         if attached_count > len(resource.nodes):
-            verbose('    doing Primary/Secondary switch on node %s' % (node))
+            log('    doing Primary/Secondary switch on node %s' % (node))
             node.primary()
             node.secondary()
 
@@ -59,7 +59,7 @@ resource.connections.from_node(first).connect()
 others.event(r'connection .* role:Primary')
 first.secondary()
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

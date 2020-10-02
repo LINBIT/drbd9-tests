@@ -3,7 +3,7 @@
 import time
 import random
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 import os
 
@@ -18,8 +18,8 @@ def assert_resync_dir(forward_c, backward_c, oos_str):
     backward_pd.event(r'peer-device .* replication:SyncTarget' + oos_str)
     backward_pd.event(r'peer-device .* replication:Established')
 
-def my_verbose(str):
-    verbose(str)
+def my_log(str):
+    log(str)
     for node in resource.nodes:
         node.run(["echo", str])
 
@@ -36,12 +36,12 @@ def test_case1():
     keep quorum because the connection to the diskless tiebreaker node is
     still active. Two partitions are formed, A-C and B-C
     """
-    my_verbose('* Test Case 1')
+    my_log('* Test Case 1')
     # simulate network outage between A and B
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
     resource.forbidden_patterns.add(r'quorum:no') # no nodes should lose quorum
 
-    my_verbose('* Blocking A-B')
+    my_log('* Blocking A-B')
     A.block_path(B, 0)
 
     # wait for disconnect
@@ -50,10 +50,10 @@ def test_case1():
     B.event(r'device .* disk:Outdated') # verify that secondary becomes outdated
 
     # reconnect
-    my_verbose('* Unblocking A-B')
+    my_log('* Unblocking A-B')
     A.unblock_path(B)
     conn.event(r'connection .* connection:Connected')
-    my_verbose('* All nodes connected again')
+    my_log('* All nodes connected again')
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
     resource.forbidden_patterns.remove(r'quorum:no')
 
@@ -71,13 +71,13 @@ def test_case2():
     partition with C). Also, when B eventually reconnects to the tiebreaker
     node, it should *NOT* regain quorum.
     """
-    my_verbose('* Test Case 2')
+    my_log('* Test Case 2')
     # simulate network outage between A and B
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
 
-    my_verbose('* Blocking A-B')
+    my_log('* Blocking A-B')
     A.block_path(B, 0)
-    my_verbose('* Blocking B-C')
+    my_log('* Blocking B-C')
     B.block_path(C, 0)
 
     # wait for disconnect
@@ -91,26 +91,26 @@ def test_case2():
     B.event(r'connection:Unconnected', r'quorum:no') # secondary should lose quorum
 
     # tiebreaker "switches sides", nobody should gain quorum from this
-    my_verbose('* Blocking A-C')
+    my_log('* Blocking A-C')
     A.block_path(C, 0)
     A.event(r'connection:Unconnected', r'quorum:no') # A should lose quorum
     resource.forbidden_patterns.add(r'quorum:yes') # B should NOT regain quorum
-    my_verbose('* Unblocking B-C')
+    my_log('* Unblocking B-C')
     B.unblock_path(C)
     connbc.event(r'connection .* connection:Connected')
 
     # reconnect
     resource.forbidden_patterns.remove(r'quorum:yes')
-    my_verbose('* Unblocking A-B')
+    my_log('* Unblocking A-B')
     A.unblock_path(B)
     connab.event(r'connection .* connection:Connected')
     A.event(r'quorum:yes')
     B.event(r'quorum:yes')
-    my_verbose('* Unblocking A-C')
+    my_log('* Unblocking A-C')
     A.unblock_path(C)
     connac.event(r'connection .* connection:Connected')
 
-    my_verbose('* All nodes connected again')
+    my_log('* All nodes connected again')
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
 
 def test_case3():
@@ -128,18 +128,18 @@ def test_case3():
     primary should lose quorum and should *NOT* regain it once it reconnects
     to the diskless tiebreaker node.
     """
-    my_verbose('* Test Case 3')
+    my_log('* Test Case 3')
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
 
     connab = resource.connections.from_node(A).to_node(B)
     connac = resource.connections.from_node(A).to_node(C)
     connbc = resource.connections.from_node(B).to_node(C)
 
-    my_verbose('* Blocking A-C')
+    my_log('* Blocking A-C')
     A.block_path(C, 0)
     connac.event(r'connection:NetworkFailure')
 
-    my_verbose('* Blocking A-B')
+    my_log('* Blocking A-B')
     A.block_path(B, 0)
     connab.event(r'connection:NetworkFailure')
 
@@ -147,25 +147,25 @@ def test_case3():
     B.event(r'connection:Unconnected', no=r'quorum:no') # secondary should not lose quorum
 
     # tiebreaker "switches sides", nobody should gain quorum from this
-    my_verbose('* Blocking B-C')
+    my_log('* Blocking B-C')
     B.block_path(C, 0)
     B.event(r'connection:Unconnected', r'quorum:no') # B should lose quorum
     resource.forbidden_patterns.add(r'quorum:yes')
-    my_verbose('* Unblocking A-C')
+    my_log('* Unblocking A-C')
     A.unblock_path(C)
     connac.event(r'connection .* connection:Connected')
 
     # reconnect
     resource.forbidden_patterns.remove(r'quorum:yes')
-    my_verbose('* Unblocking A-B')
+    my_log('* Unblocking A-B')
     A.unblock_path(B)
     connab.event(r'connection .* connection:Connected')
     A.event(r'quorum:yes')
-    my_verbose('* Unblocking B-C')
+    my_log('* Unblocking B-C')
     B.unblock_path(C)
     connbc.event(r'connection .* connection:Connected')
 
-    my_verbose('* All nodes connected again')
+    my_log('* All nodes connected again')
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
 
 def test_case3_promote():
@@ -174,7 +174,7 @@ def test_case3_promote():
     demoted to secondary while the A-B connection is interrupted. Reconnecting
     the two nodes should then trigger a resync.
     """
-    my_verbose('* Test Case 3 (promote)')
+    my_log('* Test Case 3 (promote)')
 
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
 
@@ -183,11 +183,11 @@ def test_case3_promote():
     connac = resource.connections.from_node(A).to_node(C)
     connbc = resource.connections.from_node(B).to_node(C)
 
-    my_verbose('* Blocking A-C')
+    my_log('* Blocking A-C')
     A.block_path(C, 0)
     connac.event(r'connection:NetworkFailure')
 
-    my_verbose('* Blocking A-B')
+    my_log('* Blocking A-B')
     A.block_path(B, 0)
     connab.event(r'connection:NetworkFailure')
 
@@ -203,7 +203,7 @@ def test_case3_promote():
     B.volumes.write(1, flags=['oflag=direct'])
 
     # reconnect A-B
-    my_verbose('* Unblocking A-B')
+    my_log('* Unblocking A-B')
     A.unblock_path(B)
     connab.event(r'connection .* connection:Connected')
     connba.event(r'connection .* connection:Connected')
@@ -211,14 +211,14 @@ def test_case3_promote():
     assert_resync_dir(connba, connab, ' .* out-of-sync:4')
 
     # reconnect
-    my_verbose('* Unblocking A-C')
+    my_log('* Unblocking A-C')
     A.unblock_path(C)
     connac.event(r'connection .* connection:Connected')
 
     B.secondary()
     A.primary(wait=True)
 
-    my_verbose('* All nodes connected again')
+    my_log('* All nodes connected again')
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
@@ -234,16 +234,16 @@ resource.add_disk('1M', diskful_nodes=[A,B])
 
 resource.up_wait()
 
-my_verbose('* Make up-to-date data available.')
+my_log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 A.primary()
-my_verbose('* All nodes connected')
+my_log('* All nodes connected')
 
 cases = [test_case1, test_case2, test_case3, test_case3_promote]
 random.shuffle(cases)
 
-verbose('Execution order: ' + str([c.__name__ for c in cases]))
+log('Execution order: ' + str([c.__name__ for c in cases]))
 
 for case in cases:
     case()

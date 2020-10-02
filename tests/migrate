@@ -4,7 +4,7 @@
 import time
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 def write_on_node(node):
@@ -19,14 +19,14 @@ resource.add_disk('10M', diskful_nodes=diskful_nodes)
 resource.up_wait()
 
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 diskless_nodes = resource.nodes.diskless
 resource.forbidden_patterns.update([r'peer-disk:(Consistent|Outdated)'])
 
 
-verbose('* Migrate from diskfull to diskless with write on new node')
+log('* Migrate from diskfull to diskless with write on new node')
 
 diskful_nodes[0].primary()
 diskless_nodes[0].primary()
@@ -39,7 +39,7 @@ diskful_nodes[0].secondary()
 diskless_nodes[0].secondary()
 
 
-verbose('* Migrate from diskless to diskless with write on new node')
+log('* Migrate from diskless to diskless with write on new node')
 
 diskful_nodes[0].primary() # Just for generating a send state later
 
@@ -62,7 +62,7 @@ try:
 except:
     pass
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()
 

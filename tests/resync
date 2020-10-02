@@ -17,7 +17,7 @@
 
 import random
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 def write_on_node(node):
     global write_offset
@@ -42,7 +42,7 @@ def connect_and_check_resync(newer_n, older_n):
     assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
 
 def disconnect_reverse(writing_n, nodes):
-    verbose('* Disconnect nodes, writing in between')
+    log('* Disconnect nodes, writing in between')
     for n in reversed(nodes):
         write_on_node(writing_n)
         resource.connections.from_node(n).disconnect()
@@ -51,29 +51,29 @@ def disconnect_reverse(writing_n, nodes):
         to.event(r'connection .* connection:Connecting')
 
 def connect_them_oldest_first(nodes):
-    verbose('* Reconnecting them starting from the most outdated one')
+    log('* Reconnecting them starting from the most outdated one')
     for i in range(len(nodes)-1, 0, -1):
         connect_and_check_resync(nodes[i-1], nodes[i])
 
 def connect_oldest_to_newest(newest_n, nodes):
-    verbose('* Reconnecting the newest with the (former) oldest node of the chain')
+    log('* Reconnecting the newest with the (former) oldest node of the chain')
     oldest_n = nodes[-1]
     forward_c = drbdtest.Connection(newest_n, oldest_n)
     backward_c = drbdtest.Connection(oldest_n, newest_n)
     backward_c.connect()
     assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
 
-    verbose('* Verify a "wave" of resyncs going through the chain of nodes')
+    log('* Verify a "wave" of resyncs going through the chain of nodes')
     for i in range(len(nodes)-1, 0, -1):
         forward_c = drbdtest.Connection(nodes[i], nodes[i-1])
         backward_c = drbdtest.Connection(nodes[i-1], nodes[i])
         #nodes[i].run(['true', 'mark_from']) # mark in syslog
         #nodes[i-1].run(['true', 'mark_to'])
-        verbose('* from %s to %s' % (nodes[i-1], nodes[i]))
+        log('* from %s to %s' % (nodes[i-1], nodes[i]))
         assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
 
 def form_a_ring(newest_n, nodes):
-    verbose('* Completing the ring, verifying no resync happens')
+    log('* Completing the ring, verifying no resync happens')
     end_n = nodes[0]
     forward_c = drbdtest.Connection(end_n, newest_n)
     resource.forbidden_patterns.update([r'replication:SyncSource', r'replication:SyncTarget'])
@@ -92,15 +92,15 @@ def write_on_head(nodes):
     head_n = nodes[0]
     tail_n = nodes[-1]
 
-    verbose('* Part II of test')
+    log('* Part II of test')
 
     for c in range(0,4):
         write_on_node(head_n)
-        verbose('* Verify a (forward) "wave" of resyncs going through the chain of nodes')
+        log('* Verify a (forward) "wave" of resyncs going through the chain of nodes')
         for i in range(1, len(nodes)-1):
             forward_c = drbdtest.Connection(nodes[i], nodes[i+1])
             backward_c = drbdtest.Connection(nodes[i+1], nodes[i])
-            verbose('* from %s to %s' % (nodes[i], nodes[i+1]))
+            log('* from %s to %s' % (nodes[i], nodes[i+1]))
             assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
 
 def part_iii(nodes):
@@ -119,7 +119,7 @@ def part_iii(nodes):
     all_c.connect()
     all_c.event(r'connection .* connection:Connected')
 
-    verbose('* Part III with nodes: %s %s %s ' % (a, b, c))
+    log('* Part III with nodes: %s %s %s ' % (a, b, c))
     a.run(['true', 'mark part III'])
     b.run(['true', 'mark part III'])
     c.run(['true', 'mark part III'])
@@ -152,7 +152,7 @@ other_nodes = resource.nodes.difference([writing_n])
 resource.add_disk('10M')
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 # Part I tests the detect_copy_ops_on_peer() function
@@ -173,6 +173,6 @@ write_on_head(chain)
 resource.connections.disconnect()
 part_iii(resource.nodes[0:3])
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

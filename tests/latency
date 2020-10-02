@@ -4,7 +4,7 @@
 # Pass this script two host names to use as the test nodes.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from python.drbdtest import Measurement
 from subprocess import CalledProcessError
 
@@ -21,12 +21,12 @@ def report(test, fio):
     lat = fio.latency("write")
     if lat:
         meas_w.save(test, lat.iops)
-        verbose(("%s: write %f IOPs (%s)" % (test, lat.iops, lat)))
+        log(("%s: write %f IOPs (%s)" % (test, lat.iops, lat)))
 
     lat = fio.latency("read")
     if lat:
         meas_r.save(test, lat.iops)
-        verbose(("%s: read  %f IOPs (%s)" % (test, lat.iops, lat)))
+        log(("%s: read  %f IOPs (%s)" % (test, lat.iops, lat)))
 
 def r_w_rw(name):
     n = 'rd-%s' % name
@@ -93,7 +93,7 @@ first.primary()
 r_w_rw('unconnected')
 
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 resource.down()
 resource.rmmod()

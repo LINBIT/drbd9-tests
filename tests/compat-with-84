@@ -6,7 +6,7 @@ import random
 import time
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 from python.drbdtest import AsPrimary
 from subprocess import CalledProcessError
 
@@ -31,8 +31,8 @@ for n in [first]:
     n.run(['modprobe', 'libcrc32c'])
     n.run(['insmod', '/data/drbd-8.4/drbd/drbd.ko'])
 
-    verbose("8.4 is node %s" % n)
-    verbose((n.run(
+    log("8.4 is node %s" % n)
+    log((n.run(
                 ['cat', '/proc/drbd'],
                 return_stdout=True,
                 prepare=True,
@@ -50,7 +50,7 @@ for n in [first]:
     n.run(['drbdadm', '--', '--force', 'create-md', 'all'])
 
 
-verbose("conf is<<<<< \n%s\n>>>>" %  first.config())
+log("conf is<<<<< \n%s\n>>>>" %  first.config())
 resource.nodes.run(['true'], prepare=True)
 
 # we start with 8.4 having valid data.
@@ -60,7 +60,7 @@ first.primary(force=True)
 first.fio(section="write")
 first.secondary()
 
-verbose(str(second) + " connect, check data.")
+log(str(second) + " connect, check data.")
 second.up()
 time.sleep(2)
 # TODO second.volumes.event('device .* disk:UpToDate')
@@ -108,12 +108,12 @@ with AsPrimary(first):
 
 
 # 8.4 gets stopped, a third node connected
-verbose(str(first) + " with 8.4 gets stopped")
+log(str(first) + " with 8.4 gets stopped")
 first.run(['drbdadm', 'down', 'all'])
 ### FIXME: cannot work, the 8.4 node has space for only 1 bitmap.
 ### TODO: resize LV?
 ### if third:
-###     verbose(str(third) + " gets connected")
+###     log(str(third) + " gets connected")
 ###     third.up()
 ###     third.fio(section="verify")
 ###     third.volumes.event('device .* disk:UpToDate')
@@ -124,7 +124,7 @@ first.run(['drbdadm', 'down', 'all'])
 # sys.exit(0)
 
 
-verbose(str(first) + " gets reinstalled with DRBD 9...")
+log(str(first) + " gets reinstalled with DRBD 9...")
 first.run(['rmmod', 'drbd'])
 first.drbd_major_version = 9
 first.config_changed = True
@@ -143,7 +143,7 @@ with AsPrimary(first):
 
 
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 
 #resource.down()
 #resource.rmmod()

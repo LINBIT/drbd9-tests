@@ -3,7 +3,7 @@
 # Pass this script a list of host names to use as the test nodes.
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 resource = drbdtest.setup(max_nodes=2)
 first_node = resource.nodes[0]
@@ -11,7 +11,7 @@ other_node = resource.nodes.difference([first_node])
 
 resource.add_disk('10M')
 
-verbose('* Bring up the first node, make it primary, and write defined data onto all volumes.')
+log('* Bring up the first node, make it primary, and write defined data onto all volumes.')
 resource.up_wait()
 resource.skip_initial_sync()
 
@@ -23,6 +23,6 @@ other_node.run(['misaligned_bio.py', dev_name, 'verify'])
 # That is BLKZEROOUT, BLKDISCARD and BLKSECDISCARD
 first_node.run(['unusual_bios.py', dev_name])
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 resource.down()
 resource.rmmod()

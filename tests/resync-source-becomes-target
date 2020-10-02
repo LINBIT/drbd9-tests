@@ -13,7 +13,7 @@
 import time
 import random
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 def write_on_node(node, file_nr, megs):
     dev_name = node.volumes[0].device()
@@ -39,7 +39,7 @@ def connect_and_check(n1, n2):
     cs.event(r'connection .* connection:Connected')
 
 def do_test(variant):
-    verbose('* Variant %d of test' % (variant))
+    log('* Variant %d of test' % (variant))
     file_nr = 0
     for n in other_nodes:
         disconnect_and_write(n, file_nr)
@@ -47,7 +47,7 @@ def do_test(variant):
 
     resource.connections.from_node(writing_n).disconnect()
 
-    verbose('* Start downstream resync.')
+    log('* Start downstream resync.')
 
     forward_c = drbdtest.Connection(other_nodes[0], other_nodes[1])
     backward_c = drbdtest.Connection(other_nodes[1], other_nodes[0])
@@ -65,13 +65,13 @@ def do_test(variant):
             done = pd.event(r'peer-device .* done:([0-9.]+)')
             if float(done[0][0]) > 10.0:
                 break
-        verbose('* Start upstream resync at %s of downstream resync.' % (done[0][0]))
+        log('* Start upstream resync at %s of downstream resync.' % (done[0][0]))
         pds.peer_device_options("--c-max-rate=60M")
 
     elif variant == 2:
         other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
         time.sleep(0.5)
-        verbose('* Start upstream resync after downstream resync finished')
+        log('* Start upstream resync after downstream resync finished')
 
     connect_and_check(writing_n, other_nodes[-1])
 
@@ -101,7 +101,7 @@ resource.nodes.update_config()
 resource.add_disk('%dM' % (megs))
 resource.up_wait()
 
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 writing_n = random.choice(resource.nodes)
@@ -114,7 +114,7 @@ writing_n.run(['mkfs', '-t', 'ext4', dev_name])
 do_test(1)
 do_test(2)
 
-verbose('* Shut down and clean up.')
+log('* Shut down and clean up.')
 writing_n.run(['wipefs', dev_name])
 resource.down()
 resource.rmmod()

@@ -43,7 +43,7 @@ def simulate_node_crash(node):
               'restore-md', '/tmp/md.txt', '--force'])
     node.run(['rm', '/tmp/md.txt'])
 
-    # Modify the first 1k on the backing device
+    # Modify the first 1k on the backing device, simulating a "last write" before the crash
     node.run(['dd', 'if=/dev/urandom', 'of=%s' % (node.disks[0].disk), 'bs=1024', 'count=1', 'oflag=direct'])
 
 
@@ -64,18 +64,20 @@ def test():
     source_n.up()
 
     pd = resource.peer_devices.from_node(secondary_n).to_node(source_n)[0]
-    pd.event(r'peer-device .* replication:SyncTarget')
-    ev = secondary_n.volumes[0].event(r'device .* disk:(UpToDate|Outdated)')
-    pd.event(r'peer-device .* replication:Established')
-    if ev[0][0] == 'Outdated':
-        # Expecting a second resync from the primary
-        try:
-            secondary_n.volumes[0].event(r'device .* disk:Inconsistent', timeout=5)
-        except CalledProcessError:
-            raise Exception('Sync Target is Outdated after resync')
+    ev1 = pd.event(r'peer-device .* replication:(SyncTarget|Established)')
+    if ev1[0][0] == 'SyncTarget':
+        ev2 = secondary_n.volumes[0].event(r'device .* disk:(UpToDate|Outdated)')
+        pd.event(r'peer-device .* replication:Established')
 
-        ev = secondary_n.volumes[0].event(r'device .* disk:UpToDate')
-        witnessed_resync_from_primary = True
+        if ev2[0][0] == 'Outdated':
+            # Expecting a second resync from the primary
+            try:
+                secondary_n.volumes[0].event(r'device .* disk:Inconsistent', timeout=5)
+            except CalledProcessError:
+                raise Exception('Sync Target is Outdated after resync')
+
+            secondary_n.volumes[0].event(r'device .* disk:UpToDate')
+            witnessed_resync_from_primary = True
 
     verify_md5sum = md5sum_first_1k(secondary_n)
     if md5sum != verify_md5sum:
@@ -83,6 +85,7 @@ def test():
 
     primary_n.secondary()
     return witnessed_resync_from_primary
+
 #
 for i in range(10):
     if test():

@@ -37,7 +37,6 @@ source_v = source_n.volumes[0]
 log('* Preparing.')
 source_target_c.disconnect()
 ahead_c.disconnect()
-ahead_n.primary()
 ahead_v.write(bs=1024*1024, count=1, flags=['oflag=direct'])
 ahead_n.down()
 source_n.down()

@@ -574,11 +574,11 @@ class Connections(Collection):
     def to_nodes(self, nodes):
         return Connections([_ for _ in self if _.nodes[1] in nodes])
 
-    def connect(self, wait=True):
+    def connect(self, wait=True, options=[]):
         for connection in self:
             node0, node1 = connection.nodes
-            node0.run(['drbdadm', 'connect', '%s:%s' %
-                       (connection.resource.name, node1.hostname)])
+            node0.run(['drbdadm', 'connect'] + options +
+                      ['%s:%s' % (connection.resource.name, node1.hostname)])
         if wait:
             self.event(r'connection .* connection:Connecting')
         for connection in self:

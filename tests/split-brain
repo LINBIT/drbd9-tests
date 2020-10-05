@@ -1,0 +1,51 @@
+#! /usr/bin/env python3
+
+# Execute split brian and verify it is detected on both nodes.
+#
+# Up to (including) 9.0.25 it often detecteds split-brain only on one node
+
+from python import drbdtest
+from python.drbdtest import verbose
+
+RUNS=10
+resource = drbdtest.setup(nodes=2)
+resource.add_disk('10M')
+resource.up_wait()
+verbose('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+[first_n, second_n] = resource.nodes
+
+resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
+    r'connection:BrokenPipe'
+])
+
+conns = resource.connections
+pd_from_second = resource.peer_devices.from_node(second_n).to_node(first_n)[0]
+pd_from_first = resource.peer_devices.from_node(first_n).to_node(second_n)[0]
+
+def test():
+    conns.disconnect()
+
+    first_n.volumes[0].write(count=1, bs=1024, flags=['oflag=direct'])
+    second_n.volumes[0].write(count=1, bs=1024, flags=['oflag=direct'])
+
+    conns.connect()
+    ev = conns.event(r'connection .* connection:(StandAlone|Connecting)')
+    if ['Connecting'] in ev:
+        raise Exception('One of the nodes did not recognise the split brain!')
+
+    conns.to_node(second_n).connect(options=['--discard-my-data'])
+    conns.to_node(first_n).connect()
+    pd_from_second.event(r'peer-device .* replication:SyncSource')
+    pd_from_first.event(r'peer-device .* replication:SyncTarget')
+    pd_from_second.event(r'peer-device .* replication:Established')
+    pd_from_first.event(r'peer-device .* replication:Established')
+
+#
+for i in range(RUNS):
+    test()
+
+resource.down()
+resource.rmmod()

@@ -1,76 +1,164 @@
 test_suite_file = "run.toml"
 
-[[group]]
-vms = 2
-tests = [
-  "add-connect-delete",
-  "add-path-multiple-times",
-  "allow-remote-read",
-# "busy-resync", # known broken
-  "connect",
-  "fencing",
-  "force-resync",
-  "io-errors",
-# "misaligned-bio", # known unstable (~30% success rate)
-# "multi-path", # known broken
-  "promote_while_connecting",
-# "ref-count", # known unstable (~70% success rate)
-  "resize",
-  "resync-finish",
-  "resync-initial",
-# "stress-al", # known unstable (~65% success rate)
-  "stress-connect-and-2pc",
-  "switch-primaries",
-  "verify",
+[tests]
+[tests.add-connect-delete]
+vms = [2]
+
+[tests.add-path-multiple-times]
+vms = [2]
+
+[tests.allow-remote-read]
+vms = [2]
+
+# known broken
+#[tests.busy-resync]
+#vms = [2]
+
+[tests.connect]
+vms = [2, 5]
+
+[tests.diskless]
+vms = [
+  3,
+# 5, # known broken
+]
+samevms = true
+
+[tests.diskless-join-leave]
+vms = [4]
+
+[tests.double-promote-diskless]
+vms = [3]
+
+[tests.fencing]
+vms = [2, 5]
+
+[tests.force-resync]
+vms = [2]
+
+[tests.io-errors]
+vms = [2]
+
+[tests.io-errors-diskless]
+vms = [3]
+
+[tests.migrate]
+vms = [4]
+
+# known unstable (~70% success rate)
+#[tests.misaligned-bio]
+#vms = [2]
+
+# known broken
+#[tests.multi-path]
+#vms = [2]
+
+[tests.outdate]
+vms = [
+  3,
+# 5, # known unstable (~60% success rate)
 ]
 
-[[group]]
-vms = 3
-tests = [
-  "diskless",
-  "double-promote-diskless",
-  "io-errors-diskless",
-  "outdate",
-  "peer-acks",
-# "pre-existing-data", # known unstable (~60% success rate)
-  "quorum",
-# "quorum-isolate-primary",
-  "quorum-multi-volume",
-  "quorum-suspended-cancel",
-  "quorum-tiebreaker",
-# "resync-after-failover-to-dless", # known unstable (~65% success rate)
-# "resync-between-targets", # known unstable (~70% success rate)
-  "resync-downstream-upstream",
-# "resync-finish2",
-# "resync-reconciliation",
-# "resync-source-becomes-target", # known unstable (~40% success rate)
-# "resync-source-becomes-target2", # known unstable (~50% success rate)
-  "resync-to-older",
-  "resync-upstream-downstream",
-# "resync-w-dless-pri", # known unstable (~85% success rate)
-# "stress-al", # known unstable (~65% success rate)
-  "twopc_abort_connect",
-# "uuid_send_receive_race",
-# "write-during-resync", # known unstable (~50% success rate)
+[tests.peer-acks]
+vms = [3]
+
+# known unstable (~60% success rate)
+#[tests.pre-existing-data]
+#vms = [3]
+
+[tests.promote_while_connecting]
+vms = [2]
+
+[tests.quorum]
+vms = [
+  3,
+# 5, # known unstable (~20% success rate)
 ]
 
-[[group]]
-vms = 4
-tests = [
-  "diskless-join-leave",
-  "migrate",
+#[tests.quorum-isolate-primary]
+#vms = [3]
+
+[tests.quorum-multi-volume]
+vms = [3]
+
+[tests.quorum-suspended-cancel]
+vms = [3]
+
+[tests.quorum-tiebreaker]
+vms = [3]
+
+# known unstable (~70% success rate)
+#[tests.ref-count]
+#vms = [2]
+
+[tests.resize]
+vms = [2, 5]
+
+# known unstable (~65% success rate)
+#[tests.resync-after-failover-to-dless]
+#vms = [3]
+
+# known unstable (~70% success rate)
+#[tests.resync-between-targets]
+#vms = [3]
+
+[tests.resync-downstream-upstream]
+vms = [3]
+
+[tests.resync-finish]
+vms = [2]
+
+#[tests.resync-finish2]
+#vms = [3]
+
+[tests.resync-initial]
+vms = [
+  2,
+# 5,
+]
+samevms = true
+
+#[tests.resync-reconciliation]
+#vms = [3]
+
+#[tests.resync-source-becomes-target]
+#vms = [3]
+
+#[tests.resync-source-becomes-target2]
+#vms = [3]
+
+[tests.resync-to-older]
+vms = [3]
+
+[tests.resync-upstream-downstream]
+vms = [3]
+
+# known unstable (~85% success rate)
+#[tests.resync-w-dless-pri]
+#vms = [2]
+
+# known unstable (~65% success rate)
+#[tests.stress-al]
+#vms = [2, 3]
+
+[tests.stress-connect-and-2pc]
+vms = [
+  2,
+# 5, # known unstable (~85% success rate)
 ]
 
-[[group]]
-vms = 5
-tests = [
-  "connect",
-# "diskless", # known broken
-  "fencing",
-# "outdate", # known unstable (~60% success rate)
-# "quorum", # known unstable (~20% success rate)
-  "resize",
-# "resync-initial",
-# "stress-connect-and-2pc", # known unstable (~85% success rate)
-  "switch-primaries",
-]
+[tests.switch-primaries]
+vms = [2, 5]
+
+[tests.twopc_abort_connect]
+vms = [3]
+
+#[tests.uuid_send_receive_race]
+#vms = [3]
+
+[tests.verify]
+vms = [2]
+
+# known unstable (~50% success rate)
+#[tests.write-during-resync]
+#vms = [3]

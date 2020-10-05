@@ -2,7 +2,7 @@ image: $LINBIT_DOCKER_REGISTRY/drbd-tests-build
 
 variables:
   VIRTER_VERSION: v0.5.0
-  VMSHED_VERSION: v0.5.0
+  VMSHED_VERSION: v0.6.0
   BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
 
 stages:

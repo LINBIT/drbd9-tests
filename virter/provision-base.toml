@@ -51,7 +51,7 @@ fi
 # Install kernel
 [[steps]]
 [steps.shell]
-script = """
+script = '''
 set -e
 
 [ -z "$KERNEL_RELEASE" ] && exit 0
@@ -74,9 +74,9 @@ kernel::rpm() {
 		EOF
 	fi
 
-	rpm -qa | grep "^${kernel_prefix}-[0-9]\\+" | sort > /tmp/had
+	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/had
 	yum install -y "$install_package"
-	rpm -qa | grep "^${kernel_prefix}-[0-9]\\+" | sort > /tmp/have
+	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/have
 
 	for k in $(comm -12 /tmp/had /tmp/have); do
 		[ "$k" = "$install_package" ] && continue
@@ -100,9 +100,9 @@ kernel::deb() {
 	# Prevent the newest kernel from being installed automatically
 	DEBIAN_FRONTEND=noninteractive apt-get autoremove -y linux-virtual linux-image-virtual
 
-	dpkg-query -f '${Package}\\n' -W "linux-image-*" | grep 'linux-image-[0-9]\\+' | sort > /tmp/had
+	dpkg-query -f '${Package}\n' -W "linux-image-*" | grep 'linux-image-[0-9]\+' | sort > /tmp/had
 	apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "$install_package"
-	dpkg-query -f '${Package}\\n' -W "linux-image-*" | grep 'linux-image-[0-9]\\+' | sort > /tmp/have
+	dpkg-query -f '${Package}\n' -W "linux-image-*" | grep 'linux-image-[0-9]\+' | sort > /tmp/have
 
 	for k in $(comm -12 /tmp/had /tmp/have); do
 		[ "$k" = "$install_package" ] && continue
@@ -119,7 +119,7 @@ else
 	exit 1
 fi
 rm -f /tmp/ha{d,ve}
-"""
+'''
 
 [steps.shell.env]
 KERNEL_RELEASE = "{{.KernelRelease}}"

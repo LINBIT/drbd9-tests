@@ -1,6 +1,11 @@
 [values]
-# Do not replace kernel by default
+# KernelPackage is a path to a kernel package file to be installed
+KernelPackage = ""
+# KernelRelease is the version of the kernel to install from the repositories.
+# When neither KernelPackage nor KernelRelease is set, the kernel will not be replaced.
 KernelRelease = ""
+# KernelRepositoryURL is the URL for the repository containing the kernel package.
+# Only supported on rpm based distributions.
 KernelRepositoryURL = ""
 
 # Disable SELinux
@@ -48,13 +53,21 @@ if command -v snap > /dev/null; then
 fi
 """
 
+[[steps]]
+[steps.rsync]
+source = "{{ .KernelPackage }}"
+dest = "/opt/packages-kernel/"
+
 # Install kernel
 [[steps]]
 [steps.shell]
 script = '''
 set -e
 
-[ -z "$KERNEL_RELEASE" ] && exit 0
+mkdir -p /opt/packages-kernel
+install_package=$(find /opt/packages-kernel -type f)
+
+[ -z "$KERNEL_RELEASE" -a -z "$install_package" ] && exit 0
 
 kernel::rpm() {
 	if yum list kernel-core >/dev/null 2>/dev/null; then
@@ -62,7 +75,7 @@ kernel::rpm() {
 	else
 		kernel_prefix=kernel
 	fi
-	install_package="${kernel_prefix}-$KERNEL_RELEASE.$(uname -m)"
+	[ -z "$install_package" ] && install_package="${kernel_prefix}-$KERNEL_RELEASE.$(uname -m)"
 
 	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/kernel.repo
@@ -95,7 +108,7 @@ kernel::rpm() {
 }
 
 kernel::deb() {
-	install_package="linux-image-$KERNEL_RELEASE-generic"
+	[ -z "$install_package" ] && install_package="linux-image-$KERNEL_RELEASE-generic"
 
 	# Prevent the newest kernel from being installed automatically
 	DEBIAN_FRONTEND=noninteractive apt-get autoremove -y linux-virtual linux-image-virtual
@@ -109,6 +122,9 @@ kernel::deb() {
 		DEBIAN_FRONTEND=noninteractive apt-get autoremove -y $k
 	done
 }
+
+# Set some kernel command line parameters for debugging convenience
+sed -i '/GRUB_CMDLINE_LINUX=/s/"\(.*\)"/"\1 nokaslr page_poison=1"/' /etc/default/grub
 
 if command -v yum > /dev/null; then
 	kernel::rpm

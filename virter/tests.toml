@@ -98,9 +98,8 @@ vms = [2, 5]
 #[tests.resync-after-failover-to-dless]
 #vms = [3]
 
-# known unstable (~70% success rate)
-#[tests.resync-between-targets]
-#vms = [3]
+[tests.resync-between-targets]
+vms = [3]
 
 [tests.resync-downstream-upstream]
 vms = [3]

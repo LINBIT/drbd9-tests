@@ -160,7 +160,7 @@ stability-test:
       export DRBD_UTILS_VERSION=9.0.0.latest-*
       export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
       ./drbd-test-bundle/virter/run-test.sh $STABILITY_TEST_COUNT drbd-test-bundle/virter/tests.all.toml || true
-      ./drbd-test-bundle/virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json
+      ./drbd-test-bundle/virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json drbd-test-bundle/virter/tests.toml
   dependencies:
     - bundle
     - build-docker

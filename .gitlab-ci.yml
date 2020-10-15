@@ -164,3 +164,9 @@ stability-test:
   dependencies:
     - bundle
     - build-docker
+  artifacts:
+    # provide a convenient name so that the downloaded artifacts can be identified
+    name: $CI_PROJECT_NAME-$CI_JOB_ID
+    paths:
+      - tests-out/
+    expire_in: 2 weeks

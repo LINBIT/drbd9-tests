@@ -74,6 +74,9 @@ vms = [3]
 [tests.quorum-tiebreaker]
 vms = [3]
 
+[tests.recreate-node-day0]
+vms = [3]
+
 [tests.ref-count]
 vms = [2]
 
@@ -81,6 +84,9 @@ vms = [2]
 vms = [2, 5]
 
 [tests.resync-after-failover-to-dless]
+vms = [3]
+
+[tests.resync-after-primary-crash]
 vms = [3]
 
 [tests.resync-between-targets]
@@ -108,6 +114,9 @@ vms = [3]
 [tests.resync-source-becomes-target2]
 vms = [3]
 
+[tests.resync-target-primary]
+vms = [3]
+
 [tests.resync-to-older]
 vms = [3]
 
@@ -117,6 +126,9 @@ vms = [3]
 [tests.resync-w-dless-pri]
 vms = [3]
 
+[tests.split-brain]
+vms = [2]
+
 [tests.stress-al]
 vms = [2, 3]
 
@@ -125,6 +137,9 @@ vms = [2, 5]
 
 [tests.switch-primaries]
 vms = [2, 5]
+
+[tests.switch-sync-source]
+vms = [3]
 
 [tests.twopc_abort_connect]
 vms = [3]

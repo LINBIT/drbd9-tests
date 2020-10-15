@@ -70,7 +70,7 @@ b.primary()
 
 write_on_node(b)
 
-slow_down_connection(a, c, delay='100ms')
+slow_down_connection(a, c, delay='50ms')
 slow_down_connection(b, c, speed='100mbit')
 b_c.connect()
 b_c.event(r'connection .* connection:Connected')

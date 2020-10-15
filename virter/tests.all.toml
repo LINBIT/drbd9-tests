@@ -115,7 +115,7 @@ vms = [3]
 vms = [3]
 
 [tests.resync-w-dless-pri]
-vms = [2]
+vms = [3]
 
 [tests.stress-al]
 vms = [2, 3]

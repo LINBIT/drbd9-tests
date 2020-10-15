@@ -134,7 +134,7 @@ vms = [3]
 
 # known unstable (~85% success rate)
 #[tests.resync-w-dless-pri]
-#vms = [2]
+#vms = [3]
 
 # known unstable (~65% success rate)
 #[tests.stress-al]

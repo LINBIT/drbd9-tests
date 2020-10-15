@@ -15,7 +15,7 @@ resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.add_disk('100M', max_peers=3) # That is one spare to keep day0 bitmap
 
 for n in resource.nodes:
-    n.run(["drbdmeta", n.disks[0].minor, "v09", n.disks[0].disk, "internal",
+    n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
 	   "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"])
 
 log('* All nodes on same current UUID, waiting for them to connect.')
@@ -82,7 +82,7 @@ except CalledProcessError:
     pass #dd reports an error because it reaches end of device.
 
 node_c.run(['drbdadm', 'create-md', '--force', resource.name])
-node_c.run(["drbdmeta", n.disks[0].minor, "v09", n.disks[0].disk, "internal",
+node_c.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
 	   "--node-id=1", "set-gi", "87236C45CB784220:", "--force"])
 
 node_c.adjust()

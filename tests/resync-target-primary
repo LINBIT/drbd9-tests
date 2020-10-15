@@ -19,7 +19,7 @@ resource.up_wait()
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
-[node_a, node_b, node_c] = random.sample(resource.nodes, 3)
+[node_a, node_b, node_c] = random.sample(list(resource.nodes), 3)
 
 log('* Isolating %s' % (node_a.name))
 resource.connections.from_node(node_a).disconnect()

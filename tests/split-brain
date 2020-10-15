@@ -5,13 +5,13 @@
 # Up to (including) 9.0.25 it often detecteds split-brain only on one node
 
 from python import drbdtest
-from python.drbdtest import verbose
+from python.drbdtest import log
 
 RUNS=10
 resource = drbdtest.setup(nodes=2)
 resource.add_disk('10M')
 resource.up_wait()
-verbose('* Make up-to-date data available.')
+log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 [first_n, second_n] = resource.nodes

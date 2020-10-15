@@ -127,10 +127,16 @@ def part_iii(nodes):
     ca.disconnect()
     a.primary()
     write_on_node(a)
-    resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
+    resource.forbidden_patterns.difference_update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe'
+    ])
     ab.disconnect(force=True)
     ba.event(r'connection .* connection:Unconnected')
-    resource.forbidden_patterns.update([r'connection:BrokenPipe'])
+    resource.forbidden_patterns.update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe'
+    ])
     a.secondary()
     assert_resync_dir(bc, cb, '')
     write_on_node(b)

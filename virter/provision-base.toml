@@ -145,8 +145,13 @@ KERNEL_REPOSITORY_URL = "{{.KernelRepositoryURL}}"
 [[steps]]
 [steps.shell]
 script = """
+set -e
 if command -v yum > /dev/null; then
-	yum install -y iptables fio lvm2 make python3
+	packages="iptables fio lvm2 make python3"
+	if ! command -v tc > /dev/null; then
+		packages="$packages iproute-tc"
+	fi
+	yum install -y $packages
 elif command -v apt-get > /dev/null; then
 	apt-get update
 	apt-get -y install fio thin-provisioning-tools make

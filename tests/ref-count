@@ -3,6 +3,7 @@
 # Pass this script a host name to use as the test node.
 
 from python import drbdtest
+from python.drbdtest import log
 import re
 import time
 

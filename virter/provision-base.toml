@@ -105,6 +105,11 @@ kernel::rpm() {
 		# yum autoremove does not like to remove the running kernel
 		rpm -e $to_remove
 	done
+
+	# also install kernel-modules-extra if available
+	if yum list kernel-modules-extra-$KERNEL_RELEASE; then
+		yum install -y "kernel-modules-extra-$KERNEL_RELEASE"
+	fi
 }
 
 kernel::deb() {

@@ -5,6 +5,8 @@ variables:
   VMSHED_VERSION: v0.7.0
   BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
   STABILITY_TEST_COUNT: 50
+  DRBD_VERSION: 9.0.0.latest
+  DRBD_UTILS_VERSION: 9.0.0.latest-*
 
 stages:
   - base_image
@@ -48,6 +50,7 @@ bundle:
   rules:
     - if: $CI_MERGE_REQUEST_ID
     - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
   script:
     - make bundle
   artifacts:
@@ -62,6 +65,7 @@ build-docker:
   rules:
     - if: $CI_MERGE_REQUEST_ID
     - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
   script:
     - docker login -u $LINBIT_REGISTRY_USER -p $LINBIT_REGISTRY_PASSWORD $LINBIT_DOCKER_REGISTRY
     - make DOCKER_IMAGE_NAME=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA docker
@@ -115,8 +119,6 @@ test:
       tar -C drbd-test-bundle -xvf drbd-test-bundle.tgz
     - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
     - |
-      export DRBD_VERSION=9.0.0.latest
-      export DRBD_UTILS_VERSION=9.0.0.latest-*
       export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
       ./drbd-test-bundle/virter/run-test.sh
   dependencies:
@@ -156,8 +158,6 @@ stability-test:
       tar -C drbd-test-bundle -xvf drbd-test-bundle.tgz
     - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
     - |
-      export DRBD_VERSION=9.0.0.latest
-      export DRBD_UTILS_VERSION=9.0.0.latest-*
       export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
       ./drbd-test-bundle/virter/run-test.sh $STABILITY_TEST_COUNT drbd-test-bundle/virter/tests.all.toml || true
       ./drbd-test-bundle/virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json drbd-test-bundle/virter/tests.toml

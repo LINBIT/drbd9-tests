@@ -2,19 +2,23 @@
 
 set -e
 
-if [ "$#" -ne 3 ]; then
-	echo "Usage: $0 elasticsearch_url results_file ci_tests_file"; exit 1
-fi
+die() {
+	echo "$1" >&2
+	exit 1
+}
+
+[ "$#" -ne 3 ] && die "Usage: $0 elasticsearch_url results_file ci_tests_file"
 
 url="$1"
 results_file="$2"
 ci_tests_file="$3"
 
-date="$(cat $results_file | jq -r .time | head -1)"
+[ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
+[ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
+[ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
 
-if [ -z "$date" ]; then
-	echo "No data to insert"; exit 1
-fi
+date="$(cat $results_file | jq -r .time | head -1)"
+[ -z "$date" ] && die "No data to insert"
 
 # the index should uniquely identify the test suite run because _id is only
 # unique within a test suite run
@@ -30,6 +34,9 @@ if [ "$index_exists" = false ]; then
 	{
 		"mappings": {
 			"properties": {
+				"drbd_version": { "type": "constant_keyword", "value": "'"$DRBD_VERSION"'" },
+				"drbd_utils_version": { "type": "constant_keyword", "value": "'"$DRBD_UTILS_VERSION"'" },
+				"drbd9_tests_version": { "type": "constant_keyword", "value": "'"$DRBD9_TESTS_VERSION"'" },
 				"time": { "type": "date" },
 				"name": { "type": "keyword" },
 				"vm_count": { "type": "integer" },

@@ -20,6 +20,7 @@ resource.up_wait()
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+resource.forbidden_patterns.remove(r'connection:ProtocolError')
 
 [source_n, primary_n, secondary_n] = resource.nodes
 
@@ -82,6 +83,9 @@ def test():
     verify_md5sum = md5sum_first_1k(secondary_n)
     if md5sum != verify_md5sum:
         raise Exception('Sync Target data mismatch: %s %s' % (md5sum, verify_md5sum))
+
+    c = resource.connections.from_node(primary_n).to_node(source_n)
+    c.event(r'connection .* connection:Connected')
 
     primary_n.secondary()
     return witnessed_resync_from_primary

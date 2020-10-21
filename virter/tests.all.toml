@@ -83,6 +83,9 @@ vms = [2]
 [tests.resize]
 vms = [2, 5]
 
+[tests.resync]
+vms = [3]
+
 [tests.resync-after-failover-to-dless]
 vms = [3]
 

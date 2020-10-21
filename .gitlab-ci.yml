@@ -1,4 +1,4 @@
-image: $LINBIT_DOCKER_REGISTRY/drbd-tests-build
+image: $LINBIT_DOCKER_REGISTRY/build-helpers:$BUILD_HELPERS_VERSION
 
 variables:
   VIRTER_VERSION: v0.6.0
@@ -10,6 +10,7 @@ variables:
 
 stages:
   - base_image
+  - check
   - build
   - test
   - publish
@@ -44,6 +45,22 @@ base_image:
         virter image save drbd-base-image | curl -isSf -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD -H "Tranfer-Encoding: chunked" -F raw.directory=/ -F raw.asset0=@- -F "raw.asset0.filename=$image" "$LINBIT_REGISTRY_URL/service/rest/v1/components?repository=vm-image"
         virter image rm drbd-base-image
       done
+
+check-test-list:
+  stage: check
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+  cache:
+    paths:
+      - download
+  script:
+    - |
+      . /usr/local/bin/gitlab-utils.sh
+      ci_prepare_tools
+      ci_fetch_rq
+    - COMPARISON="$(comm <(ls tests | grep -v "^python$") <(cat virter/tests.all.toml | rq -t | jq -r '.tests | to_entries[] | .key') -3)"
+    - printf "Comparison of 'tests' directory with 'virter/tests.all.toml' listing:\n%s\n" "$COMPARISON"
+    - if [ -n "$COMPARISON" ]; then exit 1; fi
 
 bundle:
   stage: build

@@ -45,13 +45,11 @@ vms = [3]
 [tests.migrate]
 vms = [4]
 
-# known unstable (~70% success rate)
-#[tests.misaligned-bio]
-#vms = [2]
+[tests.misaligned-bio]
+vms = [2]
 
-# known broken
-#[tests.multi-path]
-#vms = [2]
+[tests.multi-path]
+vms = [2]
 
 [tests.outdate]
 vms = [
@@ -126,6 +124,9 @@ samevms = true
 #[tests.resync-source-becomes-target2]
 #vms = [3]
 
+[tests.resync-target-primary]
+vms = [3]
+
 [tests.resync-to-older]
 vms = [3]
 
@@ -136,9 +137,11 @@ vms = [3]
 #[tests.resync-w-dless-pri]
 #vms = [3]
 
-# known unstable (~65% success rate)
-#[tests.stress-al]
-#vms = [2, 3]
+[tests.split-brain]
+vms = [2]
+
+[tests.stress-al]
+vms = [2, 3]
 
 [tests.stress-connect-and-2pc]
 vms = [

@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+
+set -e
 
 die() {
 	echo "$1" >&2
@@ -9,11 +11,21 @@ die() {
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
 
-repeats=$1
-testsfile=$2
+testsfile="drbd-test-bundle/virter/tests.toml"
+params=""
 
-[ -z "$repeats" ] && repeats=1
-[ -z "$testsfile" ] && testsfile="drbd-test-bundle/virter/tests.toml"
+while (( "$#" )); do
+	case "$1" in
+		--tests)
+			testsfile=$2
+			shift 2
+			;;
+		*)
+			params="$params $1"
+			shift
+			;;
+	esac
+done
 
 for BASE_IMAGE in $(rq -t < drbd-test-bundle/virter/vms.toml | jq -r '.vms[] | .base_image'); do
 	if ! virsh vol-info --pool default $BASE_IMAGE; then
@@ -33,4 +45,4 @@ vmshed										\
 	--set values.TestSuiteImage=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$DRBD9_TESTS_VERSION \
 	--set values.DrbdVersion=$DRBD_VERSION					\
 	--set '"""values.RepositoryPackages=exxe\,drbd-utils='$DRBD_UTILS_VERSION'"""' \
-	--repeats $repeats
+	$params

@@ -28,4 +28,4 @@ IFS=,; for t in $TARGETS; do
     nodes+=( "$t_host" )
 done
 
-tests/$TEST_NAME --no-syslog ${nodes[@]}
+tests/$TEST_NAME --no-syslog --logdir /log ${nodes[@]}

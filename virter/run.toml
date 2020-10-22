@@ -1,6 +1,7 @@
 [values]
 ScratchDisk = "/dev/sda"
 TestSuiteImage = "drbd9-tests"
+OutDir = ""
 
 [[steps]]
 [steps.shell]
@@ -31,3 +32,6 @@ SCRATCH_DISK = "{{.ScratchDisk}}"
 [[steps]]
 [steps.docker]
 image = "{{.TestSuiteImage}}"
+[steps.docker.copy]
+source = "/log"
+dest = "{{.OutDir}}"

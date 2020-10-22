@@ -25,7 +25,7 @@ mkdir -p packages
 cp drbd-test-bundle/target/drbd-test-target.tgz packages/
 
 vmshed										\
-	--jenkins "$(readlink -f tests-out)"					\
+	--out-dir "$(readlink -f tests-out)"					\
 	--startvm 40								\
 	--nvms 20								\
 	--vms drbd-test-bundle/virter/vms.toml					\

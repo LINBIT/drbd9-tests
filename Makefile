@@ -10,7 +10,7 @@ all install uninstall:
 target/%:
 	$(MAKE) -C target $*
 
-bundle: target/drbd-test-target.tgz virter/vms.toml virter/tests.toml virter/tests.all.toml virter/provision-test.toml virter/run.toml virter/run-test.sh virter/elasticsearch/elasticsearch-insert.sh
+bundle: target/drbd-test-target.tgz virter/version.env virter/vms.toml virter/tests.toml virter/tests.all.toml virter/provision-test.toml virter/run.toml virter/run-test.sh virter/elasticsearch/elasticsearch-insert.sh
 	tar -czf $(BUNDLE) $^
 
 clean:

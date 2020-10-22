@@ -351,7 +351,8 @@ class Nodes(Collection):
             self.run(['drbdadm', 'proxy-down', 'all', '-v'])
 
         self.resource().forbidden_patterns.difference_update([
-            r'connection:BrokenPipe'
+            r'connection:BrokenPipe',
+            r'connection:NetworkFailure'
         ])
         self.run(['drbdadm', 'down', 'all'])
         self.after_down()

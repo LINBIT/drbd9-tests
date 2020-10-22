@@ -771,7 +771,9 @@ class Resource(object):
                 ' '.join(['-y ' + _ for _ in args]) +
                 ' '.join(['-n ' + _ for _ in no]))
 
-        cmd = ['logscan', '-d', os.environ['DRBD_LOG_DIR'], '-w']
+        cmd = ['logscan', '-d', os.environ['DRBD_LOG_DIR']]
+        if not 'word_boundary' in kwargs or kwargs['word_boundary']:
+            cmd.append('-w')
         if silent:
             cmd.append('--silent')
         cmd.append('--verbose')
@@ -1412,6 +1414,7 @@ class Node(exxe.Exxe):
             ['ssh', '-q', '-l', 'root', self.name,
              'drbdsetup', 'events2', 'all', '--statistics', '--timestamps'],
             stdout=f, stderr=subprocess.STDOUT, stdin=devnull, close_fds=True)
+        self.event(r'exists -', word_boundary=False)
 
     def run(self, *args, **kwargs):
         if not kwargs.pop('prepare', False):

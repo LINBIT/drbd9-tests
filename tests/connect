@@ -6,18 +6,33 @@ from python import drbdtest
 
 resource = drbdtest.setup(max_nodes=5)
 
-resource.nodes.up_wait()
-resource.connections.event(r'connection .* role:Secondary')
-
 resource.forbidden_patterns.update([
     r'connection:Timeout',
     r'connection:ProtocolError',
 ])
 
+resource.nodes.up_wait()
+resource.connections.event(r'connection .* role:Secondary')
+
+n1 = resource.nodes[0]
+n2 = resource.nodes[1]
+c = resource.connections.from_node(n1).to_node(n2)
+c.extend(resource.connections.from_node(n2).to_node(n1))
+
 # Note: this test does not define any devices, so disconnecting does not
 # require a two-phase commit.  The peer of a disconnecting node will only
 # notice a socket close.
 
-resource.down()
+resource.connections.disconnect()
 
+# check next that both nodes go to StandAlone when they are both primary
+# at connect time.
+
+n1.primary()
+n2.primary()
+
+c.connect()
+c.event(r'connection .* connection:StandAlone')
+
+resource.down()
 resource.rmmod()

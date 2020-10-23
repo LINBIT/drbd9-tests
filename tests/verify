@@ -55,7 +55,7 @@ def MakeDifference(node, do_changes):
             if byte not in set( [ l[0] for l in blocks ] ):
                 break
 
-        blk_nr = byte / BLOCK_SIZE
+        blk_nr = byte // BLOCK_SIZE
 
         # No ' in string, so that "mark a string" in logfile works ;)
         text = ("Writing on {%s} at {%s}; iteration #%d/%s, to offset %d = 0x%x.\n" %
@@ -110,8 +110,8 @@ def GetDifferenceFromDmesg(node):
         while True:
             byte = sector * 512
             blks.append(byte)
-            sector += BLOCK_SIZE / 512
-            length -= BLOCK_SIZE / 512
+            sector += BLOCK_SIZE // 512
+            length -= BLOCK_SIZE // 512
             if length == 0:
                 break
 

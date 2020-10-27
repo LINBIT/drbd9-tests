@@ -12,28 +12,6 @@ from operator import attrgetter
 from python import drbdtest
 from python.drbdtest import log
 
-def executing_2pc(node):
-    str = node.run(['cat',
-                      '/sys/kernel/debug/drbd/resources/%s/state_twopc' % (resource.name)],
-                     return_stdout=True)
-    m = re.search(r'Executing tid: ([0-9]+)', str)
-    if m:
-        return int(m.group(1))
-    else:
-        return None
-
-def assert_no_2pc(resource):
-    msg = ''
-    for node in resource.nodes:
-        transaction_id = executing_2pc(node)
-        if transaction_id is not None:
-            msg += 'Node %s: executes %d\n' % (node, transaction_id)
-
-    if len(msg):
-        log(msg)
-        raise Exception('No two-phase commits expected at this moment')
-
-
 def do_test(resource):
     [node_a, node_b, node_c] = list(resource.nodes)
 
@@ -50,12 +28,13 @@ def do_test(resource):
     conn_a_b.block()
     node_a.unblock_packet_type(drbdtest.P_TWOPC_YES, from_node=node_b, volume=0xffff)
     conn_c_b.connect()
-    time.sleep(3)
-    assert_no_2pc(resource)
-    conn_c_b.event(r'connection:Connected')
+    # Timeout less than the twopc-timeout of 30s because we should not need to
+    # wait for any two-phase commit to time out in this situation
+    conn_c_b.event(r'connection:Connected', timeout=15)
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.net_options = 'ping-int 1;'
+resource.resource_options = 'twopc-timeout 300;'
 resource.add_disk('10M')
 
 resource.up_wait()

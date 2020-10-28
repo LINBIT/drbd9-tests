@@ -85,9 +85,8 @@ vms = [3]
 [tests.quorum-tiebreaker]
 vms = [3]
 
-# known unstable (~70% success rate)
-#[tests.ref-count]
-#vms = [2]
+[tests.ref-count]
+vms = [2]
 
 [tests.resize]
 vms = [2, 5]

@@ -27,7 +27,7 @@ md5_table = []
 def create_file(node, count):
     global nfnr, md5_table
     node.run(['dd', 'if=/dev/urandom', 'of=/mnt/1/f_%d' % (nfnr) , 'bs=4096',
-              'count=%d' % (count), 'conv=fsync'])
+        'count=%d' % (count), 'conv=fsync'])
     md5_table.insert(nfnr, node.run(['md5sum', '/mnt/1/f_%d' % (nfnr)], return_stdout=True))
     nfnr += 1
 
@@ -126,9 +126,9 @@ diskful_nodes[0].fio(section='verify')
 log('* Disconnecting nodes.')
 diskless_node.primary()
 resource.connections. \
-    from_node(diskless_node). \
-    to_nodes(diskful_nodes[:-1]). \
-	disconnect()
+        from_node(diskless_node). \
+        to_nodes(diskful_nodes[:-1]). \
+        disconnect()
 
 try:
     diskless_node.disconnect(diskful_nodes[-1])
@@ -136,7 +136,7 @@ except CalledProcessError:
     pass
 else:
     raise CalledProcessError("'%s'.disconnect('%s') unexpectedly succeeded" %
-	(diskless_node, diskful_nodes[-1]))
+            (diskless_node, diskful_nodes[-1]))
 
 try:
     diskful_nodes[-1].disconnect(diskless_node)
@@ -144,7 +144,7 @@ except CalledProcessError:
     pass
 else:
     raise CalledProcessError("'%s'.disconnect('%s') unexpectedly succeeded" %
-	(diskful_nodes[-1], diskless_node))
+            (diskful_nodes[-1], diskless_node))
 
 diskless_node.secondary()
 
@@ -154,8 +154,8 @@ diskless_node.secondary()
 # Even this wait often isn't enough to prevent this error, though -- this needs
 # to be debugged.
 resource.connections. \
-    to_node(diskless_node). \
-	event(r'connection .* role:Secondary')
+        to_node(diskless_node). \
+        event(r'connection .* role:Secondary')
 
 # FIXME: Simulate network outage
 

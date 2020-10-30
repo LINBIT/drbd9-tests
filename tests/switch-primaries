@@ -19,7 +19,7 @@ resource.skip_initial_sync()
 # switch the primary role around
 # could be done via autopromote, too.
 
-for i in range(40):
+for i in range(5):
     node = random.choice(resource.nodes)
     others = resource.nodes.difference( [node] )
     log('Loop #%d: node %s' % (i, node))
@@ -30,14 +30,14 @@ for i in range(40):
     others.event(r'connection .* role:Secondary')
 
 # If that did work, run again _without_ event checking ... this way the transitions happen faster.
-for i in range(40):
+for i in range(5):
     node = random.choice(resource.nodes)
     log('Unchecked loop #%d: node %s' % (i, node))
     node.primary()
     node.secondary()
 
 # and once more, with implicit transitions via open()
-for i in range(40):
+for i in range(5):
     node = random.choice(resource.nodes)
     log('open loop #%d: node %s' % (i, node))
     node.fio(section='write')

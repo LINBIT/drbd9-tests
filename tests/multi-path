@@ -29,7 +29,7 @@ resource.forbidden_patterns.difference_update([
 
 A.unblock_path(B, 1)
 
-for i in range(10):
+for i in range(3):
     # switch to second path
     A.block_path(B, 0)
     A.event(r'path .* established:no')

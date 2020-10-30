@@ -43,7 +43,7 @@ diskless_node = resource.nodes.diskless[0]
 dev_name = diskless_node.volumes[0].device()
 
 
-log('* Test loosing all but one server, and reintegrating them in the same order')
+log('* Test losing all but one server, and reintegrating them in the same order')
 diskless_node.run(['mkfs', '-t', 'ext4', dev_name])
 diskless_node.run(['mkdir', '-p', '/mnt/1'])
 diskless_node.run(['mount', dev_name, '/mnt/1'])
@@ -52,7 +52,7 @@ create_file(diskless_node, 100);
 nr_nodes = len(resource.nodes)
 
 # Disconnect nearly all servers
-for n in resource.nodes.diskful[1:]:
+for n in reversed(resource.nodes.diskful[1:]):
     log('* taking downing %s' % (n.name))
     n.down()
     create_file(diskless_node, 100);

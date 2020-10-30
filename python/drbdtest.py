@@ -21,6 +21,7 @@ import json
 import time
 import pipes
 import threading
+import traceback
 import socket
 import argparse
 import subprocess
@@ -166,21 +167,20 @@ def mib_to_blocks(n):
     return n * 2**20 // 4096
 
 class Cleanup(object):
-    """ Catch uncaught exceptions and set skip_cleanup accordingly. """
+    """ Catch uncaught exceptions, set skip_cleanup accordingly and log. """
 
     def __init__(self, cleanup):
-        self.excepthook = sys.excepthook
         sys.excepthook = self.hook
         self.cleanup = cleanup
         if self.cleanup == 'never':
             global skip_cleanup
             skip_cleanup = True
 
-    def hook(self, *args, **kwargs):
+    def hook(self, etype, value, tb):
         if self.cleanup == 'success':
             global skip_cleanup
             skip_cleanup = True
-        self.excepthook(*args, **kwargs)
+        traceback.print_exception(etype, value, tb, file=logstream)
 
 
 def first(iterable):

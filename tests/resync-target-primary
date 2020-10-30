@@ -10,7 +10,7 @@ from python import drbdtest
 from python.drbdtest import log
 
 resource = drbdtest.setup(nodes=3)
-resource.disk_options = 'c-max-rate 5M;'
+resource.disk_options = 'c-max-rate 1M;'
 resource.add_disk('10M')
 resource.up_wait()
 

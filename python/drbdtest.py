@@ -767,10 +767,10 @@ class Resource(object):
 
         self.sync_events(collection.__class__)
 
-        log('Waiting for event ' +
-                ' '.join([str(_) for _ in collection]) + ' ' +
-                ' '.join(['-y ' + _ for _ in args]) +
-                ' '.join(['-n ' + _ for _ in no]))
+        log('Waiting for event ' + ' '.join(
+            [str(_) for _ in collection] +
+            ['-y ' + _ for _ in args] +
+            ['-n ' + _ for _ in no]))
 
         cmd = ['logscan', '-d', os.environ['DRBD_LOG_DIR']]
         if not 'word_boundary' in kwargs or kwargs['word_boundary']:
@@ -1490,6 +1490,12 @@ class Node(exxe.Exxe):
 
     def new_path(self):
         Nodes([self]).new_path()
+
+    def bidir_connections_to_node(self, new_node):
+        return Nodes([self]).bidir_connections_to_node(new_node)
+
+    def connections_to_node(self, new_node):
+        return Nodes([self]).connections_to_node(new_node)
 
     def event(self, *args, **kwargs):
         return Nodes([self]).event(*args, **kwargs)

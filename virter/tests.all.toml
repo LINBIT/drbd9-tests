@@ -38,6 +38,9 @@ vms = [2]
 [tests.io-errors-diskless]
 vms = [3]
 
+[tests.may-promote]
+vms = [3]
+
 [tests.migrate]
 vms = [4]
 

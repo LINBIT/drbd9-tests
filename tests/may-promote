@@ -1,0 +1,75 @@
+#! /usr/bin/env python3
+
+# This test checks that may_promote is reported correctly for a number of
+# different scenarios with one diskless and two diskful nodes.
+
+from python import drbdtest
+from python.drbdtest import log
+
+may_promote_event = r'resource .* may_promote:yes'
+may_promote_no_event = r'resource .* may_promote:no'
+
+resource = drbdtest.setup(nodes=3)
+node_a, node_b, node_c = resource.nodes
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.add_disk('10M', diskful_nodes=[node_b, node_c])
+resource.disk_options = 'c-max-rate 2M;'
+
+connection_a_b = node_a.connections_to_node(node_b)
+connection_b_c = node_b.connections_to_node(node_c)
+connection_c_b = node_c.connections_to_node(node_b)
+bidir_a_b = node_a.bidir_connections_to_node(node_b)
+bidir_a_c = node_a.bidir_connections_to_node(node_c)
+bidir_b_c = node_b.bidir_connections_to_node(node_c)
+peer_device_b_c = drbdtest.PeerDevice(connection_b_c[0], resource.volumes[0])
+peer_device_c_b = drbdtest.PeerDevice(connection_c_b[0], resource.volumes[0])
+
+resource.up_wait()
+resource.connections.disconnect()
+
+log('* Scenario: Chain, Diskless - SyncTarget - SyncSource')
+resource.forbidden_patterns.update([may_promote_event])
+bidir_b_c.connect()
+bidir_b_c.event(r'connection .* connection:Connected')
+node_c.primary(force=True)
+resource.forbidden_patterns.difference_update([may_promote_event])
+node_c.secondary(wait=False)
+node_c.event(may_promote_event, no=r'call helper .* helper:after-resync-target')
+node_b.event(may_promote_event, no=r'call helper .* helper:after-resync-target')
+bidir_a_b.connect()
+resource.forbidden_patterns.update([may_promote_event])
+connection_a_b.event(r'connection .* connection:Connected')
+resource.forbidden_patterns.difference_update([may_promote_event])
+
+log('* Scenario: Chain, Diskless - UpToDate - UpToDate')
+peer_device_b_c.event(r'peer-device .* replication:Established')
+peer_device_c_b.event(r'peer-device .* replication:Established')
+node_a.event(may_promote_event)
+
+log('* Scenario: Chain, Diskless - UpToDate - UpToDate Primary')
+node_c.primary(wait=False)
+node_c.event(r'resource .* role:Primary', may_promote_no_event)
+node_b.event(may_promote_no_event)
+node_a.event(may_promote_no_event)
+
+log('* Scenario: Mesh, Diskless - UpToDate - UpToDate Primary')
+resource.forbidden_patterns.update([may_promote_event])
+bidir_a_c.connect()
+bidir_a_c.event(r'connection .* connection:Connected')
+resource.forbidden_patterns.difference_update([may_promote_event])
+
+log('* Scenario: Mesh, Diskless - UpToDate - UpToDate')
+node_c.secondary(wait=False)
+node_c.event(may_promote_event)
+node_b.event(may_promote_event)
+node_a.event(may_promote_event)
+
+log('* Scenario: Disconnected, Diskless - UpToDate - UpToDate')
+resource.connections.disconnect(wait=False)
+node_a.event(may_promote_no_event)
+node_b.event(may_promote_no_event)
+node_c.event(may_promote_no_event)
+
+log('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

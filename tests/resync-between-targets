@@ -54,14 +54,13 @@ target_v.event(r'device .* disk:Inconsistent')
 
 log('* Let the two behinds connect')
 source_target_c.connect()
-source_target_pd.event(r'peer-device .* replication:PausedSyncS')
+source_target_pd.event(r'peer-device .* replication:(PausedSyncS|PausedSyncT)')
 
 log('* Start resync from ahead to source node.')
 ahead_source_c.connect()
 
 log('* Verify.')
-source_target_pd.event(r'peer-device .* replication:Established')
-source_v.event(r'device .* disk:UpToDate')
+source_v.event(r'device .* disk:UpToDate', r'peer-device .* peer-node-id:%d .* replication:Established' % target_n.id)
 
 log('* Shut down and clean up.')
 ahead_n.secondary()

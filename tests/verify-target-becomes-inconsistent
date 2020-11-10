@@ -1,0 +1,41 @@
+#! /usr/bin/env python3
+
+# This test demonstrates that online verify did not terminate when
+# the VerifyTarget becomes temporaritly Inconsistent.
+# This test makes the VerifyTarget temporaritly Inconsistent by
+# triggering a resync towards it.
+#
+# This bug is present in DRBD up to (including) 9.0.25
+
+from python import drbdtest
+from python.drbdtest import log
+
+resource = drbdtest.setup(nodes=3)
+resource.disk_options = 'c-max-rate 10M;'
+resource.net_options = 'verify-alg md5;'
+resource.add_disk('10M')
+resource.up_wait()
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+node_a, node_b, node_c = resource.nodes
+connection_ac = resource.connections.from_node(node_a).to_node(node_c)
+peer_device_bc = resource.peer_devices.from_node(node_b).to_node(node_c)
+peer_device_cb = resource.peer_devices.from_node(node_c).to_node(node_b)
+peer_device_ac = resource.peer_devices.from_node(node_a).to_node(node_c)
+
+# Make the resync slow, so that the issue triggers
+peer_device_ac.peer_device_options("--c-max-rate=250k")
+# online verfy should run with 10MByte/sec
+
+log('* Test starts with verify')
+peer_device_bc.verify()
+peer_device_cb.event(r'peer-device .* replication:VerifyT')
+connection_ac.disconnect()
+node_a.volumes.write(1, bs='500k')
+connection_ac.connect()
+peer_device_cb.event(r'peer-device .* replication:Established')
+peer_device_bc.event(r'peer-device .* replication:Established', timeout=10)
+
+resource.down()
+resource.rmmod()

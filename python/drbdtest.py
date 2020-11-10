@@ -595,6 +595,9 @@ class Connections(Collection):
             node0, node1 = connection.nodes
             node0.connections.remove(connection)
 
+    def verify(self, options=[]):
+        self.run_drbdadm('verify', None, false, options)
+
     def run_cmd(self, *args):
         for connection in self:
             connection.run_cmd(*args)
@@ -664,6 +667,15 @@ class PeerDevices(Collection):
 
     def to_nodes(self, nodes):
         return PeerDevices([_ for _ in self if _.connection.nodes[1] in nodes])
+
+    def verify(self, wait=True, options=[]):
+        for pd in self:
+            node0, node1 = pd.connection.nodes
+            res = pd.connection.resource.name
+            node0.run(['drbdadm', 'verify'] + options +
+                      ['%s:%s/%d' % (res, node1.hostname, pd.volume.volume)])
+        if wait:
+            self.event(r'peer-device .* replication:VerifyS')
 
 # Now that all collection classes are defined, define inter-class dependencies:
 Nodes.finish()
@@ -1064,6 +1076,9 @@ class Connection(object):
         m = re.match(r'\s*agreed_pro_version: ([0-9]+)', str);
         return int(m.group(1))
 
+    def verify(self, *args, **kwargs):
+        return Connections([self]).verify(*args, **kwargs)
+
 class PeerDevice(object):
     def __init__(self, connection, volume):
         self.connection = connection
@@ -1088,6 +1103,9 @@ class PeerDevice(object):
 
     def peer_device_options(self, opts=[]):
         PeerDevices([self]).peer_device_options(opts)
+
+    def verify(self, wait=True, options=[]):
+        PeerDevices([self]).verify(self, wait, options)
 
 class AsPrimary(object):
 

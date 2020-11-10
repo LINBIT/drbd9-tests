@@ -575,30 +575,22 @@ class Connections(Collection):
     def to_nodes(self, nodes):
         return Connections([_ for _ in self if _.nodes[1] in nodes])
 
-    def connect(self, wait=True, options=[]):
+    def run_drbdadm(self, cmd, state_str, wait=True, options=[]):
         for connection in self:
             node0, node1 = connection.nodes
-            node0.run(['drbdadm', 'connect'] + options +
+            node0.run(['drbdadm', cmd] + options +
                       ['%s:%s' % (connection.resource.name, node1.hostname)])
         if wait:
-            self.event(r'connection .* connection:Connecting')
+            self.event(r'connection .* connection:%s' % (state_str))
+
+    def connect(self, wait=True, options=[]):
+        self.run_drbdadm('connect', 'Connecting', wait, options)
         for connection in self:
             node0 = connection.nodes[0]
             node0.connections.add(connection)
 
     def disconnect(self, wait=True, force=False):
-        for connection in self:
-            node0, node1 = connection.nodes
-            cmdline = ['drbdadm', 'disconnect', '%s:%s' %
-                       (connection.resource.name, node1.hostname)]
-
-            if force:
-                cmdline.insert(2, '--force')
-
-            node0.run(cmdline)
-
-        if wait:
-            self.event(r'connection .* connection:StandAlone')
+        self.run_drbdadm('disconnect', 'StandAlone', wait, ['--force'] if force else [])
         for connection in self:
             node0, node1 = connection.nodes
             node0.connections.remove(connection)

@@ -1,65 +1,151 @@
 #! /usr/bin/env python3
 
-# This test creates a "due to diskstates" resync between two nodes that
-# have an outdates version of the data. After that both start a resync
-# with the owner of the new data, i.e. both become resync target to
-# that third node.
+# This test checks the resync behavior between two nodes that have
+# an outdated version of the data.
+
+# One scenario is that both behind nodes B anc C start a resync with the owner
+# of the new data, i.e. both become resync target to the ahead node A.
+#
 # When the later resync (bringing the real data) finishes it sends
 # resync finished notifications to both sync sources. Up to recently
 # it was ignored on the node that became sync-source with an
 # inconsistent disk.
+#
+# This bug was fixed in drbd-9.0.23
 
-# this bug was fixed in drbd-9.0.23
+# Another scenario is that only one of the behind nodes, B, is connected with
+# node A. Once B has synced from A, it is expected that a downstream sync from
+# B to C occurs, making C UpToDate too.
+#
+# This was fixed in drbd-9.0.26
+
+# Another scenario is the same as the previous one but with a temporary
+# connection loss to node A.
+
+# Another scenario breaks off the sync from node A and tries to force revert to
+# the outdated data on node C.
 
 from python import drbdtest
 from python.drbdtest import log
 
 resource = drbdtest.setup(nodes=3)
-resource.disk_options = 'c-max-rate 500k;'
-resource.add_disk('10M')
+resource.disk_options = 'c-max-rate 512K;'
+# make the disk large enough that a full sync would cause a timeout
+resource.add_disk('32M')
 
 resource.up_wait()
-log('* Make up-to-date data available.')
-resource.skip_initial_sync()
 
 node_a, node_b, node_c = resource.nodes
-connection_c_b = resource.connections.from_node(node_c).to_node(node_b)
 connection_a_b = resource.connections.from_node(node_a).to_node(node_b)
 connection_a_c = resource.connections.from_node(node_a).to_node(node_c)
+connection_b_a = resource.connections.from_node(node_b).to_node(node_a)
+connection_c_b = resource.connections.from_node(node_c).to_node(node_b)
+peer_device_b_a = node_b.volumes[0].peer_devices.to_node(node_a)
 peer_device_c_b = node_c.volumes[0].peer_devices.to_node(node_b)
 connections_a = resource.connections.from_node(node_a)
 volume_a = node_a.volumes[0]
 volume_b = node_b.volumes[0]
 volume_c = node_c.volumes[0]
 
-log('* Preparing.')
-connection_c_b.disconnect()
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
 connections_a.disconnect()
-volume_a.write(bs=1024*1024, count=1, flags=['oflag=direct'])
-node_a.down()
-node_c.down()
-node_b.down()
-node_a.up()
+
+def write_new_data_on_a():
+    log('* Preparing.')
+    volume_a.write(bs='3M', count=1, flags=['oflag=direct'])
+    resource.down()
+    node_a.up()
+    connections_a.disconnect()
+    node_c.up()
+    connection_c_b.disconnect()
+    node_b.up()
+
+# start a sync from A to B and then between B and C
+def start_syncs():
+    log('* Start resync from ahead node A to B.')
+    connection_a_b.connect()
+    volume_b.event(r'device .* disk:Inconsistent')
+
+    while True:
+        done = peer_device_b_a.event(r'peer-device .* done:([0-9.]+)')
+        if float(done[0][0]) > 1.0:
+            break
+
+    log('* Let B and C connect.')
+    connection_c_b.connect()
+    peer_device_c_b.event(r'peer-device .* replication:(PausedSyncS|PausedSyncT)')
+
+def read_checksum(node):
+    return node.run(['/bin/bash', '-c',
+        'dd if=%s bs=1M iflag=direct count=1 | md5sum' % node.volumes[0].device()],
+        return_stdout=True)
+
+def verify_data(nodes):
+    log('* Verify data')
+    previous_node = nodes[0]
+    previous_checksum = read_checksum(previous_node)
+    for node in nodes[1:]:
+        checksum = read_checksum(node)
+        drbdtest.ensure(previous_checksum, checksum, 'data differs on nodes "{}" and "{}"'.format(previous_node, node))
+        previous_node = node
+        previous_checksum = checksum
+
+log('* Scenario: Sync from ahead node A to both nodes B and C.')
+write_new_data_on_a()
 node_a.primary()
-connections_a.disconnect()
-node_c.up()
-connection_c_b.disconnect()
-node_b.up()
+start_syncs()
 
-log('* Start resync from the ahead node.')
-connection_a_b.connect()
-volume_b.event(r'device .* disk:Inconsistent')
-
-log('* Let the two behinds connect')
-connection_c_b.connect()
-peer_device_c_b.event(r'peer-device .* replication:(PausedSyncS|PausedSyncT)')
-
-log('* Start resync from ahead to source node.')
+log('* Start resync from ahead node A to C.')
 connection_a_c.connect()
 
-log('* Verify.')
+log('* Check that C gets synced.')
+volume_b.event(r'device .* disk:UpToDate')
 volume_c.event(r'device .* disk:UpToDate', r'peer-device .* peer-node-id:%d .* replication:Established' % node_b.id)
+node_a.secondary()
+connections_a.disconnect()
+connection_c_b.disconnect()
+verify_data(resource.nodes)
+
+log('* Scenario: Sync from ahead node A to B, expect downstream sync from B to C.')
+write_new_data_on_a()
+start_syncs()
+
+log('* Check that C gets synced downstream.')
+volume_c.event(r'device .* disk:UpToDate')
+connection_a_b.disconnect()
+connection_c_b.disconnect()
+verify_data(resource.nodes)
+
+log('* Scenario: Sync from ahead node A to B, but disconnect temporarily.')
+write_new_data_on_a()
+start_syncs()
+
+log('* Disconnect A and B temporarily.')
+connection_a_b.disconnect()
+connection_b_a.event(r'connection .* connection:Connecting')
+connection_a_b.connect()
+
+log('* Check that C gets synced downstream.')
+volume_c.event(r'device .* disk:UpToDate')
+connection_a_b.disconnect()
+connection_c_b.disconnect()
+verify_data(resource.nodes)
+
+log('* Scenario: Sync from ahead node A to B, but disconnect and force resume from C.')
+write_new_data_on_a()
+start_syncs()
+
+log('* Disconnect A and B permanently.')
+connection_a_b.disconnect()
+connection_b_a.event(r'connection .* connection:Connecting')
+
+log('* Revert to older data on C.')
+node_c.primary(force=True)
+node_c.secondary()
+volume_b.event(r'device .* disk:UpToDate')
+verify_data([node_b, node_c])
 
 log('* Shut down and clean up.')
-node_a.secondary()
+resource.down()
 resource.rmmod()

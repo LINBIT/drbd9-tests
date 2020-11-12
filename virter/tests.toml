@@ -110,3 +110,6 @@ vms = [3]
 
 [tests.verify]
 vms = [2]
+
+[tests.verify-target-becomes-inconsistent]
+vms = [3]

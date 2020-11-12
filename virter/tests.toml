@@ -10,18 +10,11 @@ vms = [2]
 [tests.allow-remote-read]
 vms = [2]
 
-# known broken
-#[tests.busy-resync]
-#vms = [2]
-
 [tests.connect]
 vms = [2, 5]
 
 [tests.diskless]
-vms = [
-  3,
-# 5, # known broken
-]
+vms = [3]
 samevms = true
 
 [tests.diskless-join-leave]
@@ -52,29 +45,16 @@ vms = [2]
 vms = [2]
 
 [tests.outdate]
-vms = [
-  3,
-# 5, # known unstable (~60% success rate)
-]
+vms = [3]
 
 [tests.peer-acks]
 vms = [3]
-
-# known unstable (~60% success rate)
-#[tests.pre-existing-data]
-#vms = [3]
 
 [tests.promote_while_connecting]
 vms = [2]
 
 [tests.quorum]
-vms = [
-  3,
-# 5, # known unstable (~20% success rate)
-]
-
-#[tests.quorum-isolate-primary]
-#vms = [3]
+vms = [3]
 
 [tests.quorum-multi-volume]
 vms = [3]
@@ -91,10 +71,6 @@ vms = [2]
 [tests.resize]
 vms = [2, 5]
 
-# known unstable (~65% success rate)
-#[tests.resync-after-failover-to-dless]
-#vms = [3]
-
 [tests.resync-between-targets]
 vms = [3]
 
@@ -104,24 +80,9 @@ vms = [3]
 [tests.resync-finish]
 vms = [2]
 
-#[tests.resync-finish2]
-#vms = [3]
-
 [tests.resync-initial]
-vms = [
-  2,
-# 5,
-]
+vms = [2]
 samevms = true
-
-#[tests.resync-reconciliation]
-#vms = [3]
-
-#[tests.resync-source-becomes-target]
-#vms = [3]
-
-#[tests.resync-source-becomes-target2]
-#vms = [3]
 
 [tests.resync-target-primary]
 vms = [3]
@@ -132,10 +93,6 @@ vms = [3]
 [tests.resync-upstream-downstream]
 vms = [3]
 
-# known unstable (~85% success rate)
-#[tests.resync-w-dless-pri]
-#vms = [3]
-
 [tests.split-brain]
 vms = [2]
 
@@ -143,10 +100,7 @@ vms = [2]
 vms = [2, 3]
 
 [tests.stress-connect-and-2pc]
-vms = [
-  2,
-# 5, # known unstable (~85% success rate)
-]
+vms = [2]
 
 [tests.switch-primaries]
 vms = [2, 5]
@@ -154,12 +108,5 @@ vms = [2, 5]
 [tests.twopc_abort_connect]
 vms = [3]
 
-#[tests.uuid_send_receive_race]
-#vms = [3]
-
 [tests.verify]
 vms = [2]
-
-# known unstable (~50% success rate)
-#[tests.write-during-resync]
-#vms = [3]

@@ -1,0 +1,72 @@
+#! /usr/bin/env python3
+
+# This test simultes the initial full sync from a node that is forced to
+# consider itself as up-to-date.
+# While the resync runs one of the sync-targets promotes and demotes.
+#
+# Up to (including) drbd-9.0.25 this led to an clear-of-bitmap while the
+# initial resync runs. It tiggers at least a log message; maybe other not
+# yet discovered negative effects.
+
+from python import drbdtest
+from python.drbdtest import log
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(nodes=3)
+resource.disk_options = 'c-max-rate 2M;'
+resource.add_disk('10M')
+
+source_n = resource.nodes[0]
+
+resource.nodes.run(["dmesg", "--clear"])
+resource.nodes.run(['drbdadm', '--force', 'create-md', resource.name])
+resource.nodes.new_resource()
+resource.nodes.new_minor()
+resource.nodes.attach()
+
+source_n.primary(force=True)
+source_n.volumes.write(150, bs='64k')
+source_n.secondary()
+
+resource.nodes.adjust()
+resource.nodes.after_up()
+
+source_pds = resource.peer_devices.from_node(source_n)
+target_pds = resource.peer_devices.to_node(source_n)
+
+source_pds.event(r'peer-device .* replication:SyncSource')
+target_pds.event(r'peer-device .* replication:SyncTarget')
+
+while True:
+    done = source_pds.event(r'peer-device .* done:([0-9.]+)')
+    if float(done[0][0]) > 1.0 and float(done[1][0]) > 1.0:
+        log(done)
+        break
+
+for n in resource.nodes[0:2]:
+    n.volumes.write(1, bs='4k')
+
+source_pds.event(r'peer-device .* replication:Established peer-disk:UpToDate')
+target_pds.event(r'peer-device .* replication:Established')
+
+md5sums=[]
+msgs=[]
+for n in resource.nodes:
+    md5sum = n.run(['/bin/bash', '-c', 'dd if=%s bs=64k iflag=direct count=150 | md5sum' % (n.volumes[0].device())],
+                    return_stdout=True)
+    md5sums.append(md5sum)
+    r = n.dmesg(r'expected n_oos', mode='--kernel')
+    if len(r) > 0:
+        line, match = r[0]
+        msgs.append(line)
+
+if len(set(md5sums)) > 1:
+    print(md5sums)
+    raise RuntimeError("Data differs!")
+
+if len(msgs) > 0:
+    print(msgs)
+    raise RuntimeError("Negative pattern found in kernel log!")
+
+resource.down()
+resource.rmmod()

@@ -1623,13 +1623,13 @@ class Node(exxe.Exxe):
     def unblock_packet_type(self, packet, from_node=None, volume=0):
         self._block_packet_type(packet, '-D', from_node, volume)
 
-    def dmesg(self, pattern=None):
+    def dmesg(self, pattern=None, mode='--read-clear'):
         """Fetches (part of) dmesg; clears it afterwards.
 
         Returns a list of tuples, containing (string, match object), for each line.
         If pattern is None, simply returns the list of lines."""
 
-        output = self.run(['dmesg', '--read-clear'], return_stdout=True)
+        output = self.run(['dmesg', mode], return_stdout=True)
         lines = output.splitlines()
         if not pattern:
             return lines

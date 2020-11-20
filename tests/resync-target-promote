@@ -2,11 +2,12 @@
 
 # This test simultes the initial full sync from a node that is forced to
 # consider itself as up-to-date.
-# While the resync runs one of the sync-targets promotes and demotes.
+# While the resync runs one of the sync-targets promotes and demotes, and the
+# cluster is taken down and brought up again.
 #
 # Up to (including) drbd-9.0.25 this led to an clear-of-bitmap while the
-# initial resync runs. It tiggers at least a log message; maybe other not
-# yet discovered negative effects.
+# initial resync runs. It tiggers a log message ("expected n_oos"...) and often
+# fails to correctly complete the sync after down and up.
 
 from python import drbdtest
 from python.drbdtest import log
@@ -18,7 +19,6 @@ resource.add_disk('10M')
 
 source_n = resource.nodes[0]
 
-resource.nodes.run(["dmesg", "--clear"])
 resource.nodes.run(['drbdadm', '--force', 'create-md', resource.name])
 resource.nodes.new_resource()
 resource.nodes.new_minor()
@@ -46,27 +46,21 @@ while True:
 for n in resource.nodes[0:2]:
     n.volumes.write(1, bs='4k')
 
+resource.down()
+resource.up()
+
 source_pds.event(r'peer-device .* replication:Established peer-disk:UpToDate')
 target_pds.event(r'peer-device .* replication:Established')
 
 md5sums=[]
-msgs=[]
 for n in resource.nodes:
     md5sum = n.run(['/bin/bash', '-c', 'dd if=%s bs=64k iflag=direct count=150 | md5sum' % (n.volumes[0].device())],
                     return_stdout=True)
     md5sums.append(md5sum)
-    r = n.dmesg(r'expected n_oos', mode='--kernel')
-    if len(r) > 0:
-        line, match = r[0]
-        msgs.append(line)
 
 if len(set(md5sums)) > 1:
     print(md5sums)
     raise RuntimeError("Data differs!")
-
-if len(msgs) > 0:
-    print(msgs)
-    raise RuntimeError("Negative pattern found in kernel log!")
 
 resource.down()
 resource.rmmod()

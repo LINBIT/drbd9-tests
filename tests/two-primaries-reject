@@ -1,0 +1,162 @@
+#! /usr/bin/env python3
+
+# This test verifies the failures that occur when two primaries try to connect
+# but allow-two-primaries is not set. Different behavior is expected depending
+# on the value of "rr-conflict". Various parts of this were broken for a while
+# between drbd-9.0.25 and drbd-9.0.26.
+
+# In each scenario, the following steps occur:
+# * node_p1 is primary first
+# * node_p1 then loses connectivity to the other nodes
+# * node_p2 is made primary
+# * node_p1 tries to rejoin the other nodes by connecting to node_s, but should fail due to node_p2 further away in the cluster
+# * node_p1 tries to rejoin the other nodes by connecting to node_p2, but should fail again
+# With "rr-conflict disconnect", we expect the connections to become StandAlone.
+# With "rr-conflict retry-connect", we expect them to return to Connecting and not become StandAlone.
+# Finally we resolve the situation.
+
+import time
+from itertools import permutations
+from python import drbdtest
+from python.drbdtest import log
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(nodes=3)
+resource.add_disk('10M')
+resource.up_wait()
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
+
+def adjust_rr_conflict(rr_conflict):
+    resource.net_options = 'timeout 10; ping-int 2; connect-int 2; rr-conflict {};'.format(rr_conflict)
+    resource.touch_config()
+    resource.nodes.adjust()
+
+def promote_both(new_data_p1=False, new_data_p2=False):
+    log('* Promote the first primary')
+    node_p1.primary()
+    connections_to_p1.event(r'connection .* role:Primary')
+    node_p1.volumes.write(1)
+
+    # simulate connection loss
+    log('* Simulate connection loss to the first primary')
+    connections_from_p1.disconnect(force=True)
+    connections_to_p1.event(r'connection .* connection:Connecting')
+
+    log('* Fail over to the other primary')
+    node_p2.primary()
+
+    if new_data_p1:
+        log('* Write new data on the first primary')
+        node_p1.volumes.write(1)
+
+    if new_data_p2:
+        log('* Write new data on the other primary')
+        node_p2.volumes.write(1)
+
+def connect_expecting_standalone():
+    log('* Try to connect first primary to secondary')
+    connection_p1_s.connect()
+    connection_p1_s.event(r'connection .* connection:StandAlone')
+    connection_s_p1.event(r'connection .* connection:StandAlone')
+
+    log('* Try to connect first primary to failover primary')
+    connection_p1_p2.connect()
+    connection_p1_p2.event(r'connection .* connection:StandAlone')
+    connection_p2_p1.event(r'connection .* connection:StandAlone')
+
+def scenario_disconnect_no_new_data():
+    log('*** Scenario: rr-conflict disconnect (default) - no new data')
+    adjust_rr_conflict('disconnect')
+
+    promote_both()
+
+    connect_expecting_standalone()
+
+    log('* Demote and let the cluster return to being fully connected')
+    node_p1.secondary()
+    connections_from_p1.connect()
+    connections_to_p1.connect()
+    peer_devices_from_p1.event(r'peer-device .* replication:Established')
+
+    node_p2.secondary()
+
+def scenario_disconnect_p2_ahead():
+    log('*** Scenario: rr-conflict disconnect (default) - p2 ahead')
+    adjust_rr_conflict('disconnect')
+
+    promote_both(new_data_p2=True)
+
+    connect_expecting_standalone()
+
+    log('* Demote and let the cluster return to being fully in sync')
+    node_p1.secondary()
+    connections_from_p1.connect()
+    connections_to_p1.connect()
+    peer_devices_from_p1.event(r'peer-device .* replication:Established')
+
+    node_p2.secondary()
+
+def scenario_disconnect_split_brain():
+    log('*** Scenario: rr-conflict disconnect (default) - split-brain')
+    adjust_rr_conflict('disconnect')
+
+    promote_both(new_data_p1=True, new_data_p2=True)
+
+    connect_expecting_standalone()
+
+    log('* Demote and force the cluster to sync')
+    node_p1.secondary()
+    connections_from_p1.connect(options=['--discard-my-data'])
+    connections_to_p1.connect()
+    peer_devices_from_p1.event(r'peer-device .* replication:Established')
+
+    node_p2.secondary()
+
+def scenario_retry_p2_ahead():
+    log('*** Scenario: rr-conflict retry-connect')
+    adjust_rr_conflict('retry-connect')
+    promote_both(new_data_p2=True)
+
+    resource.forbidden_patterns.update([r'connection:StandAlone'])
+    connection_p1_s.connect()
+    # No state change occurs here for which we could wait.
+    # However, we must wait so that a connection attempt is made.
+    # Otherwise we make p1 secondary and the retry logic might not be tested.
+    # Just have to sleep.
+    time.sleep(1.0)
+
+    connection_p1_p2.connect()
+    time.sleep(1.0)
+
+    log('* Demote and let the cluster return to being fully in sync when it retries')
+    node_p1.secondary()
+    peer_devices_from_p1.event(r'peer-device .* replication:Established')
+
+    node_p2.secondary()
+    resource.forbidden_patterns.difference_update([r'connection:StandAlone'])
+
+for node_p1, node_s, node_p2 in permutations(resource.nodes):
+    node_to_role = {
+            node_p1: 'node_p1 (first primary)',
+            node_s: 'node_s (secondary throughout)',
+            node_p2: 'node_p2 (failover primary)'}
+    for node in resource.nodes:
+        log('*********** {} is {}'.format(node, node_to_role[node]))
+
+    connections_from_p1 = resource.connections.from_node(node_p1)
+    peer_devices_from_p1 = resource.peer_devices.from_node(node_p1)
+    connection_p1_s = connections_from_p1.to_node(node_s)
+    connection_p1_p2 = connections_from_p1.to_node(node_p2)
+    connections_to_p1 = resource.connections.to_node(node_p1)
+    connection_s_p1 = connections_to_p1.from_node(node_s)
+    connection_p2_p1 = connections_to_p1.to_node(node_p2)
+
+    scenario_disconnect_no_new_data()
+    scenario_disconnect_p2_ahead()
+    scenario_disconnect_split_brain()
+    scenario_retry_p2_ahead()
+
+resource.down()
+resource.rmmod()

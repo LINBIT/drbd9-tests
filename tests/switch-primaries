@@ -45,11 +45,14 @@ for i in range(5):
 
 first = resource.nodes[0]
 others = resource.nodes.difference( [first] )
+connections_first_others = resource.connections.from_node(first)
+connections_others_first = resource.connections.to_node(first)
 # Ensure all are still running fine, by causing an event that can be waited for
-resource.connections.from_node(first).disconnect()
+connections_first_others.disconnect()
+connections_others_first.event(r'connection .* connection:Connecting')
 first.primary()
-resource.connections.from_node(first).connect()
-others.event(r'connection .* role:Primary')
+connections_first_others.connect()
+connections_others_first.event(r'connection .* role:Primary')
 first.secondary()
 
 log('* Shut down and clean up.')

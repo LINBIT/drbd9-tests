@@ -38,10 +38,16 @@ A.primary()
 a_b.connect()
 time.sleep(0.8)
 my_log('* Creating new UUID while uuid_sem is locked.')
-A.run(["setsid", "bash", "-c", "dd if=/dev/zero of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null &" % (dev_name, 4)])
+dd_pid = A.run([
+    "setsid", "bash", "-c",
+    "dd if=/dev/zero of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null & echo $!" % (dev_name, 4)],
+    return_stdout=True)
 A.unblock_packet_type(drbdtest.P_SIZES, from_node=B)
 
 pds.event(r'peer-device .* replication:Established')
+
+log('* Wait for dd process to finish')
+A.run(["tail", "--pid={}".format(dd_pid), "-f", "/dev/null"])
 
 log('* Shut down and clean up.')
 

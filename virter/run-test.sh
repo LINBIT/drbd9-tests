@@ -28,7 +28,8 @@ while (( "$#" )); do
 done
 
 for BASE_IMAGE in $(rq -t < drbd-test-bundle/virter/vms.toml | jq -r '.vms[] | .base_image'); do
-	if ! virsh vol-info --pool default $BASE_IMAGE; then
+	LIBVIRT_POOL=${LIBVIRT_POOL:-default}
+	if ! virsh vol-info --pool $LIBVIRT_POOL $BASE_IMAGE; then
 		virter image pull --url $LINBIT_REGISTRY_URL/repository/vm-image/$BASE_IMAGE $BASE_IMAGE
 	fi
 done

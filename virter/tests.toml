@@ -87,6 +87,9 @@ samevms = true
 [tests.resync-target-primary]
 vms = [3]
 
+[tests.resync-target-promote]
+vms = [3]
+
 [tests.resync-to-older]
 vms = [3]
 
@@ -112,4 +115,7 @@ vms = [3]
 vms = [2]
 
 [tests.verify-target-becomes-inconsistent]
+vms = [3]
+
+[tests.write-during-resync]
 vms = [3]

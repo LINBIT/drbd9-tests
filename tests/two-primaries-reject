@@ -37,7 +37,7 @@ def promote_both(new_data_p1=False, new_data_p2=False):
     log('* Promote the first primary')
     node_p1.primary()
     connections_to_p1.event(r'connection .* role:Primary')
-    node_p1.volumes.write(1)
+    node_p1.volumes.write(1, flags=['oflag=direct'])
 
     # simulate connection loss
     log('* Simulate connection loss to the first primary')
@@ -49,11 +49,11 @@ def promote_both(new_data_p1=False, new_data_p2=False):
 
     if new_data_p1:
         log('* Write new data on the first primary')
-        node_p1.volumes.write(1)
+        node_p1.volumes.write(1, flags=['oflag=direct'])
 
     if new_data_p2:
         log('* Write new data on the other primary')
-        node_p2.volumes.write(1)
+        node_p2.volumes.write(1, flags=['oflag=direct'])
 
 def connect_expecting_standalone():
     log('* Try to connect first primary to secondary')

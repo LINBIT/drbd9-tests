@@ -180,6 +180,8 @@ class Cleanup(object):
         if self.cleanup == 'success':
             global skip_cleanup
             skip_cleanup = True
+        if etype == subprocess.CalledProcessError and hasattr(value, 'output'):
+            log(value.output.decode(encoding='utf-8', errors='backslashreplace'))
         traceback.print_exception(etype, value, tb, file=logstream)
 
 
@@ -792,7 +794,8 @@ class Resource(object):
             cmd.extend(['-n', expr])
         debug('# ' + ' '.join(pipes.quote(_) for _ in cmd + where))
 
-        result = subprocess.check_output(cmd + where).decode()
+        result_bytes = subprocess.check_output(cmd + where, stderr=subprocess.STDOUT)
+        result = result_bytes.decode(encoding='utf-8', errors='backslashreplace')
         log(result)
 
         lines = result.split("\n")

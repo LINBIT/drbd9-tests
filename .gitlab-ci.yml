@@ -3,6 +3,7 @@ image: $LINBIT_DOCKER_REGISTRY/build-helpers:$BUILD_HELPERS_VERSION
 variables:
   BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
   STABILITY_TEST_COUNT: 50
+  STABILITY_TEST_VMSHED_ARGS: ""
   DRBD_VERSION: 9.0.0.latest
   DRBD_UTILS_VERSION: 9.0.0.latest-*
 
@@ -177,7 +178,7 @@ stability-test:
     - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
     - |
       export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
-      ./drbd-test-bundle/virter/run-test.sh --repeats=$STABILITY_TEST_COUNT --tests=drbd-test-bundle/virter/tests.all.toml --error-details=false --quiet || true
+      ./drbd-test-bundle/virter/run-test.sh --repeats="$STABILITY_TEST_COUNT" --tests=drbd-test-bundle/virter/tests.all.toml --error-details=false --quiet $STABILITY_TEST_VMSHED_ARGS || true
       ./drbd-test-bundle/virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json drbd-test-bundle/virter/tests.toml
   dependencies:
     - bundle

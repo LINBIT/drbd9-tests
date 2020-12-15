@@ -37,7 +37,10 @@ def promote_both(new_data_p1=False, new_data_p2=False):
     log('* Promote the first primary')
     node_p1.primary()
     connections_to_p1.event(r'connection .* role:Primary')
-    node_p1.volumes.write(1, flags=['oflag=direct'])
+    # TODO (drbd): Adding a write on node_p1 here can cause a new UUID to be
+    # generated unexpectedly. This occurs due to race conditions in DRBD
+    # between the potential UUID generation due to the write, and the
+    # disconnect immediately afterwards.
 
     # simulate connection loss
     log('* Simulate connection loss to the first primary')

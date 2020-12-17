@@ -180,7 +180,7 @@ class Cleanup(object):
         if self.cleanup == 'success':
             global skip_cleanup
             skip_cleanup = True
-        if etype == subprocess.CalledProcessError and hasattr(value, 'output'):
+        if etype == subprocess.CalledProcessError and hasattr(value, 'output') and value.output is not None:
             log(value.output.decode(encoding='utf-8', errors='backslashreplace'))
         traceback.print_exception(etype, value, tb, file=logstream)
 

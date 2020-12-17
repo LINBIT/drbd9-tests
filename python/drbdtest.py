@@ -496,7 +496,9 @@ class Volumes(Collection):
 
             result = None
 
-            cmd = ['fio']
+            cmd = ['fio',
+                    # reduce the amount of memory which fio tries to allocate
+                    '--max-jobs=16']
             if section:
                 cmd.extend(['--section', section])
             cmd.append('-')

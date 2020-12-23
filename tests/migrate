@@ -26,6 +26,17 @@ diskless_nodes = resource.nodes.diskless
 resource.forbidden_patterns.update([r'peer-disk:(Consistent|Outdated)'])
 
 
+log('* Migrate from diskfull to diskfull with write on new node')
+
+diskful_nodes[0].primary()
+diskful_nodes[1].primary()
+
+write_on_node(diskful_nodes[1])
+
+diskful_nodes[0].secondary()
+diskful_nodes[1].secondary()
+
+
 log('* Migrate from diskfull to diskless with write on new node')
 
 diskful_nodes[0].primary()

@@ -14,7 +14,7 @@ vms = [2]
 vms = [2, 5]
 
 [tests.diskless]
-vms = [3]
+vms = [3, 5]
 samevms = true
 
 [tests.diskless-join-leave]

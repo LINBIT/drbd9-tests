@@ -1,0 +1,68 @@
+#! /usr/bin/env python3
+
+# With quorum enabled, simulate a failover due to network outage, followed by
+# reconnection to the node that remained Secondary.
+#
+# Up to and including drbd-9.0.27, this failed with due to a split brain from
+# node_p1 to node_s.
+
+from python import drbdtest
+from python.drbdtest import log
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(nodes=3)
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.add_disk('10M')
+
+resource.up_wait()
+
+node_p1, node_p2, node_s = resource.nodes
+bidir_p1_p2 = node_p1.bidir_connections_to_node(node_p2)
+bidir_p1_s = node_p1.bidir_connections_to_node(node_s)
+bidir_p2_s = node_p2.bidir_connections_to_node(node_s)
+peer_devices_s_p2 = node_s.volumes.peer_devices.to_node(node_p2)
+peer_devices_p1_s = node_p1.volumes.peer_devices.to_node(node_s)
+
+log('* Make up-to-date data available')
+resource.skip_initial_sync();
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+
+log('* Promote first primary')
+node_p1.primary()
+node_p1.volumes.write(1, flags=['oflag=direct'])
+
+# flap to generate a UUID that is not the initial UUID, otherwise the issue
+# does not occur
+log('* Disconnect and reconnect secondary')
+bidir_p1_s.disconnect(force=True)
+node_p1.volumes.write(1, flags=['oflag=direct'])
+bidir_p1_s.connect()
+peer_devices_p1_s.event(r'peer-device .* peer-disk:UpToDate')
+
+log('* Disconnect first primary')
+bidir_p1_p2.disconnect(force=True)
+bidir_p1_s.disconnect(force=True)
+
+node_p1.secondary()
+
+log('* Promote second primary')
+node_p2.primary()
+node_p2.volumes.write(1, flags=['oflag=direct'])
+
+# flap again to cause a sync from node_p2 to node_s
+log('* Disconnect and reconnect secondary from second primary')
+bidir_p2_s.disconnect(force=True)
+bidir_p2_s.connect()
+
+peer_devices_s_p2.event(r'peer-device .* replication:SyncTarget')
+peer_devices_s_p2.event(r'peer-device .* replication:Established')
+
+log('* Reconnect first primary (now Secondary)')
+bidir_p1_s.connect()
+
+peer_devices_p1_s.event(r'peer-device .* replication:SyncTarget')
+peer_devices_p1_s.event(r'peer-device .* replication:Established')
+
+resource.down()
+resource.rmmod()

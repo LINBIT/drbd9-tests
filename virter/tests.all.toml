@@ -65,6 +65,9 @@ vms = [2]
 [tests.quorum]
 vms = [3, 5]
 
+[tests.quorum-failover-reconnect]
+vms = [3]
+
 [tests.quorum-isolate-primary]
 vms = [3]
 

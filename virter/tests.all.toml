@@ -95,6 +95,9 @@ vms = [3]
 [tests.resync-after-primary-crash]
 vms = [3]
 
+[tests.resync-based-on-disk-states]
+vms = [3]
+
 [tests.resync-between-targets]
 vms = [3]
 

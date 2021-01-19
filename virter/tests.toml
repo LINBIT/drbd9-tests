@@ -68,6 +68,9 @@ vms = [3]
 [tests.ref-count]
 vms = [2]
 
+[tests.rename]
+vms = [1]
+
 [tests.resize]
 vms = [2, 5]
 

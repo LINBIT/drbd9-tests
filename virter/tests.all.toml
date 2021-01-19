@@ -10,6 +10,9 @@ vms = [2]
 [tests.allow-remote-read]
 vms = [2]
 
+[tests.attach-concurrent]
+vms = [3]
+
 [tests.busy-resync]
 vms = [2]
 

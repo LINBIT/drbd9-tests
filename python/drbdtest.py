@@ -950,6 +950,11 @@ class Resource(object):
         self.nodes.remove(del_node)
         self.touch_config()
 
+    def rename(self, new_name):
+        self.nodes.run(["drbdsetup", "rename-resource", self.name, new_name])
+        self.name = new_name
+        self.touch_config()
+
 class Volume(object):
     def __init__(self, node, volume, size=None, meta_size=None, minor=None,
                  max_peers=None, thin=False):

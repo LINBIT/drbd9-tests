@@ -56,6 +56,9 @@ vms = [2]
 [tests.quorum]
 vms = [3]
 
+[tests.quorum-failover-reconnect]
+vms = [3]
+
 [tests.quorum-multi-volume]
 vms = [3]
 

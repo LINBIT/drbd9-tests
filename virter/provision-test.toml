@@ -1,5 +1,6 @@
 [values]
 RepositoryURL = ""
+DrbdRepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
 RepositoryPackages = "" # comma separated
 DrbdVersion = ""
@@ -18,18 +19,30 @@ die() { >&2 printf "\nError: %s\n" "$*"; exit 1; }
 
 PACKAGES=$(printf %s "$REPOSITORY_PACKAGES" | tr , " ")
 
+[ -z "$DRBD_REPOSITORY_URL" ] && DRBD_REPOSITORY_URL="$REPOSITORY_URL"
+
 if command -v yum > /dev/null; then
 	# Cheap hack to allow versions to be specified the same for apt and yum
 	PACKAGES=$(printf %s "$PACKAGES" | tr = -)
 
-	if [ -n "$REPOSITORY_URL" ]; then
+	if [ -n "$REPOSITORY_URL" ] && [ -n "$DRBD_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/drbd.repo
 		[drbd]
 		name=DRBD Packages
-		baseurl=$REPOSITORY_URL
+		baseurl=$DRBD_REPOSITORY_URL
 		gpgcheck=0
 		enabled=1
 		EOF
+
+		if [ "$REPOSITORY_URL" != "$DRBD_REPOSITORY_URL" ]; then
+			cat <<- EOF > /etc/yum.repos.d/drbd-extra.repo
+			[drbd-extra]
+			name=DRBD Extra Packages
+			baseurl=$REPOSITORY_URL
+			gpgcheck=0
+			enabled=1
+			EOF
+		fi
 
 		if [ -n "$DRBD_VERSION" ]; then
 			AVAILABLE=$(yum list available --quiet --showduplicates \
@@ -95,6 +108,7 @@ sed -i 's/usage-count yes/usage-count no/' /etc/drbd.d/global_common.conf
 
 [steps.shell.env]
 REPOSITORY_URL = "{{.RepositoryURL}}"
+DRBD_REPOSITORY_URL = "{{.DrbdRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
 REPOSITORY_PACKAGES = "{{.RepositoryPackages}}"
 DRBD_VERSION = "{{.DrbdVersion}}"

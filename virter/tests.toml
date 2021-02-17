@@ -29,6 +29,9 @@ vms = [2, 5]
 [tests.force-resync]
 vms = [2]
 
+[tests.invalid-names]
+vms = [1]
+
 [tests.io-errors]
 vms = [2]
 

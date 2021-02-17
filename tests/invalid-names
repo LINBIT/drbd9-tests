@@ -1,0 +1,53 @@
+#! /usr/bin/env python3
+
+# Tests various names that do not conform to DRBD's naming conventions.
+# A resource name must:
+#  * not be empty,
+#  * not contain '/', we use it as directory name in debugfs
+#  * not contain "control characters or spaces"
+#    these may confuse utils trying to parse the output of
+#    "drbdsetup events2" or similar.
+
+from python import drbdtest
+from python.drbdtest import log
+from subprocess import CalledProcessError
+
+def up_expect_fail(resource):
+    try:
+        resource.up()
+    except CalledProcessError:
+        log('drbdadm failed (this is expected)')
+        pass
+    else:
+        raise RuntimeError("drbdadm should have failed!")
+
+# 0. sanity check: regular resource name
+resource = drbdtest.setup(nodes=1)
+resource.up_wait()
+resource.down()
+
+# 1. must not be empty
+resource.name = '\"\"'
+resource.touch_config()
+up_expect_fail(resource)
+
+# 2. must not contain '/'
+resource.name = 'contains/slash'
+resource.touch_config()
+up_expect_fail(resource)
+
+# 3. must not contain spaces
+# drbd 9.0.x actually allows spaces; only test for >=9.1.0
+if resource.nodes[0].drbd_version_tuple >= (9, 1, 0):
+    resource.name = '\"contains space\"'
+    resource.touch_config()
+    up_expect_fail(resource)
+else:
+    log('(skipping "must not contain spaces" because version is below 9.1.0)')
+
+# 4. must not contain control characters
+resource.name = '\"contains\x04control\"'
+resource.touch_config()
+up_expect_fail(resource)
+
+resource.rmmod()

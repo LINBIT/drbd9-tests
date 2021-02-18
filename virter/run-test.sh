@@ -40,7 +40,7 @@ cp drbd-test-bundle/target/drbd-test-target.tgz packages/
 vmshed										\
 	--out-dir "$(readlink -f tests-out)"					\
 	--startvm 40								\
-	--nvms 20								\
+	--nvms "${LINBIT_CI_MAX_CPUS:-20}"						\
 	--vms drbd-test-bundle/virter/vms.toml					\
 	--tests "$testsfile"							\
 	--set values.TestSuiteImage=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$DRBD9_TESTS_VERSION \

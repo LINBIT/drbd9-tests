@@ -19,7 +19,7 @@ resource.add_disk('10M')
 log('* Bring up the first node, make it primary, and write defined data onto all volumes.')
 first_node.up_wait()
 first_node.primary(force=True)
-first_node.volumes.fio(section='write')
+first_node.volumes.fio(drbdtest.fio_write_args)
 
 log('* Make the first node secondary again to allow read access on the other nodes.')
 first_node.secondary()
@@ -33,7 +33,7 @@ resource.initial_resync(first_node)
 
 for node in other_nodes:
     node.primary()
-    node.volumes.diskful.fio(section='verify')
+    node.volumes.diskful.fio(drbdtest.fio_verify_args)
     node.secondary()
 
 log('* Shut down and clean up.')

@@ -57,7 +57,7 @@ node.run(['drbdadm', 'adjust', resource.name])
 expect_drbd(node, 2, 1)
 
 # actually use it
-node.volumes.fio(section='write')
+node.volumes.fio(drbdtest.fio_write_args)
 expect_drbd(node, 2, 1)
 
 # change a setting

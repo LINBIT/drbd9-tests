@@ -66,7 +66,7 @@ resource.skip_initial_sync();
 #        if n != weak_node and n != first_node:
 #            weak_node.disconnect(n)
 
-#first_node.fio(section="write")
+#first_node.fio(drbdtest.fio_write_args)
 
 
 ## TODOs: add some test for --assume-peer-has-space

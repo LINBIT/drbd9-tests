@@ -57,7 +57,7 @@ resource.nodes.run(['true'], prepare=True)
 # in case we run with 3 nodes we have to tell which one we want.
 first.up(['--peer', second.hostname])
 first.primary(force=True)
-first.fio(section="write")
+first.fio(drbdtest.fio_write_args)
 first.secondary()
 
 log(str(second) + " connect, check data.")
@@ -68,19 +68,19 @@ time.sleep(2)
 
 # check that the data is correct, even during sync!
 with AsPrimary(second):
-    second.fio(section="verify")
+    second.fio(drbdtest.fio_verify_args)
     # wait for sync to finish, and re-verify
     # this command doesn't work, as the events on 8.4 say "conn-name:peer".
     #   first.peer_devices.event(r'peer-device .* peer-disk:UpToDate')
     second.volumes.event('device .* disk:UpToDate')
-    second.fio(section="verify")
+    second.fio(drbdtest.fio_verify_args)
 
 
 # now run 8.4 diskless a bit
 first.run(['drbdadm', 'detach', 'all'])
 with AsPrimary(first):
-    first.fio(section="write")
-    first.fio(section="write")
+    first.fio(drbdtest.fio_write_args)
+    first.fio(drbdtest.fio_write_args)
     # time.sleep(10)
 
 first.run(['drbdadm', 'attach', 'all'])
@@ -89,22 +89,22 @@ first.volumes.event('device .* disk:UpToDate')
 
 ## Now the other host takes over...
 with AsPrimary(second):
-    second.fio(section="write")
+    second.fio(drbdtest.fio_write_args)
 with AsPrimary(first):
-    first.fio(section="verify")
+    first.fio(drbdtest.fio_verify_args)
 
 
 # and 8.4 gets to be only one serving for a bit
 second.run(['drbdadm', 'detach', 'all'])
 with AsPrimary(second):
-    second.fio(section="write")
-    second.fio(section="write")
-    second.fio(section="write")
+    second.fio(drbdtest.fio_write_args)
+    second.fio(drbdtest.fio_write_args)
+    second.fio(drbdtest.fio_write_args)
 second.run(['drbdadm', 'attach', 'all'])
 second.volumes.event('device .* disk:UpToDate')
 
 with AsPrimary(first):
-    first.fio(section="verify")
+    first.fio(drbdtest.fio_verify_args)
 
 
 # 8.4 gets stopped, a third node connected
@@ -115,9 +115,9 @@ first.run(['drbdadm', 'down', 'all'])
 ### if third:
 ###     log(str(third) + " gets connected")
 ###     third.up()
-###     third.fio(section="verify")
+###     third.fio(drbdtest.fio_verify_args)
 ###     third.volumes.event('device .* disk:UpToDate')
-###     third.fio(section="verify")
+###     third.fio(drbdtest.fio_verify_args)
 
 
 # import sys
@@ -139,7 +139,7 @@ first.run(['drbdadm', '--', '--force', 'create-md', 'all'])
 # check for working upgrade path
 first.up()
 with AsPrimary(first):
-    first.fio(section="verify")
+    first.fio(drbdtest.fio_verify_args)
 
 
 

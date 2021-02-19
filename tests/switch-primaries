@@ -24,7 +24,7 @@ for i in range(5):
     others = resource.nodes.difference( [node] )
     log('Loop #%d: node %s' % (i, node))
     node.primary()
-    node.fio(section='write')
+    node.fio(drbdtest.fio_write_args)
     node.secondary()
     others.event(r'connection .* role:Primary')
     others.event(r'connection .* role:Secondary')
@@ -40,7 +40,7 @@ for i in range(5):
 for i in range(5):
     node = random.choice(resource.nodes)
     log('open loop #%d: node %s' % (i, node))
-    node.fio(section='write')
+    node.fio(drbdtest.fio_write_args)
 
 
 first = resource.nodes[0]

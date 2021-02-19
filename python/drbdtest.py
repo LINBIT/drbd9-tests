@@ -113,8 +113,21 @@ P_TWOPC_RETRY         = 0x48
 P_CONFIRM_STABLE      = 0x49
 P_RS_CANCEL_AHEAD     = 0x4a
 
-TOP = os.getenv('TOP', os.path.join(os.path.dirname(sys.argv[0]), '..'))
 DRBD_TEST_DATA = os.getenv('DRBD_TEST_DATA', '/usr/share/drbd-test')
+
+fio_write_args = {
+        'bs': '4K',
+        'ioengine': 'sync',
+        'verify': 'md5',
+        'do_verify': 0,
+        'rw': 'write'}
+
+fio_verify_args = {
+        'bs': '4K',
+        'ioengine': 'sync',
+        'verify': 'md5',
+        'verify_only': 1,
+        'rw': 'read'}
 
 silent = False
 debug_level = 0
@@ -464,86 +477,16 @@ class Volumes(Collection):
         return Volumes([_ for _ in self if _.disk is None])
     diskless = property(get_diskless)
 
-    def fio(self, section, jobfile=None, return_output=False, fio_extra=None, name=None):
-        """
-            Run fio, the 'flexible I/O tester'.
-
-            fio_extra would get appended to the jobfile;
-            should be a list of strings, eg. ['bs=4k', 'runtime=20'].
-        """
-        if jobfile is None:
-            jobfile = os.path.join(TOP, 'target', 'write-verify.fio.in')
-        template = open(jobfile).read()
-        for volume in self:
-            job = re.sub(r'@device@', volume.device(), template)
-            node = volume.node
-            n = 0
-            while True:
-                prefix = os.path.join(node.resource.logdir, 'fio-%s-%s%s%s%s' %
-                                      (node.name, volume.volume,
-                                       '-%s' % section if section else '',
-                                       '+%s' % name if name else '',
-                                       '-%s' % n if n > 0 else ''))
-                if not (os.path.exists(prefix + '.fio') or
-                        os.path.exists(prefix + '.log')):
-                    break
-                n += 1
-
-            # TODO: Without auto-promote, we would need to switch to primary on
-            # each node first.  With auto-promote, since auto-promote allows
-            # parallel reading, we could start read jobs on multiple nodes in
-            # parallel.
-
-            result = None
-
-            cmd = ['fio',
-                    # reduce the amount of memory which fio tries to allocate
-                    '--max-jobs=16']
-            if section:
-                cmd.extend(['--section', section])
-            cmd.append('-')
-
-            jobfile = open(prefix + '.fio', 'w+')
-            jobfile.write(job)
-            if fio_extra:
-                for arg in fio_extra:
-                    # let "fio" be the first string, still
-                    cmd.insert(1, "--%s" % arg)
-            #    jobfile.write("\n\n[%s]\n" % section)
-            #    for l in fio_extra:
-            #        jobfile.write("%s\n" % l)
-
-            jobfile.flush()
-            jobfile.seek(0)
-
-            log(jobfile.read())
-            jobfile.seek(0)
-
-            logfile = open(prefix + '.log', 'w+')
-            logfile.write("## command: %s\n\n" % cmd)
-            try:
-                node.run(cmd, stdin=jobfile, stdout=logfile)
-                if return_output:
-                    logfile.seek(0)
-                    result = FioParser(logfile.readlines())
-            except CalledProcessError:
-                logfile.seek(0)
-                log(logfile.read())
-                raise
-            else:
-                logfile.seek(0)
-                log(logfile.read())
-            finally:
-                logfile.close()
-
-            return result
-
     def resize(self, size):
         return [v.resize(size) for v in self if v.disk is not None]
 
     def write(self, *args, **kwargs):
         for v in self:
             v.write(*args, **kwargs)
+
+    def fio(self, *args, **kwargs):
+        for v in self:
+            v.fio(*args, **kwargs)
 
 
 class Connections(Collection):
@@ -969,6 +912,7 @@ class Volume(object):
             max_peers = len(node.resource.nodes) - 1
             if max_peers < 1:
                 max_peers = 1
+        self.fio_count = 0
         self.disk = None
         self.meta = None
         self.disk_lv = None
@@ -1029,6 +973,50 @@ class Volume(object):
                'seek={0}'.format(offset), 'count={0}'.format(count)]
         cmd.extend(flags)
         self.node.run(cmd)
+
+    def fio(self, base_args, **kwargs):
+        """
+        Run fio, the 'flexible I/O tester'.
+
+        base_args is a dict mapping fio parameter keys to their values
+
+        The remaining keyword arguments also specify fio parameters. These
+        parameters override the base_args. E.g.
+        volume.fio(fio_write_args, bs='64K')
+        """
+        node = self.node
+
+        arg_dict = {**base_args, **kwargs}
+        fio_args = ['--{}={}'.format(key, value) for (key, value) in arg_dict.items()]
+
+        cmd = ['fio',
+                '--output-format=json',
+                # reduce the amount of memory which fio tries to allocate
+                '--max-jobs=16',
+                '--name=test',
+                '--filename={}'.format(self.device()),
+                *fio_args]
+
+        result = node.run(cmd, return_stdout=True)
+
+        output_filename = 'fio-{}-{}-{}.json'.format(node.name, self.volume, self.fio_count)
+        log('write fio output to {}'.format(output_filename))
+        with open(os.path.join(node.resource.logdir, output_filename), 'w') as output_file:
+            output_file.write(result)
+
+        fio_output = json.loads(result)
+
+        # Ubuntu Xenial distributes fio version 2, which names the io_kbytes field wrongly
+        io_kbytes_field = 'io_bytes' if fio_output['fio version'].startswith('fio-2') else 'io_kbytes'
+
+        job = fio_output['jobs'][0]
+        log('fio results: read={}KiB, write={}KiB, time={}s'.format(
+            job['read'][io_kbytes_field],
+            job['write'][io_kbytes_field],
+            job['elapsed']))
+
+        self.fio_count = self.fio_count + 1
+        return fio_output
 
 class Connection(object):
     def __init__(self, node1, node2):
@@ -1551,20 +1539,6 @@ class Node(exxe.Exxe):
     def fio(self, *args, **kwargs):
         return self.volumes.fio(*args, **kwargs)
 
-    def fio_bench(self, section="bench", name=None, fio_extra=[], runtime=15):
-        """
-            Runs fio, but with a timelimit instead of sequential until EOF,
-            so that the results have some meaning.
-
-            With a 4M LV a single write pass has too much noise.
-        """
-        return self.fio(
-                section=section,
-                return_output=True,
-                name=name,
-                fio_extra=['runtime=%d' % runtime] + fio_extra,
-                )
-
     def net_device_to_peer(self, peer, net_num=0):
         """Returns the network device this peer is reachable via."""
         lines = self.run(['ip', '-o', 'route', 'get', peer.addrs[net_num]],
@@ -1822,7 +1796,6 @@ def setup(parser=argparse.ArgumentParser(),
     os.environ['LOGSCAN_TIMEOUT'] = '30'
     os.environ['DRBD_TEST_JOB'] = args.job
     os.environ['DRBD_LOG_DIR'] = args.logdir
-    os.environ['TOP'] = TOP
 
     if not silent:
         print('Logging to directory %s' % args.logdir, file=sys.stderr)
@@ -1925,82 +1898,6 @@ def setup(parser=argparse.ArgumentParser(),
                         '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'],
                        prepare=True)
     return resource
-
-class FioParser():
-    def _unit_to_num(self, string):
-        return {'': 1, 'K': 1e3, 'm': 1e-3, 'u': 1e-6}[string or '']
-
-    def _kv_into_dict(self, dest, string, unit=1.0):
-        # m = re.search(r"^(\S+) +clat \((\w+)\):(?: (\w+)=([\d\.]+),?)+\s*$", l)
-        # grx, re module doesn't support repeated captures
-        # http://stackoverflow.com/questions/9764930/capturing-repeating-subpatterns-in-python-regex
-        for part in string.split(", "):
-            kv = re.search("(\w+)\s*=\s*([\d\.]+)(K|m)?(B|B/s|sec)?", part)
-            # log(part)
-
-            unit2 = unit * self._unit_to_num(kv.group(3))
-            dest[kv.group(1)] = float(kv.group(2)) * unit2
-
-        return
-
-    def __init__(self, data):
-        self.lines = data
-        self.data = dict()
-
-        for i in range(0, len(self.lines)):
-
-            # test-vm-30:   write: io=1008.0KB, bw=67689B/s, iops=16, runt= 15249msec
-            m = re.search(r"^\S+\s+(read|write|\w+)\s*: (io=.*)", self.lines[i])
-            if not m:
-                continue
-
-            # fio returns two lines - one summary line, and one status group with some more data.
-            # get these merged.
-            k = m.group(1).lower()
-            res = self.data.get(k, None)
-
-            if not res:
-                res = StatsDict()
-                self.data[k] = res
-
-            self._kv_into_dict(res, m.group(2))
-
-            # test-vm-32:     clat (usec): min=3, max=990, avg= 5.51, stdev=29.75
-            n = re.search(r"^\S+\s+clat \((\w*)sec\): (.*)", self.lines[i+2])
-            if n:
-                unit = self._unit_to_num(n.group(1))
-                self._kv_into_dict(res, n.group(2), unit)
-
-            log(res)
-
-    def latency(self, what="write"):
-        """returns a dict with min/max/avg/... in sec"""
-        return self.data.get(what, None)
-
-
-class StatsDict(dict):
-    # see also http://stackoverflow.com/questions/4984647/accessing-dict-keys-like-an-attribute-in-python
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
-
-    def Z(self, val):
-        return (val - self.avg) / self.stdev
-
-    def Zmin(self):
-        return self.Z(self.min)
-
-    def Zmax(self):
-        return self.Z(self.max)
-
-
-class Measurement():
-    # writes into the STDOUT file, where a script fetches that afterwards
-
-    def __init__(self, path):
-        self.id = path
-
-    def save(self, name, value):
-        print('<measurement> | %s | %s | %s' % (self.id, name, value))
 
 
 # is assert(), but with non-conflicting name

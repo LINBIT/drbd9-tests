@@ -117,11 +117,11 @@ diskless_node.run(['umount', '/mnt/1'])
 log('* Writing from diskless node.')
 
 diskless_node.primary()
-diskless_node.fio(section='write')
+diskless_node.fio(drbdtest.fio_write_args)
 diskless_node.secondary()
 
 log('* Verifying on diskful node.')
-diskful_nodes[0].fio(section='verify')
+diskful_nodes[0].fio(drbdtest.fio_verify_args)
 
 log('* Disconnecting nodes.')
 diskless_node.primary()

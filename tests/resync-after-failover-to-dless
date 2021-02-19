@@ -37,7 +37,7 @@ def test(write_in_between, crashed_primary):
     log('* Preparing. with write_in_between=%d crashed_primary=%d' %
             (write_in_between, crashed_primary))
     target_n.primary()
-    target_v.write(bs=4096, count=1, flags=['oflag=direct'])
+    target_v.write(direct=1)
     target_diskless_c.disconnect(wait=False,force=True)
     target_source_c.disconnect(wait=False,force=True)
     target_n.down()
@@ -49,7 +49,7 @@ def test(write_in_between, crashed_primary):
     log('* The diskless becomes primary ')
     diskless_n.primary()
     if write_in_between:
-        diskless_v.write(bs=4096, count=1, flags=['oflag=direct'])
+        diskless_v.write(direct=1)
 
     log('* Reintegrating crashed primary')
     #target_n.up() But connect to diskless after resync, so open code:

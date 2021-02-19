@@ -8,7 +8,7 @@ from python.drbdtest import log
 from subprocess import CalledProcessError
 
 def write_on_node(node):
-    node.volumes.write(1, flags=['conv=fsync'])
+    node.volumes.write(end_fsync=1)
 
 resource = drbdtest.setup(min_nodes=4, max_nodes=4)
 resource.net_options = 'allow-two-primaries yes;'

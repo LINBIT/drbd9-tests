@@ -54,7 +54,7 @@ def pre_existing_test(write_between_actions = False):
     log('* Promoting the diskless')
     diskless_node.primary()
     if write_between_actions:
-        diskless_node.volumes.write(1, flags=['conv=fsync'])
+        diskless_node.volumes.write(end_fsync=1)
 
     log('* Connect the remaining server to the server that is already up')
     n = resource.nodes.diskful[0]

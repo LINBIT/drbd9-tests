@@ -5,7 +5,7 @@
 import time
 import random
 from python import drbdtest
-from python.drbdtest import log, mib_to_blocks
+from python.drbdtest import log
 from subprocess import CalledProcessError
 
 def test_io_errors():
@@ -17,7 +17,7 @@ def test_io_errors():
     resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Failed'])
     primary_n.set_fault_injection(resource.volumes[0], drbdtest.DF_DATA_WRITE)
     try:
-        primary_n.volumes[0].write(count=1, flags=['conv=fsync', 'oflag=direct'])
+        primary_n.volumes[0].write(end_fsync=1, direct=1)
     except CalledProcessError:
         pass
 
@@ -26,7 +26,7 @@ def test_io_errors():
 
     # verify that writes on the other volume don't work
     try:
-        primary_n.volumes[1].write(count=1, flags=['conv=fsync', 'oflag=direct'])
+        primary_n.volumes[1].write(end_fsync=1, direct=1)
         raise RuntimeError("writing should have caused an error")
     except CalledProcessError:
         # it failed, good

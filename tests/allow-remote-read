@@ -45,7 +45,7 @@ primary_n.set_fault_injection(resource.volumes[0], drbdtest.DF_DATA_WRITE)
 
 # verify that writes don't work
 try:
-    primary_n.volumes.write(count=1, flags=['conv=fsync'])
+    primary_n.volumes.write(end_fsync=1)
     raise RuntimeError("writing should have caused an error")
 except CalledProcessError:
     # it failed, good

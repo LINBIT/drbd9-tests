@@ -62,7 +62,7 @@ def test_write_between_disconnects(resource):
     connection_to_cut2.block(jump_to="DROP")
 
     try:
-        primary_n.volumes.write(1, flags=['oflag=direct'])
+        primary_n.volumes.write(direct=1)
         raise RuntimeError('Quorum was not lost, although expected!')
     except CalledProcessError:
         pass # Expect the IO error in case quorum was lost
@@ -104,7 +104,7 @@ def test_quick_promote(resource):
     secondaries_n.remove(primary_n)
     log('* %s is the primary' % primary_n.name)
     primary_n.primary()
-    primary_n.volumes.write(1, flags=['oflag=direct'])
+    primary_n.volumes.write(direct=1)
 
     log('* Isolating the primary, while writing at the same time')
     tmp_pri = random.choice(secondaries_n)
@@ -115,10 +115,10 @@ def test_quick_promote(resource):
     connections_to_cut.disconnect(wait = False, force = True)
 
     tmp_pri.primary()
-    tmp_pri.volumes.write(1, flags=['oflag=direct'])
+    tmp_pri.volumes.write(direct=1)
 
     try:
-        primary_n.volumes.write(1, flags=['oflag=direct'])
+        primary_n.volumes.write(direct=1)
         raise RuntimeError('Quorum was not lost, although expected!')
     except CalledProcessError:
         pass # Expect the IO error in case quorum was lost

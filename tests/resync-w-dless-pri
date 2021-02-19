@@ -29,12 +29,12 @@ flapping_to_stable_c = from_flapping_c.to_node(stable_n)
 def prelude(do_resync, text):
     log(text)
     diskless_n.primary()
-    diskless_v.write(count=1, flags=['oflag=direct'])
+    diskless_v.write(direct=1)
 
     from_flapping_c.disconnect()
     dless_to_flapping_pd.event(r'peer-device .* replication:Off')
     if do_resync:
-        diskless_v.write(bs=1024*1024, count=1, offset=1, flags=['oflag=direct'])
+        diskless_v.write(size='1M', bs='1M', offset='1M', direct=1)
 
 def postlude():
     dless_to_flapping_pd.event(r'peer-device .* peer-disk:UpToDate')

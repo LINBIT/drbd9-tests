@@ -15,7 +15,7 @@
 # 4) Slowly but surely, the resync should finish in finite time.
 
 from python import drbdtest
-from python.drbdtest import log, mib_to_blocks
+from python.drbdtest import log
 import time
 from threading import Thread
 
@@ -47,7 +47,7 @@ to_writing.event(r'connection .* connection:TearDown')
 to_writing.event(r'connection .* connection:Connecting')
 
 # write to node
-writing_n.volumes.write(mib_to_blocks(80), offset=mib_to_blocks(20), flags=['conv=fsync'])
+writing_n.volumes.write(size='80M', offset='20M', end_fsync=1)
 
 # reconnect
 writing_conn.connect()

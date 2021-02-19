@@ -28,8 +28,8 @@ pd_from_first = resource.peer_devices.from_node(first_n).to_node(second_n)[0]
 def test():
     conns.disconnect()
 
-    first_n.volumes[0].write(count=1, bs=1024, flags=['oflag=direct'])
-    second_n.volumes[0].write(count=1, bs=1024, flags=['oflag=direct'])
+    first_n.volumes[0].write(direct=1)
+    second_n.volumes[0].write(direct=1)
 
     conns.connect()
     ev = conns.event(r'connection .* connection:(StandAlone|Connecting)')

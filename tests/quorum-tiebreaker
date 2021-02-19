@@ -200,7 +200,7 @@ def test_case3_promote():
     A.secondary()
     B.primary(wait=True)
 
-    B.volumes.write(1, flags=['oflag=direct'])
+    B.volumes.write(direct=1)
 
     # reconnect A-B
     my_log('* Unblocking A-B')

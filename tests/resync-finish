@@ -32,7 +32,7 @@ forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
 backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
 
 forward_c.disconnect()
-source_n.volumes[0].write(count=8, bs=MB, flags=['oflag=direct'])
+source_n.volumes[0].write(size='8M', bs='1M', direct=1)
 forward_c.connect()
 
 forward_pd.event(r'peer-device .* replication:SyncSource')
@@ -44,7 +44,7 @@ forward_c.event(r'connection .* connection:Unconnected')
 source_n.unblock_packet_type(drbdtest.P_UUIDS110, from_node=target_n)
 
 forward_c.disconnect()
-source_n.volumes[0].write(offset=9*MB//4096, count=10, bs=4096, flags=['oflag=direct'])
+source_n.volumes[0].write(size='40K', offset='9M', direct=1)
 forward_c.connect()
 backward_c.connect()
 

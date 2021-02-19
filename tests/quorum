@@ -25,7 +25,7 @@ from subprocess import CalledProcessError
 random.seed()
 
 def write_on_node(node):
-    node.volumes.write(1, flags=['oflag=direct'])
+    node.volumes.write(direct=1)
 
 def my_log(str):
     log(str)

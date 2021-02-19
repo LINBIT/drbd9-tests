@@ -53,7 +53,7 @@ connections_a.disconnect()
 
 def write_new_data_on_a():
     log('* Preparing.')
-    volume_a.write(bs='3M', count=1, flags=['oflag=direct'])
+    volume_a.write(size='3M', bs='3M', direct=1)
     resource.down()
     node_a.up()
     connections_a.disconnect()

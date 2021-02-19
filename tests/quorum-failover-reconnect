@@ -30,13 +30,13 @@ resource.forbidden_patterns.remove(r'connection:BrokenPipe')
 
 log('* Promote first primary')
 node_p1.primary()
-node_p1.volumes.write(1, flags=['oflag=direct'])
+node_p1.volumes.write(direct=1)
 
 # flap to generate a UUID that is not the initial UUID, otherwise the issue
 # does not occur
 log('* Disconnect and reconnect secondary')
 bidir_p1_s.disconnect(force=True)
-node_p1.volumes.write(1, flags=['oflag=direct'])
+node_p1.volumes.write(direct=1)
 bidir_p1_s.connect()
 peer_devices_p1_s.event(r'peer-device .* peer-disk:UpToDate')
 
@@ -48,7 +48,7 @@ node_p1.secondary()
 
 log('* Promote second primary')
 node_p2.primary()
-node_p2.volumes.write(1, flags=['oflag=direct'])
+node_p2.volumes.write(direct=1)
 
 # flap again to cause a sync from node_p2 to node_s
 log('* Disconnect and reconnect secondary from second primary')

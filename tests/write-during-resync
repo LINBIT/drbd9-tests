@@ -20,7 +20,7 @@
 #    cluster to deadlock.
 
 from python import drbdtest
-from python.drbdtest import log, mib_to_blocks
+from python.drbdtest import log
 import time
 import socket
 
@@ -41,7 +41,7 @@ def restore_slow_down(from_n, to_n):
     from_n.run(['tc', 'qdisc', 'del', 'root', 'dev', dev])
 
 def write_on_node(node):
-    node.volumes.write(mib_to_blocks(100), offset=mib_to_blocks(10), flags=['conv=fsync'])
+    node.volumes.write(size='100M', offset='10M', end_fsync=1)
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.net_options = 'connect-int 1;'

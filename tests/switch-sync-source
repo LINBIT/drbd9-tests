@@ -22,7 +22,7 @@
 import time
 import random
 from python import drbdtest
-from python.drbdtest import log, mib_to_blocks
+from python.drbdtest import log
 from subprocess import CalledProcessError
 import socket
 
@@ -64,7 +64,7 @@ slow_down_connection(primary, slow, speed='100mbit')
 
 c = resource.connections.to_node(primary)
 
-primary.volumes.write(mib_to_blocks(100), flags=['conv=fsync'])
+primary.volumes.write(size='100M', end_fsync=1)
 
 fast.attach()
 slow.attach()

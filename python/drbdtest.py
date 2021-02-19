@@ -173,12 +173,6 @@ def debug(*args, **kwargs):
     if level <= debug_level:
         print(*args, file=logstream)
 
-def kib_to_blocks(b):
-    return n * 2**10 // 4096
-
-def mib_to_blocks(n):
-    return n * 2**20 // 4096
-
 class Cleanup(object):
     """ Catch uncaught exceptions, set skip_cleanup accordingly and log. """
 
@@ -968,11 +962,17 @@ class Volume(object):
     def device(self):
         return '/dev/drbd%d' % self.minor
 
-    def write(self, count, offset=0, bs=4096, flags=[]):
-        cmd = ['dd', 'if=/dev/urandom', 'of=' + self.device(), 'bs={0}'.format(bs),
-               'seek={0}'.format(offset), 'count={0}'.format(count)]
-        cmd.extend(flags)
-        self.node.run(cmd)
+    def write(self, **kwargs):
+        """
+        Write some data to the volume using fio.
+
+        Keyword arguments override fio parameters. E.g.
+        volume.write(offset='10M')
+        """
+        default_args = {
+            'size': '4K',
+            'randrepeat': 0}
+        self.fio({**fio_write_args, **default_args}, **kwargs)
 
     def fio(self, base_args, **kwargs):
         """

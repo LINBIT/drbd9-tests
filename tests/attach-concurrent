@@ -25,7 +25,7 @@ secondaries.volumes.event(r'device .* disk:UpToDate')
 
 log('* detach/attach with write in between.')
 secondaries.detach()
-primary_n.volumes.write(1, flags=['oflag=direct'])
+primary_n.volumes.write(direct=1)
 secondaries.attach()
 secondaries.volumes.event(r'device .* disk:UpToDate')
 

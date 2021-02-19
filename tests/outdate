@@ -16,7 +16,7 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 def write_on_node(node):
-    node.volumes.write(1, flags=['conv=fsync'])
+    node.volumes.write(end_fsync=1)
 
 def wait_backward_propagating_resyncs(nodes):
     for i in range(len(nodes) - 1, 0):

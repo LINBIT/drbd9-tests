@@ -21,8 +21,8 @@ from python.drbdtest import log
 
 def write_on_node(node):
     global write_offset
-    node.volumes.write(1, offset=write_offset, flags=['conv=fsync'])
-    write_offset += 1
+    node.volumes.write(offset='{}K'.format(write_offset), end_fsync=1)
+    write_offset += 4
 
 def assert_resync_dir(forward_c, backward_c, oos_str):
     v = resource.volumes[0]

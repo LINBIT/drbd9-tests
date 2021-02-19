@@ -52,7 +52,7 @@ resource.forbidden_patterns.difference_update([
     r'connection:BrokenPipe'
 ])
 
-B.volumes.write(1, bs='1M', flags=['oflag=direct'])
+B.volumes.write(size='1M', bs='1M', direct=1)
 A.block_packet_type(drbdtest.P_UUIDS110, from_node=C)
 from_a.connect()
 

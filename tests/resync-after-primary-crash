@@ -57,7 +57,7 @@ def md5sum_first_1k(node):
 def test():
     witnessed_resync_from_primary = False
     source_n.primary()
-    source_n.volumes[0].write(count=1, bs=1024, flags=['oflag=direct'])
+    source_n.volumes[0].write(size='1K', bs='1K', direct=1)
     md5sum = md5sum_first_1k(source_n)
 
     simulate_node_crash(source_n)

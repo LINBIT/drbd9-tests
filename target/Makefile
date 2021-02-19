@@ -30,13 +30,9 @@ data_scripts := \
 	drbdadm \
 	enable-faults \
 	install-config \
-	io-load-dd \
-	mark \
 	register-cleanup \
-	reset-iptables \
 	reset-rsyslogd \
 	rsyslogd \
-	unblock-connection \
 	misaligned_bio.py \
 	stress-al.py \
 	unusual_bios.py \

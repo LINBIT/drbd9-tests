@@ -1,9 +1,0 @@
-#! /bin/sh
-
-{   iptables -D INPUT -j drbd-test-input || :
-    iptables -D OUTPUT -j drbd-test-output || :
-    for chain in drbd-test-input drbd-test-output; do
-	iptables -F $chain || :
-	iptables -X $chain || :
-    done
-} 2> /dev/null

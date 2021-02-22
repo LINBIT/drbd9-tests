@@ -27,9 +27,7 @@ for i in (1,2,3):
 
     # write data
     with first.asPrimary():
-        first.run(["dd",
-                "if=/dev/zero", "of=%s" % resource.volumes[0].device(),
-                "bs=1M", "count=4", "oflag=direct"])
+        first.write(size='4M', bs='1M', direct=1)
 
         # The replication state will move to "Ahead/Behind" *while*
         # the first VM is still Primary.

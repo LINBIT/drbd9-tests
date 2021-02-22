@@ -38,7 +38,7 @@ node_a.run(['mkfs.ext4', '-Elazy_itable_init=0', '-Elazy_journal_init=0',
             '-Enodiscard', dev_name])
 node_a.run(['mkdir', '-p', '/mnt/1'])
 node_a.run(['mount', dev_name, '/mnt/1'])
-node_a.run(['dd', 'if=/dev/urandom', 'of=/mnt/1/file', 'bs=1M', 'count=1'])
+node_a.fio_file('/mnt/1/file', drbdtest.fio_write_args, randrepeat=0, size='1M', bs='1M')
 md5sum_a = node_a.run(['md5sum', '/mnt/1/file'], return_stdout=True)
 node_a.run(['umount', '/mnt/1'])
 

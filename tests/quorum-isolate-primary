@@ -81,7 +81,7 @@ def test_write_between_disconnects(resource):
     reconciliation_pd.event(r'peer-device .* replication:SyncTarget')
     reconciliation_pd.event(r'peer-device .* replication:Established')
     tmp_pri.event(r'resource .* role:Primary')
-    tmp_pri.run(["dd", "if=/dev/zero", "of=%s" % (dev_name), "bs=%dk" % 4, "count=1",  "oflag=direct"])
+    tmp_pri.write(direct=1)
 
     log('* re-integrating')
     tmp_pri.secondary()

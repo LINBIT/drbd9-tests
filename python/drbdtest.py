@@ -129,6 +129,11 @@ fio_verify_args = {
         'verify_only': 1,
         'rw': 'read'}
 
+fio_write_small_args = {
+        **fio_write_args,
+        'size': '4K',
+        'randrepeat': 0}
+
 silent = False
 debug_level = 0
 skip_cleanup = False
@@ -474,11 +479,13 @@ class Volumes(Collection):
     def resize(self, size):
         return [v.resize(size) for v in self if v.disk is not None]
 
-    def write(self, *args, **kwargs):
+    def write(self, **kwargs):
+        """ Write some data to each of the volumes using fio. """
         for v in self:
-            v.write(*args, **kwargs)
+            v.write(**kwargs)
 
     def fio(self, *args, **kwargs):
+        """ Run fio on each of the volumes. """
         for v in self:
             v.fio(*args, **kwargs)
 
@@ -906,7 +913,6 @@ class Volume(object):
             max_peers = len(node.resource.nodes) - 1
             if max_peers < 1:
                 max_peers = 1
-        self.fio_count = 0
         self.disk = None
         self.meta = None
         self.disk_lv = None
@@ -966,57 +972,19 @@ class Volume(object):
         """
         Write some data to the volume using fio.
 
-        Keyword arguments override fio parameters. E.g.
+        Keyword arguments override fio parameters. Example:
         volume.write(offset='10M')
         """
-        default_args = {
-            'size': '4K',
-            'randrepeat': 0}
-        self.fio({**fio_write_args, **default_args}, **kwargs)
+        self.node.fio_file(self.device(), fio_write_small_args, **kwargs)
 
-    def fio(self, base_args, **kwargs):
+    def fio(self, *args, **kwargs):
         """
-        Run fio, the 'flexible I/O tester'.
+        Run fio on the volume.
 
-        base_args is a dict mapping fio parameter keys to their values
-
-        The remaining keyword arguments also specify fio parameters. These
-        parameters override the base_args. E.g.
+        Example:
         volume.fio(fio_write_args, bs='64K')
         """
-        node = self.node
-
-        arg_dict = {**base_args, **kwargs}
-        fio_args = ['--{}={}'.format(key, value) for (key, value) in arg_dict.items()]
-
-        cmd = ['fio',
-                '--output-format=json',
-                # reduce the amount of memory which fio tries to allocate
-                '--max-jobs=16',
-                '--name=test',
-                '--filename={}'.format(self.device()),
-                *fio_args]
-
-        result = node.run(cmd, return_stdout=True)
-
-        output_filename = 'fio-{}-{}-{}.json'.format(node.name, self.volume, self.fio_count)
-        log('write fio output to {}'.format(output_filename))
-        with open(os.path.join(node.resource.logdir, output_filename), 'w') as output_file:
-            output_file.write(result)
-
-        fio_output = json.loads(result)
-
-        # Ubuntu Xenial distributes fio version 2, which names the io_kbytes field wrongly
-        io_kbytes_field = 'io_bytes' if fio_output['fio version'].startswith('fio-2') else 'io_kbytes'
-
-        job = fio_output['jobs'][0]
-        log('fio results: read={}KiB, write={}KiB, time={}s'.format(
-            job['read'][io_kbytes_field],
-            job['write'][io_kbytes_field],
-            job['elapsed']))
-
-        self.fio_count = self.fio_count + 1
-        return fio_output
+        return self.node.fio_file(self.device(), *args, **kwargs)
 
 class Connection(object):
     def __init__(self, node1, node2):
@@ -1198,6 +1166,7 @@ class Node(exxe.Exxe):
         self.port = port
         self.disks = []  # by volume
         self.id = len(self.resource.nodes)
+        self.fio_count = 0
         self.resource.nodes.add(self)
         self.resource.posfiles_add_node(self)
         self.minors = 0
@@ -1536,8 +1505,55 @@ class Node(exxe.Exxe):
     def disconnect(self, node, wait=True):
         return Connections([Connection(self, node)]).disconnect(wait=wait)
 
+    def write(self, **kwargs):
+        """ Write some data to each of the volumes on this node using fio. """
+        for v in self.volumes:
+            self.fio_file(v.device(), fio_write_small_args, **kwargs)
+
     def fio(self, *args, **kwargs):
-        return self.volumes.fio(*args, **kwargs)
+        """ Run fio on each of the volumes on this node. """
+        for v in self.volumes:
+            self.fio_file(v.device(), *args, **kwargs)
+
+    def fio_file(self, filename, base_args, **kwargs):
+        """
+        Run fio on a given file.
+
+        base_args is a dict mapping fio parameter keys to their values
+
+        The remaining keyword arguments also specify fio parameters. These
+        parameters override the base_args.
+        """
+        arg_dict = {'filename': filename, **base_args, **kwargs}
+        fio_args = ['--{}={}'.format(key, value) for (key, value) in arg_dict.items()]
+
+        cmd = ['fio',
+                '--output-format=json',
+                # reduce the amount of memory which fio tries to allocate
+                '--max-jobs=16',
+                '--name=test',
+                *fio_args]
+
+        result = self.run(cmd, return_stdout=True)
+
+        output_filename = 'fio-{}-{}.json'.format(self.name, self.fio_count)
+        log('write fio output to {}'.format(output_filename))
+        with open(os.path.join(self.resource.logdir, output_filename), 'w') as output_file:
+            output_file.write(result)
+
+        fio_output = json.loads(result)
+
+        # Ubuntu Xenial distributes fio version 2, which names the io_kbytes field wrongly
+        io_kbytes_field = 'io_bytes' if fio_output['fio version'].startswith('fio-2') else 'io_kbytes'
+
+        job = fio_output['jobs'][0]
+        log('fio results: read={}KiB, write={}KiB, time={}s'.format(
+            job['read'][io_kbytes_field],
+            job['write'][io_kbytes_field],
+            job['elapsed']))
+
+        self.fio_count = self.fio_count + 1
+        return fio_output
 
     def net_device_to_peer(self, peer, net_num=0):
         """Returns the network device this peer is reachable via."""

@@ -31,10 +31,10 @@ connections_to_a = resource.connections.to_node(node_a)
 connections_to_a.event(r'connection .* role:Primary')
 
 resource.connections.from_node(node_c).disconnect()
-node_a.run(['dd', 'if=/dev/zero', 'of=%s' % (dev_name), 'bs=1024', 'count=1'])
+node_a.write()
 
 resource.connections.from_node(node_b).disconnect()
-node_a.run(['dd', 'if=/dev/zero', 'of=%s' % (dev_name), 'bs=1024', 'count=1'])
+node_a.write()
 
 drbdtest.Connection(node_c, node_a).connect()
 node_c.volumes.event(r'device .* disk:UpToDate')

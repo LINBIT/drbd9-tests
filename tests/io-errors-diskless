@@ -51,7 +51,7 @@ resource.skip_initial_sync();
 
 log('* Preparing data for READ test.')
 failing_n = random.choice(diskful_nodes)
-failing_n.run(['dd', 'if=/dev/urandom', 'of=%s' % (vol.device()), 'bs=4096', 'oflag=direct', 'count=20'])
+failing_n.write(size='80K', direct=1)
 md5sums = []
 for i in range(0, 20):
     md5sum = failing_n.run(['/bin/bash', '-c',

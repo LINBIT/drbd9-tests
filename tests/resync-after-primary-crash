@@ -44,8 +44,8 @@ def simulate_node_crash(node):
               'restore-md', '/tmp/md.txt', '--force'])
     node.run(['rm', '/tmp/md.txt'])
 
-    # Modify the first 1k on the backing device, simulating a "last write" before the crash
-    node.run(['dd', 'if=/dev/urandom', 'of=%s' % (node.disks[0].disk), 'bs=1024', 'count=1', 'oflag=direct'])
+    # Modify the first 4k on the backing device, simulating a "last write" before the crash
+    node.fio_file(node.disks[0].disk, drbdtest.fio_write_small_args, direct=1)
 
 
 def md5sum_first_1k(node):

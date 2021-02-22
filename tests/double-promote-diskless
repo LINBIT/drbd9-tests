@@ -19,7 +19,7 @@ def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
     def new_current_uuid_a():
         node_a.primary()
         time.sleep(0.2)
-        node_a.run(cmd)
+        node_a.write(direct=1)
         time.sleep(0.2)
         node_a.secondary()
         time.sleep(0.2)
@@ -30,9 +30,6 @@ def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
     connection_cb.disconnect()
 
     log('* Promoting multiple times on %s' % (node_a.name))
-    dev_name = node_a.volumes[0].device()
-    cmd = ['dd', 'if=/dev/urandom', 'of=%s' % (dev_name), 'bs=4k', 'count=1', 'oflag=direct']
-
     new_current_uuid_a()
     connection_ca.disconnect()
     new_current_uuid_a()

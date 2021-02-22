@@ -20,8 +20,7 @@ def write_on_node(node, file_nr, megs):
 
     node.run(['mkdir', '-p', '/mnt/1'])
     node.run(['mount', dev_name, '/mnt/1'])
-    node.run(['dd', 'if=/dev/urandom', 'of=/mnt/1/file%d' % (file_nr) , 'bs=1M',
-              'count=%d' % (megs)])
+    node.fio_file('/mnt/1/file%d' % (file_nr) , drbdtest.fio_write_args, size='%dM' % (megs), bs='1M')
     node.run(['umount', '/mnt/1'])
 
 def disconnect_and_write(n, file_nr):

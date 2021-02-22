@@ -39,25 +39,21 @@ resource.skip_initial_sync()
 node_a = resource.nodes[0]
 node_b = resource.nodes[1]
 node_c = resource.nodes[2]
-dev_name = node_a.volumes[0].device()
 
 log('* Run test')
 node_a.primary()
 
 log('* Disconnect and write something so that the initial UUID is no longer current')
 resource.connections.from_node(node_c).disconnect()
-node_a.run(['dd', 'if=/dev/zero', 'of=' + dev_name,
-    'bs=1M', 'count=1', 'seek=1', 'conv=fsync'])
+node_a.write(size='1M', bs='1M', offset='1M', end_fsync=1)
 drbdtest.Connection(node_c, node_a).connect()
 wait_sync(node_a, node_c)
 
 resource.connections.from_node(node_c).disconnect()
-node_a.run(['dd', 'if=/dev/zero', 'of=' + dev_name,
-    'bs=1M', 'count=1', 'conv=fsync'])
+node_a.write(size='1M', bs='1M', end_fsync=1)
 
 resource.connections.from_node(node_b).disconnect()
-node_a.run(['dd', 'if=/dev/zero', 'of=' + dev_name,
-    'bs=1M', 'count=1', 'seek=1', 'conv=fsync'])
+node_a.write(size='1M', bs='1M', offset='1M', end_fsync=1)
 
 resource.connections.from_node(node_a).disconnect()
 

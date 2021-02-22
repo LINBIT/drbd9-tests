@@ -26,8 +26,7 @@ nfnr = 0
 md5_table = []
 def create_file(node, count):
     global nfnr, md5_table
-    node.run(['dd', 'if=/dev/urandom', 'of=/mnt/1/f_%d' % (nfnr) , 'bs=4096',
-        'count=%d' % (count), 'conv=fsync'])
+    node.fio_file('/mnt/1/f_%d' % (nfnr), drbdtest.fio_write_args, randrepeat=0, size=count*4096, end_fsync=1)
     md5_table.insert(nfnr, node.run(['md5sum', '/mnt/1/f_%d' % (nfnr)], return_stdout=True))
     nfnr += 1
 

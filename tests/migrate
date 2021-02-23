@@ -7,10 +7,7 @@ from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
 
-def write_on_node(node):
-    node.volumes.write(end_fsync=1)
-
-resource = drbdtest.setup(min_nodes=4, max_nodes=4)
+resource = drbdtest.setup(nodes=4)
 resource.net_options = 'allow-two-primaries yes;'
 
 diskful_nodes = resource.nodes[2:]
@@ -31,7 +28,7 @@ log('* Migrate from diskfull to diskfull with write on new node')
 diskful_nodes[0].primary()
 diskful_nodes[1].primary()
 
-write_on_node(diskful_nodes[1])
+diskful_nodes[1].volumes.write(end_fsync=1)
 
 diskful_nodes[0].secondary()
 diskful_nodes[1].secondary()
@@ -42,7 +39,7 @@ log('* Migrate from diskfull to diskless with write on new node')
 diskful_nodes[0].primary()
 diskless_nodes[0].primary()
 
-write_on_node(diskless_nodes[0])
+diskless_nodes[0].volumes.write(end_fsync=1)
 
 diskful_nodes[0].secondary()
 # The above triggers the bug that diskles_node[0] sees the diskful_nodes[0]
@@ -57,7 +54,7 @@ diskful_nodes[0].primary() # Just for generating a send state later
 diskless_nodes[0].primary() # both diskless primary
 diskless_nodes[1].primary()
 
-write_on_node(diskless_nodes[1]) # One writes something to generate new current UUID
+diskless_nodes[1].volumes.write(end_fsync=1) # One writes something to generate new current UUID
 diskless_nodes[1].secondary() # diskles_node[0] missed to receive new current UUID
 
 diskful_nodes[0].secondary() # Trigger a send state

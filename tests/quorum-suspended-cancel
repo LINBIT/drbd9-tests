@@ -46,7 +46,7 @@ def do_test(primary_n, other_nodes, wait_before_write):
     if not wait_before_write:
         dd_pid = write_on_node(primary_n)
 
-    primary_conn.event(r'connection:NetworkFailure')
+    primary_conn.event(r'connection:(NetworkFailure|Timeout)')
     primary_n.event(r'device .* quorum:no')
 
     if wait_before_write:
@@ -86,7 +86,7 @@ primary_n.primary()
 resource.forbidden_patterns.difference_update([
     r'connection:NetworkFailure',
     r'connection:BrokenPipe',
-    r'connection:ProtocolError'
+    r'connection:Timeout'
 ])
 
 log('* Test Case 1')

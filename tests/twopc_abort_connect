@@ -41,7 +41,11 @@ resource.up_wait()
 
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
-resource.forbidden_patterns.difference_update([r'connection:NetworkFailure', r'connection:BrokenPipe'])
+resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
+    r'connection:BrokenPipe',
+    r'connection:Timeout',
+])
 [node_a, node_b, node_c] = list(resource.nodes)
 conn_a_c = resource.connections.from_node(node_a).to_node(node_c)[0]
 

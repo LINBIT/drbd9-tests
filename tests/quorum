@@ -61,7 +61,7 @@ connections_witness = resource.connections.from_node(primary_a)
 resource.forbidden_patterns.difference_update([
     r'connection:NetworkFailure',
     r'connection:BrokenPipe',
-    r'connection:ProtocolError'
+    r'connection:Timeout'
 ])
 
 tmp_old_pri.disconnect(wait = True, force = True)
@@ -78,7 +78,7 @@ except CalledProcessError:
 connections_to_cut.unblock(jump_to="REJECT")
 
 connections_to_cut.event(r'connection .* connection:StandAlone')
-connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|ProtocolError)')
+connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|Timeout)')
 
 primary_a.secondary() # Yes!
 tmp_pri.primary()
@@ -124,7 +124,7 @@ while len(partition_b) < len(partition_a):
     resource.forbidden_patterns.difference_update([
         r'connection:NetworkFailure',
         r'connection:BrokenPipe',
-        r'connection:ProtocolError'
+        r'connection:Timeout'
     ])
 
     moving.block_paths(jump_to="REJECT")
@@ -137,12 +137,12 @@ while len(partition_b) < len(partition_a):
         pass # Expect the IO error in case quorum was lost
 
     connections_to_cut.event(r'connection .* connection:StandAlone')
-    connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|ProtocolError)')
+    connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|Timeout)')
 
     resource.forbidden_patterns.update([
         r'connection:NetworkFailure',
         r'connection:BrokenPipe',
-        r'connection:ProtocolError'
+        r'connection:Timeout'
     ])
 
     connections_new = partition_b.bidir_connections_to_node(moving)
@@ -198,7 +198,7 @@ for node_a in partition_a:
 
 resource.forbidden_patterns.difference_update([
     r'connection:BrokenPipe',
-    r'connection:ProtocolError'
+    r'connection:Timeout'
 ])
 
 connections_new.connect()

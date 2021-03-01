@@ -49,10 +49,11 @@ def outdate_test(write_between_actions = False):
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
     log("* See if node becomes Outdated when connection to primary is lost.")
-    resource.forbidden_patterns.difference_update([r'connection:NetworkFailure'])
+    resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+    resource.forbidden_patterns.remove(r'connection:Timeout')
 
     first_node.block_path(last_node, 0)
-    cs.event(r'connection .* connection:NetworkFailure')
+    cs.event(r'connection .* connection:(NetworkFailure|Timeout)')
     last_node.volumes[0].event(r'device .* disk:Outdated')
     if write_between_actions:
         write_on_node(first_node)
@@ -62,7 +63,8 @@ def outdate_test(write_between_actions = False):
     last_node.volumes[0].event(r'device .* disk:UpToDate')
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
-    resource.forbidden_patterns.update([r'connection:NetworkFailure'])
+    resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:Timeout')
 
     log("* See if node becomes Outdated when disconnecting from the primary.")
     first_to_last = drbdtest.Connections()

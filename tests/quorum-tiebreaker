@@ -39,6 +39,7 @@ def test_case1():
     my_log('* Test Case 1')
     # simulate network outage between A and B
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+    resource.forbidden_patterns.remove(r'connection:Timeout')
     resource.forbidden_patterns.add(r'quorum:no') # no nodes should lose quorum
 
     my_log('* Blocking A-B')
@@ -46,7 +47,7 @@ def test_case1():
 
     # wait for disconnect
     conn = resource.connections.from_node(A).to_node(B)
-    conn.event(r'connection:NetworkFailure')
+    conn.event(r'connection:(NetworkFailure|Timeout)')
     B.event(r'device .* disk:Outdated') # verify that secondary becomes outdated
 
     # reconnect
@@ -55,6 +56,7 @@ def test_case1():
     conn.event(r'connection .* connection:Connected')
     my_log('* All nodes connected again')
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:Timeout')
     resource.forbidden_patterns.remove(r'quorum:no')
 
 def test_case2():
@@ -74,6 +76,7 @@ def test_case2():
     my_log('* Test Case 2')
     # simulate network outage between A and B
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+    resource.forbidden_patterns.remove(r'connection:Timeout')
 
     my_log('* Blocking A-B')
     A.block_path(B, 0)
@@ -84,8 +87,8 @@ def test_case2():
     connab = resource.connections.from_node(A).to_node(B)
     connbc = resource.connections.from_node(B).to_node(C)
     connac = resource.connections.from_node(A).to_node(C)
-    connab.event(r'connection:NetworkFailure')
-    connbc.event(r'connection:NetworkFailure')
+    connab.event(r'connection:(NetworkFailure|Timeout)')
+    connbc.event(r'connection:(NetworkFailure|Timeout)')
 
     A.event(r'connection:Unconnected', no=r'quorum:no') # primary should not lose quorum
     B.event(r'connection:Unconnected', r'quorum:no') # secondary should lose quorum
@@ -112,6 +115,7 @@ def test_case2():
 
     my_log('* All nodes connected again')
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:Timeout')
 
 def test_case3():
     """
@@ -130,6 +134,7 @@ def test_case3():
     """
     my_log('* Test Case 3')
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+    resource.forbidden_patterns.remove(r'connection:Timeout')
 
     connab = resource.connections.from_node(A).to_node(B)
     connac = resource.connections.from_node(A).to_node(C)
@@ -137,11 +142,11 @@ def test_case3():
 
     my_log('* Blocking A-C')
     A.block_path(C, 0)
-    connac.event(r'connection:NetworkFailure')
+    connac.event(r'connection:(NetworkFailure|Timeout)')
 
     my_log('* Blocking A-B')
     A.block_path(B, 0)
-    connab.event(r'connection:NetworkFailure')
+    connab.event(r'connection:(NetworkFailure|Timeout)')
 
     A.event(r'connection:Unconnected', r'quorum:no') # primary should lose quorum
     B.event(r'connection:Unconnected', no=r'quorum:no') # secondary should not lose quorum
@@ -167,6 +172,7 @@ def test_case3():
 
     my_log('* All nodes connected again')
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:Timeout')
 
 def test_case3_promote():
     """
@@ -177,6 +183,7 @@ def test_case3_promote():
     my_log('* Test Case 3 (promote)')
 
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+    resource.forbidden_patterns.remove(r'connection:Timeout')
 
     connab = drbdtest.Connection(A, B)
     connba = drbdtest.Connection(B, A)
@@ -185,11 +192,11 @@ def test_case3_promote():
 
     my_log('* Blocking A-C')
     A.block_path(C, 0)
-    connac.event(r'connection:NetworkFailure')
+    connac.event(r'connection:(NetworkFailure|Timeout)')
 
     my_log('* Blocking A-B')
     A.block_path(B, 0)
-    connab.event(r'connection:NetworkFailure')
+    connab.event(r'connection:(NetworkFailure|Timeout)')
 
     #B.event(r'disk:UpToDate')
 
@@ -220,6 +227,7 @@ def test_case3_promote():
 
     my_log('* All nodes connected again')
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:Timeout')
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 
@@ -258,6 +266,8 @@ for case in cases:
 
 # clean up
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+resource.forbidden_patterns.remove(r'connection:Timeout')
+
 resource.down()
 
 try:

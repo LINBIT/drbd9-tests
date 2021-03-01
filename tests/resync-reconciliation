@@ -46,7 +46,11 @@ backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
 slow_primary_c = resource.connections.from_node(secondary_slow).to_node(primary_n)[0]
 slow_primary_pd = drbdtest.PeerDevice(slow_primary_c, resource.volumes[0])
 
-resource.forbidden_patterns.difference_update([r'connection:NetworkFailure', r'connection:BrokenPipe'])
+resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
+    r'connection:BrokenPipe',
+    r'connection:Timeout',
+])
 
 def sectors_received(node, res_name, peer_node_name):
     status_str = node.run(["drbdsetup", "status", res_name, "--statistics"], return_stdout=True)
@@ -94,6 +98,7 @@ def do_test(with_promote):
         secondary_slow.primary(wait=False)
 
     conn_to_primary = resource.connections.to_node(primary_n)
+    failure_state = conn_to_primary.event(r'connection .* connection:(NetworkFailure|Timeout)')
     conn_to_primary.event(r'connection .* connection:Unconnected')
 
     conn_to_secondaries = resource.connections.from_node(primary_n)
@@ -138,7 +143,7 @@ def do_test(with_promote):
     conn_slow.event(r'connection:Connected')
     conn_quick.event(r'connection:Connected')
 
-    if with_promote == EARLY:
+    if with_promote == EARLY and failure_state[0][0] == 'NetworkFailure':
         # Expect resync from secondary_slow to primary
         slow_primary_pd.event(r'peer-device .* replication:SyncSource')
         slow_primary_pd.event(r'peer-device .* replication:Established')

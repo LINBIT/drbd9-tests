@@ -1515,7 +1515,7 @@ class Node(exxe.Exxe):
         for v in self.volumes:
             self.fio_file(v.device(), *args, **kwargs)
 
-    def fio_file(self, filename, base_args, **kwargs):
+    def fio_file(self, filename, base_args={}, **kwargs):
         """
         Run fio on a given file.
 

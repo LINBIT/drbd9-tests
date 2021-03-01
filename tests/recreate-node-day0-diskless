@@ -1,0 +1,48 @@
+#! /usr/bin/env python3
+#
+# This tests mimics the actions that happen when LINSTOR re-creates
+# a node that had a thinly provisioned resource.
+# I.e. a node goes away and returns later with the day0 current UUID
+#
+# Only 2 of the 3 nodes have a disk.
+
+from python import drbdtest
+from python.drbdtest import log
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup(nodes=3)
+diskful_nodes = resource.nodes[:2]
+node_a, node_b = diskful_nodes
+resource.add_disk('100M', max_peers=3, diskful_nodes=diskful_nodes) # That is one spare to keep day0 bitmap
+
+for n in diskful_nodes:
+    n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
+	   "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"])
+
+log('* All nodes on same current UUID, waiting for them to connect.')
+resource.up()
+resource.peer_devices.event(r'peer-device .* peer-disk:(UpToDate|Diskless)')
+
+log('* form a new current UUID that differs from the day0 UUID')
+node_a.write()
+
+log('* node_b gets lost')
+node_b.down()
+
+log('* remaining nodes form new current UUID')
+node_a.write()
+
+log('* node_b is repaired but returns with an empty disk (day0 current UUID)')
+# zero out the backing disk
+node_b.fio_file(node_b.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
+
+node_b.run(['drbdadm', 'create-md', '--force', '--max-peers=3', resource.name])
+node_b.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
+	   "--node-id=1", "set-gi", "87236C45CB784220:", "--force"])
+
+node_b.adjust()
+node_b.volumes.event(r'device .* disk:UpToDate')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

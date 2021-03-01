@@ -89,6 +89,9 @@ vms = [3]
 [tests.recreate-node-day0]
 vms = [3]
 
+[tests.recreate-node-day0-diskless]
+vms = [3]
+
 [tests.ref-count]
 vms = [2]
 

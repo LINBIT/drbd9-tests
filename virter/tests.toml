@@ -80,6 +80,12 @@ vms = [1]
 [tests.resize]
 vms = [2, 5]
 
+[tests.resync]
+vms = [3]
+
+[tests.resync-after-failover-to-dless]
+vms = [3]
+
 [tests.resync-between-targets]
 vms = [3]
 
@@ -93,6 +99,12 @@ vms = [2]
 vms = [2]
 samevms = true
 
+[tests.resync-reconciliation]
+vms = [3]
+
+[tests.resync-source-becomes-target]
+vms = [3]
+
 [tests.resync-target-primary]
 vms = [3]
 
@@ -103,6 +115,9 @@ vms = [3]
 vms = [3]
 
 [tests.resync-upstream-downstream]
+vms = [3]
+
+[tests.resync-w-dless-pri]
 vms = [3]
 
 [tests.split-brain]

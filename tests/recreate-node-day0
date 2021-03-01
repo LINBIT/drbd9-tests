@@ -3,15 +3,13 @@
 # This tests mimics the actions that happen when LINSTOR re-creates
 # a node that had a thinly provisioned resource.
 # I.e. a node goes away and returns later with the day0 current UUID
-#
 
-import random
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
 
-#random.seed()
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
+node_a, node_b, node_c = resource.nodes
 resource.add_disk('100M', max_peers=3) # That is one spare to keep day0 bitmap
 
 for n in resource.nodes:
@@ -20,16 +18,7 @@ for n in resource.nodes:
 
 log('* All nodes on same current UUID, waiting for them to connect.')
 resource.up()
-pds = drbdtest.PeerDevices()
-for n1 in resource.nodes:
-    for n2 in resource.nodes:
-        if n1 != n2:
-            for v in resource.nodes[0].volumes:
-                pds.add(drbdtest.PeerDevice(drbdtest.Connection(n1, n2), v))
-pds.event(r'peer-device .* peer-disk:UpToDate', timeout=30)
-
-#[node_a, node_b, node_c] = random.sample(resource.nodes, 3)
-[node_a, node_b, node_c] = resource.nodes
+resource.peer_devices.event(r'peer-device .* peer-disk:UpToDate', timeout=30)
 
 log('* Create data file on node_a and verify it on node_c')
 
@@ -75,13 +64,10 @@ node_a.run(['mount', dev_name, '/mnt/1'])
 node_a.run(['umount', '/mnt/1'])
 
 log('* node_c is repaired but returns with an empty disk (day0 current UUID)')
-bdev_name = '/dev/%s/%s' % (node_c.volume_group, node_c.volumes[0].disk_lv)
-try:
-    node_c.run(['dd', 'if=/dev/zero', 'of=%s' % (bdev_name), 'bs=1M'])
-except CalledProcessError:
-    pass #dd reports an error because it reaches end of device.
+# zero out the backing disk
+node_c.fio_file(node_c.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
 
-node_c.run(['drbdadm', 'create-md', '--force', resource.name])
+node_c.run(['drbdadm', 'create-md', '--force', '--max-peers=3', resource.name])
 node_c.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
 	   "--node-id=1", "set-gi", "87236C45CB784220:", "--force"])
 

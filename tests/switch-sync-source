@@ -16,11 +16,7 @@
 # Result: B should become SyncSource for C and sync should continue
 
 
-# As of now (drbd-9.0.17-rc1), this is NOT EXPECTED TO WORK.
-# TODO: Remove this notice when the behaviour is fixed
-
 import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
@@ -42,11 +38,9 @@ def restore_slow_down(from_n, to_n):
     dev = from_n.net_device_to_peer(to_n)
     from_n.run(['tc', 'qdisc', 'del', 'root', 'dev', dev])
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
-primary = resource.nodes[0]
-fast = resource.nodes[1]
-slow = resource.nodes[2]
+primary, fast, slow = resource.nodes
 resource.add_disk('128M')
 resource.up_wait()
 
@@ -64,7 +58,7 @@ slow_down_connection(primary, slow, speed='100mbit')
 
 c = resource.connections.to_node(primary)
 
-primary.volumes.write(size='100M', end_fsync=1)
+primary.write(size='100M', end_fsync=1)
 
 fast.attach()
 slow.attach()

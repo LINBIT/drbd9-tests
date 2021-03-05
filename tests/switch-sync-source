@@ -76,5 +76,6 @@ slow.event('response helper .* helper:after-resync-target')
 
 log('* Shut down and clean up.')
 restore_slow_down(primary, slow)
-resource.down()
+fast.down()
+slow.down()
 resource.rmmod()

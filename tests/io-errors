@@ -68,7 +68,7 @@ def test_tracking_writes(mode):
     primary_n.run(['dd', 'if=/tmp/data', 'of=%s' % (vol.device()), 'bs=1024', 'oflag=direct', 'count=12', 'seek=10216'])
     primary_n.secondary()
     if mode == M_RECREATE_MD:
-        primary_n.run(['drbdadm', 'create-md', '--force', resource.name])
+        primary_n.drbdadm(['create-md', '--force', resource.name])
 
     primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.disk_lv), 'bs=1024', 'oflag=direct', 'count=12', 'seek=10216'])
     primary_n.attach()

@@ -19,7 +19,7 @@ resource.add_disk('10M')
 
 source_n = resource.nodes[0]
 
-resource.nodes.run(['drbdadm', '--force', 'create-md', resource.name])
+resource.nodes.drbdadm(['--force', 'create-md', resource.name])
 resource.nodes.new_resource()
 resource.nodes.new_minor()
 resource.nodes.attach()

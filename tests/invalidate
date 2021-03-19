@@ -70,7 +70,7 @@ node_primary, node_secondary = resource.nodes
 node_primary.fio_file(resource.volumes[0].device(), rw='write', zero_buffers=1, bs='4K', direct=1)
 
 def do_verify(node_source, node_target):
-    node_source.run(['drbdadm', 'verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])
+    node_source.drbdadm(['verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])
 
     node_source.peer_devices.event(r'peer-device .* replication:VerifyS')
     node_target.peer_devices.event(r'peer-device .* replication:VerifyT')

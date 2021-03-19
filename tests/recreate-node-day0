@@ -51,7 +51,7 @@ node_b.volumes.event(r'device .* disk:UpToDate')
 
 ##
 #node_a.down()
-#node_a.run(['drbdadm', 'dump-md', '--force', resource.name])
+#node_a.drbdadm(['dump-md', '--force', resource.name])
 #node_a.up()
 ##
 
@@ -67,7 +67,7 @@ log('* node_c is repaired but returns with an empty disk (day0 current UUID)')
 # zero out the backing disk
 node_c.fio_file(node_c.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
 
-node_c.run(['drbdadm', 'create-md', '--force', '--max-peers=3', resource.name])
+node_c.drbdadm(['create-md', '--force', '--max-peers=3', resource.name])
 node_c.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
 	   "--node-id=1", "set-gi", "87236C45CB784220:", "--force"])
 

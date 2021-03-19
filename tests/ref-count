@@ -53,7 +53,7 @@ expect_drbd(node, 2, 0)
 
 # get up again
 # node.connect(other) # doesn't work, drbdadm doesn't recreate the connection data in the kernel
-node.run(['drbdadm', 'adjust', resource.name])
+node.drbdadm(['adjust', resource.name])
 expect_drbd(node, 2, 1)
 
 # actually use it
@@ -89,7 +89,7 @@ expect_drbd(node, 2, 0)
 resource.net_options = 'verify-alg md5;';
 node.config_changed = True
 node.update_config()
-node.run(['drbdadm', 'adjust', resource.name])
+node.drbdadm(['adjust', resource.name])
 expect_drbd(node, 2, 1)
 
 

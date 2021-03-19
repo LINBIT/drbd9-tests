@@ -36,7 +36,7 @@ log('* node_b is repaired but returns with an empty disk (day0 current UUID)')
 # zero out the backing disk
 node_b.fio_file(node_b.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
 
-node_b.run(['drbdadm', 'create-md', '--force', '--max-peers=3', resource.name])
+node_b.drbdadm(['create-md', '--force', '--max-peers=3', resource.name])
 node_b.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
 	   "--node-id=1", "set-gi", "87236C45CB784220:", "--force"])
 

@@ -37,7 +37,7 @@ def pre_existing_test(write_between_actions = False):
                "dd if=/dev/urandom of=%s seek=2000 bs=4096 || true" % (n.disks[0].disk)])
         # Preset the bitmap to some randomly set bits...
 
-        n.run(["drbdadm", "create-md", "--force", resource.name])
+        n.drbdadm(["create-md", "--force", resource.name])
         n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
 	       "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"]);
 
@@ -62,7 +62,7 @@ def pre_existing_test(write_between_actions = False):
     n.new_minor()
     n.new_peer()
     n.new_path()
-    n.run(["drbdadm", "peer-device-options", "all"])
+    n.drbdadm(["peer-device-options", "all"])
     n.attach()
     cs = drbdtest.Connections()
     cs.add(drbdtest.Connection(n, resource.nodes.diskful[1]))

@@ -28,14 +28,14 @@ def simulate_node_crash(node):
     c = resource.connections.from_node(node)
     c.disconnect(force=True)
     node.down()
-    node.run(['drbdadm', 'apply-al', resource.name])
+    node.drbdadm(['apply-al', resource.name])
 
     # setting UUID_FLAG_CRASHED_PRIMARY UUID_FLAG_PRIMARY_LOST_QUORUM
     node.run(['drbdmeta', str(node.disks[0].minor), 'v09', node.disks[0].disk, 'internal',
               '--node-id=1', 'set-gi', ':::1::::1', '--force'])
 
     # Setting some bits in the bitmap, like entries in the activity log would do
-    node.run(['/bin/bash', '-c', 'drbdadm dump-md %s > /tmp/md.txt' % (resource.name)])
+    node.dump_md_to_file('/tmp/md.txt')
     node.run(['sed', '-i', '-E',
               's/([0-9]+) times 0x0000000000000000/echo \\"0xFFFFFFFFFFFFFFFF; $((\\1-1)) times 0x0000000000000000; \\"/ge',
               '/tmp/md.txt'])

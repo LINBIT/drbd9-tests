@@ -28,10 +28,10 @@ resource.add_disk('8M')
 
 # write 'A's to volume 1 on node A
 A.run(['bash', '-c', 'tr \'\\0\' \'A\' < /dev/zero > {}|| true'.format(A.disks[1].disk)])
-A.run(['drbdadm', 'create-md', '--force', resource.name])
+A.drbdadm(['create-md', '--force', resource.name])
 # ... and zero it out on node B
 B.run(['bash', '-c', 'cat /dev/zero > {}|| true'.format(B.disks[1].disk)])
-B.run(['drbdadm', 'create-md', '--force', resource.name])
+B.drbdadm(['create-md', '--force', resource.name])
 
 A.run(['drbdsetup', 'status', '--verbose'])
 

@@ -342,10 +342,14 @@ class Nodes(Collection):
                 ' '.join(pipes.quote(str(x)) for x in args[0]))
         exxe.run(self, *args, **kwargs)
 
+    def drbdadm(self, *args, **kwargs):
+        for node in self.members:
+            node.drbdadm(*args, **kwargs)
+
     def up(self, extra_options=[]):
         # the order of disk/connection setup isn't strictly defined.
         # make sure that a defined order is seen, so that event matching works.
-        self.run(['drbdadm', 'up', 'all', '-v'] + extra_options)
+        self.drbdadm(['up', 'all'] + extra_options)
 
         # doesn't work either.
         #   + drbdmeta 1 v08 /dev/scratch/compat-with-84.new-20150504-103023-disk0 internal apply-al
@@ -358,49 +362,49 @@ class Nodes(Collection):
         self.after_up()
 
         if proxy_enable:
-            self.run(['drbdadm', 'proxy-up', 'all', '-v'] + extra_options)
+            self.drbdadm(['proxy-up', 'all'] + extra_options)
 
     def down(self):
         if proxy_enable:
-            self.run(['drbdadm', 'proxy-down', 'all', '-v'])
+            self.drbdadm(['proxy-down', 'all'])
 
         self.resource().forbidden_patterns.difference_update([
             r'connection:BrokenPipe',
             r'connection:NetworkFailure'
         ])
-        self.run(['drbdadm', 'down', 'all'])
+        self.drbdadm(['down', 'all'])
         self.after_down()
         self.event(r'destroy resource')
 
     def attach(self):
-        self.run(['drbdadm', 'attach', 'all', '-v'])
+        self.drbdadm(['attach', 'all'])
         self.volumes.diskful.event(r'device .* disk:Attaching')
 
     def detach(self):
-        self.run(['drbdadm', 'detach', 'all', '-v'])
+        self.drbdadm(['detach', 'all'])
         self.volumes.diskful.event(r'device .* disk:Detaching')
         self.volumes.diskful.event(r'device .* disk:Diskless')
 
     def new_resource(self):
-        self.run(['drbdadm', 'new-resource', 'all', '-v'])
+        self.drbdadm(['new-resource', 'all'])
         self.event(r'create resource')
 
     def new_minor(self):
-        self.run(['drbdadm', 'new-minor', 'all', '-v'])
+        self.drbdadm(['new-minor', 'all'])
         self.volumes.event(r'create device')
 
     def new_peer(self):
-        self.run(['drbdadm', 'new-peer', 'all', '-v'])
+        self.drbdadm(['new-peer', 'all'])
         self.volumes.peer_devices.event(r'create peer-device')
 
     def resource_options(self, opts=[]):
-        self.run(['drbdadm', 'resource-options', 'all', '-v'] + opts)
+        self.drbdadm(['resource-options', 'all'] + opts)
 
     def peer_device_options(self, opts=[]):
-        self.run(['drbdadm', 'peer-device-options', 'all', '-v'] + opts)
+        self.drbdadm(['peer-device-options', 'all'] + opts)
 
     def new_path(self):
-        self.run(['drbdadm', 'new-path', 'all', '-v'])
+        self.drbdadm(['new-path', 'all'])
         self.connections.event(r'create path')
 
     def bidir_connections_to_node(self, new_node):
@@ -534,7 +538,7 @@ class Connections(Collection):
     def run_drbdadm(self, cmd, state_str, wait=True, options=[]):
         for connection in self:
             node0, node1 = connection.nodes
-            node0.run(['drbdadm', cmd] + options +
+            node0.drbdadm([cmd] + options +
                       ['%s:%s' % (connection.resource.name, node1.hostname)])
         if wait:
             self.event(r'connection .* connection:%s' % (state_str))
@@ -607,11 +611,9 @@ class PeerDevices(Collection):
     def peer_device_options(self, opts=[]):
         for pd in self:
             node0, node1 = pd.connection.nodes
-            cmdline = ['drbdadm', 'peer-device-options', '%s:%s' %
-                       (pd.connection.resource.name, node1.hostname),
-                       opts]
+            node0.drbdadm(['peer-device-options', '%s:%s' %
+                       (pd.connection.resource.name, node1.hostname), opts])
 
-            node0.run(cmdline)
     def from_node(self, node):
         return self.from_nodes([node])
 
@@ -628,7 +630,7 @@ class PeerDevices(Collection):
         for pd in self:
             node0, node1 = pd.connection.nodes
             res = pd.connection.resource.name
-            node0.run(['drbdadm', 'verify'] + options +
+            node0.drbdadm(['verify'] + options +
                       ['%s:%s/%d' % (res, node1.hostname, pd.volume.volume)])
         if wait:
             self.event(r'peer-device .* replication:VerifyS')
@@ -828,7 +830,7 @@ class Resource(object):
         node = self.nodes.diskful[0]
         # set to remove duplicates ?!!
         res_vols = set(["%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk])
-        node.run(["drbdadm", "new-current-uuid", "--clear-bitmap"] + list(res_vols))
+        node.drbdadm(["new-current-uuid", "--clear-bitmap"] + list(res_vols))
         # wait for completion
         self.initial_resync(node)
 
@@ -874,7 +876,7 @@ class Resource(object):
                 node.down()
 
     def initial_resync(self, sync_from):
-        self.nodes.run(['drbdadm', 'peer-device-options', '--c-min-rate', '0', 'all', '-v'])
+        self.nodes.drbdadm(['peer-device-options', '--c-min-rate', '0', 'all'])
         # All diskless nodes should see all diskfull nodes as UpToDate
         diskful_nodes = self.nodes.diskful
         pds = PeerDevices()
@@ -1037,7 +1039,7 @@ class Connection(object):
         return Connections([self]).disconnect(*args, **kwargs)
 
     def run_cmd(self, *args):
-        self.nodes[0].run(['drbdadm', *args, '%s:%s' %
+        self.nodes[0].drbdadm([*args, '%s:%s' %
                            (self.resource.name, self.nodes[1].hostname)])
 
     def pause_sync(self):
@@ -1424,6 +1426,16 @@ class Node(exxe.Exxe):
         log(self.name + ': ' + ' '.join(pipes.quote(str(x)) for x in args[0]))
         return super(Node, self).run(*args, **kwargs)
 
+    def drbdadm(self, cmd, **kwargs):
+        self.run(['drbdadm', '-c', '/var/lib/drbd-test/{}/drbd.conf'.format(self.resource.job), '-v'] + cmd, **kwargs)
+
+    # dump the drbd metadata to a file on the target node
+    def dump_md_to_file(self, filename):
+        self.run(['/bin/bash', '-c',
+            'drbdadm -c /var/lib/drbd-test/{}/drbd.conf dump-md {} > {}'.format(
+                self.resource.job, self.resource.name, filename
+            )])
+
     def get_volumes(self):
         return Volumes(self.disks)
     volumes = property(get_volumes)
@@ -1446,7 +1458,7 @@ class Node(exxe.Exxe):
 
     def adjust(self):
         self.update_config()
-        self.run(['drbdadm', 'adjust', 'all', '-v'])
+        self.drbdadm(['adjust', 'all'])
 
     def up(self, extra_options=[]):
         Nodes([self]).up(extra_options)
@@ -1501,7 +1513,7 @@ class Node(exxe.Exxe):
 
     def primary(self, res="all", force=False, wait=True):
         if force:
-            self.run(['drbdadm', 'primary', '--force', res, '-v'])
+            self.drbdadm(['primary', '--force', res])
             ev = []
             if self.volumes.diskful:
                 ev.append(r'device .* disk:UpToDate')
@@ -1509,12 +1521,12 @@ class Node(exxe.Exxe):
                 ev.append(r'resource .* role:Primary')
             self.event(*ev)
         else:
-            self.run(['drbdadm', 'primary', res, '-v'])
+            self.drbdadm(['primary', res])
             if wait:
                 self.event(r'resource .* role:Primary')
 
     def secondary(self, res="all", wait=True):
-        self.run(['drbdadm', 'secondary', res])
+        self.drbdadm(['secondary', res])
         if wait:
             self.event(r'resource .* role:Secondary')
 

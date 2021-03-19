@@ -27,7 +27,6 @@ data_scripts := \
 	create-disk \
 	disable-faults \
 	drbd-version \
-	drbdadm \
 	enable-faults \
 	install-config \
 	register-cleanup \

@@ -1,9 +1,0 @@
-#! /bin/bash
-
-export PATH=${PATH#@DRBD_TEST_DATA@:}
-export PATH=${PATH#@DRBD_TEST_DATA@/:}
-
-drbdadm \
-    $DRBD_TEST_DRBDADM_OPTIONS \
-    -v \
-    "$@"

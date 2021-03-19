@@ -47,7 +47,7 @@ for n in [first]:
 
     # drbdadm-84 doesn't match the FQDN, set "good" value
     n.run(['hostname', n.hostname])
-    n.run(['drbdadm', '--', '--force', 'create-md', 'all'])
+    n.drbdadm(['--', '--force', 'create-md', 'all'])
 
 
 log("conf is<<<<< \n%s\n>>>>" %  first.config())
@@ -77,13 +77,13 @@ with AsPrimary(second):
 
 
 # now run 8.4 diskless a bit
-first.run(['drbdadm', 'detach', 'all'])
+first.drbdadm(['detach', 'all'])
 with AsPrimary(first):
     first.fio(drbdtest.fio_write_args)
     first.fio(drbdtest.fio_write_args)
     # time.sleep(10)
 
-first.run(['drbdadm', 'attach', 'all'])
+first.drbdadm(['attach', 'all'])
 first.volumes.event('device .* disk:UpToDate')
 
 
@@ -95,12 +95,12 @@ with AsPrimary(first):
 
 
 # and 8.4 gets to be only one serving for a bit
-second.run(['drbdadm', 'detach', 'all'])
+second.drbdadm(['detach', 'all'])
 with AsPrimary(second):
     second.fio(drbdtest.fio_write_args)
     second.fio(drbdtest.fio_write_args)
     second.fio(drbdtest.fio_write_args)
-second.run(['drbdadm', 'attach', 'all'])
+second.drbdadm(['attach', 'all'])
 second.volumes.event('device .* disk:UpToDate')
 
 with AsPrimary(first):
@@ -109,7 +109,7 @@ with AsPrimary(first):
 
 # 8.4 gets stopped, a third node connected
 log(str(first) + " with 8.4 gets stopped")
-first.run(['drbdadm', 'down', 'all'])
+first.drbdadm(['down', 'all'])
 ### FIXME: cannot work, the 8.4 node has space for only 1 bitmap.
 ### TODO: resize LV?
 ### if third:
@@ -134,7 +134,7 @@ first.listen_to_events()
 
 
 # needed convert v08 to v09
-first.run(['drbdadm', '--', '--force', 'create-md', 'all'])
+first.drbdadm(['--', '--force', 'create-md', 'all'])
 
 # check for working upgrade path
 first.up()

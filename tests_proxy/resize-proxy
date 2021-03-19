@@ -84,7 +84,7 @@ for n in diskful_nodes:
     # Only if same VG everywhere
     diskful_nodes.volumes.resize(size_str)
 
-    n.run(['drbdadm', 'resize', '--assume-clean',
+    n.drbdadm(['resize', '--assume-clean',
                      '--size=%dM' % (size - 1), resource.name])
 
     time.sleep(settle_time)
@@ -94,7 +94,7 @@ for n in diskful_nodes:
 # This is also a test of two-phase-commit serializing concurrent transactions,
 # since starting the transaction al all nodes concurrently.
 log('* Get rid of the user supplied size')
-diskful_nodes.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+diskful_nodes.drbdadm(['resize', '--assume-clean', resource.name])
 
 log('* Resize on each diskfull node once. Testing --assume-clean')
 for n in diskful_nodes:
@@ -105,7 +105,7 @@ for n in diskful_nodes:
 
     diskful_nodes.volumes.resize(size_str)
 
-    n.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+    n.drbdadm(['resize', '--assume-clean', resource.name])
 
     time.sleep(settle_time)
     verify_size()
@@ -115,7 +115,7 @@ log('* Check resync after resize.')
 size += step
 size_str = "%dM" % size
 diskful_nodes.volumes.resize(size_str)
-first_node.run(['drbdadm', 'resize', resource.name])
+first_node.drbdadm(['resize', resource.name])
 
 rstn = diskful_nodes.difference([first_node])
 pds = drbdtest.PeerDevices()
@@ -155,7 +155,7 @@ if nr_nodes >= 5:
 
     diskful_nodes.volumes.resize(size_str)
 
-    first_node.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+    first_node.drbdadm(['resize', '--assume-clean', resource.name])
     time.sleep(settle_time)
     verify_size()
 
@@ -184,7 +184,7 @@ if len(resource.nodes.diskless) >= 1:
     two_nodes.volumes.resize(size_str)
 
     n = diskful_nodes[0]
-    n.run(['drbdadm', 'resize', '--assume-clean', resource.name])
+    n.drbdadm(['resize', '--assume-clean', resource.name])
 
     diskless_node = resource.nodes.diskless[0]
     diskless_node.up()

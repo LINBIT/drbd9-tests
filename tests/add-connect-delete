@@ -19,14 +19,14 @@ node.event(r'connection .* connection:Connecting')
 
 # try del-path; VM must not crash
 try:
-    node.run(["drbdadm", "del-path", "all", "-v"])
+    node.drbdadm(['del-path', 'all'])
     raise RuntimeError("drbdadm del-path should have returned an error code")
 except:
     pass
 
 node.adjust()
 try:
-    node.run(["drbdadm", "del-peer", "all", "-v"])
+    node.drbdadm(['del-peer', 'all'])
     raise RuntimeError("drbdadm del-peer should have returned an error code")
 except:
     pass

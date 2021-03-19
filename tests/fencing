@@ -59,7 +59,7 @@ def prepare(description, fencing_mode, handler_exit, test_mode, nodes):
         n.config_changed = True
 
     drbdtest.Nodes(nodes).update_config()
-    drbdtest.Nodes(nodes).run(['drbdadm', 'adjust', '-v', resource.name])
+    drbdtest.Nodes(nodes).drbdadm(['adjust', resource.name])
 
 def fencing_disconnect(n1, n2, test_mode):
     n1_to_n2 = drbdtest.Connections()
@@ -158,7 +158,7 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
                 else: # "FORCE"
                     if was_suspended_fencing:
                         if handler_exit == 6:
-                            n2.run(["drbdadm", "resume-io", "%s" % (resource.name)])
+                            n2.drbdadm(["resume-io", "%s" % (resource.name)])
                         n2.event(r'resource .* suspended:no')
                         was_suspended_fencing = False
 

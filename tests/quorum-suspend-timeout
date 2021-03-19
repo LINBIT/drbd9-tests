@@ -23,7 +23,7 @@ from python import drbdtest
 from python.drbdtest import log
 
 def do_verify(node_source, node_target):
-    node_source.run(['drbdadm', 'verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])
+    node_source.drbdadm(['verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])
 
     source_target_pds = node_source.peer_devices.to_node(node_target)
     target_source_pds = node_target.peer_devices.to_node(node_source)

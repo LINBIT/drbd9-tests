@@ -39,7 +39,7 @@ resource.skip_initial_sync()
 
 writing_n.primary()
 
-resource.nodes.run(['drbdadm', 'peer-device-options', '--c-min-rate', '100M', 'all', '-v'])
+resource.nodes.drbdadm(['peer-device-options', '--c-min-rate', '100M', 'all'])
 
 # disconnect writing node
 writing_conn.disconnect()

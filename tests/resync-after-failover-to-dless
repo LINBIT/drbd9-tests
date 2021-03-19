@@ -42,7 +42,7 @@ def test(write_in_between, crashed_primary):
     target_source_c.disconnect(wait=False,force=True)
     target_n.down()
     if crashed_primary:
-        target_n.run(['drbdadm', '--force', '::::::1', 'set-gi',
+        target_n.drbdadm(['--force', '::::::1', 'set-gi',
                       '%s:%s/%d' % (resource.name, source_n.name, target_v.volume)])
     to_target_c.event(r'connection .* connection:Connecting')
 

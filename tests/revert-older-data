@@ -22,7 +22,7 @@ for initial_sync in False, True:
     for initial_write in False, True:
         log('*** Test initial_sync:{} initial_write:{}'.format(initial_sync, initial_write))
 
-        resource.nodes.run(['drbdadm', 'create-md', '--force', '--max-peers=2', resource.name])
+        resource.nodes.drbdadm(['create-md', '--force', '--max-peers=2', resource.name])
         resource.up_wait()
         if initial_sync:
             node_primary.primary(force=True)

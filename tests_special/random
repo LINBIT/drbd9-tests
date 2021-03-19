@@ -171,7 +171,7 @@ def step_primary(executor, node_id):
 
 def primary(node_id):
     random_node = random_nodes[node_id]
-    drbdtest.Nodes([resource.nodes[node_id]]).run(['drbdadm', 'primary', 'all', '-v'], catch=True)
+    drbdtest.Nodes([resource.nodes[node_id]]).drbdadm(['primary', 'all', '-v'], catch=True)
     random_node.role_command_state = None
 
 def step_secondary(executor, node_id):

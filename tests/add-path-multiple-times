@@ -20,13 +20,13 @@ node.event(r'connection .* connection:Connecting')
 # run these commands again; VM must not crash.
 # drbdadm is expected to report an error.
 try:
-    node.run(["drbdadm", "new-path", "all", "-v"])
+    node.drbdadm(['new-path', 'all'])
     raise RuntimeError("drbdadm new-path should have returned an error code")
 except subprocess.CalledProcessError:
     pass
 
 try:
-    node.run(["drbdadm", "new-peer", "all", "-v"])
+    node.drbdadm(['new-peer', 'all'])
     raise RuntimeError("drbdadm new-peer should have returned an error code")
 except subprocess.CalledProcessError:
     pass

@@ -124,7 +124,7 @@ def GetDifferenceFromDmesg(node):
 def DoVerify(src_node, dst_node, expected):
     src_node.run(["dmesg", "--clear"])
     dst_node.run(["dmesg", "--clear"])
-    src_node.run(["drbdadm", "verify", "-v", "--start=0", "%s:%s/0" % (resource.name, dst_node.name)])
+    src_node.drbdadm(['verify', '--start=0', '%s:%s/0' % (resource.name, dst_node.name)])
 
     src_node.peer_devices.event(r'peer-device .* replication:VerifyS')
     dst_node.peer_devices.event(r'peer-device .* replication:VerifyT')
@@ -142,7 +142,7 @@ def DoVerify(src_node, dst_node, expected):
 
 def DoSync(node1, node2):
     node1.disconnect(node2, wait=True)
-    node1.run(["drbdadm", "new-current-uuid", "%s/0" % resource.name])
+    node1.drbdadm(["new-current-uuid", "%s/0" % resource.name])
     node1.connect(node2)
     node1.event(r'connection .* connection:Connected')
     node2.event(r'connection .* connection:Connected')

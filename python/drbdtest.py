@@ -732,7 +732,7 @@ class Resource(object):
             ['-y ' + _ for _ in args] +
             ['-n ' + _ for _ in no]))
 
-        cmd = ['logscan', '-d', os.environ['DRBD_LOG_DIR']]
+        cmd = ['logscan', '-d', self.logdir]
         if not 'word_boundary' in kwargs or kwargs['word_boundary']:
             cmd.append('-w')
         if silent:
@@ -778,14 +778,14 @@ class Resource(object):
 
     def add_new_posfile(self, posfile):
         data = ''.join(['1 0 events-%s\n' % node.name for node in self.nodes])
-        fd = os.open(os.path.join(os.environ['DRBD_LOG_DIR'], posfile),
+        fd = os.open(os.path.join(self.logdir, posfile),
                      os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
         os.write(fd, data.encode())
         os.close(fd)
 
     def append_to_posfile(self, posfile, node):
         data = '1 0 events-%s\n' % node.name
-        pathname = os.path.join(os.environ['DRBD_LOG_DIR'], posfile)
+        pathname = os.path.join(self.logdir, posfile)
         fd = os.open(pathname, os.O_WRONLY | os.O_APPEND)
         os.write(fd, data.encode())
         os.close(fd)
@@ -809,7 +809,7 @@ class Resource(object):
         """ Synchronize logcan position tracking files. """
         if self.events_cls is not events_cls:
             self.events_cls = events_cls
-            cmd = ['logscan', '-d', os.environ['DRBD_LOG_DIR'], '--sync'] + \
+            cmd = ['logscan', '-d', self.logdir, '--sync'] + \
                 self.posfiles()
             debug('# ' + ' '.join(pipes.quote(_) for _ in cmd))
             subprocess.check_call(cmd)
@@ -960,7 +960,7 @@ class Volume(object):
         if thin:
             thin_arg = ['--thinpool', 'drbdthinpool']
 
-        cmd.extend(['--job', os.environ['DRBD_TEST_JOB'],
+        cmd.extend(['--job', self.resource.job,
                    '--volume-group', self.node.volume_group, '--size', size]
                    + thin_arg + [name])
         return self.node.run(cmd, return_stdout=True, prepare=True)
@@ -1205,8 +1205,8 @@ class Node(exxe.Exxe):
         self.run(['export', 'PATH=%s:$PATH' % DRBD_TEST_DATA], quote=False,
                  prepare=True)
         self.run(['export', 'DRBD_TEST_DATA=%s' % DRBD_TEST_DATA,
-                  'DRBD_TEST_JOB=%s' % os.environ['DRBD_TEST_JOB'],
-                  'EXXE_IDENT=exxe/%s' % os.environ['DRBD_TEST_JOB']] + self._extra_environment(),
+                  'DRBD_TEST_JOB=%s' % self.resource.job,
+                  'EXXE_IDENT=exxe/%s' % self.resource.job] + self._extra_environment(),
                  prepare=True)
         self.hostname = self.run(['hostname', '-f'], return_stdout=True,
                                  prepare=True)
@@ -1236,7 +1236,7 @@ class Node(exxe.Exxe):
     def _extra_environment(self):
         return ['DRBD_TEST_DRBDADM_OPTIONS=%s' %
                 ("-c /var/lib/drbd-test/%s/drbd.conf" %
-                 os.environ['DRBD_TEST_JOB'])]
+                 self.resource.job)]
 
     def addr_port(self, net_num=0):
         return '%s:%s' % (self.addrs[net_num], self.port)
@@ -1829,8 +1829,6 @@ def setup(parser=argparse.ArgumentParser(),
 
     os.environ['EXXE_TIMEOUT'] = '30'
     os.environ['LOGSCAN_TIMEOUT'] = '30'
-    os.environ['DRBD_TEST_JOB'] = args.job
-    os.environ['DRBD_LOG_DIR'] = args.logdir
 
     if not silent:
         print('Logging to directory %s' % args.logdir, file=sys.stderr)
@@ -1873,6 +1871,8 @@ def setup(parser=argparse.ArgumentParser(),
     resource = _res_class(args.resource,
                           logdir=args.logdir,
                           rdma=args.rdma)
+
+    resource.job = args.job
 
     for node in args.node:
         _node_class(resource, node, args.volume_group,
@@ -1930,7 +1930,7 @@ def setup(parser=argparse.ArgumentParser(),
         node.listen_to_events()
     resource.nodes.run(['disable-faults'], prepare=True)
     resource.nodes.run(['register-cleanup', '-t', 'bash', '-c',
-                        '! [ -e /proc/drbd ] || drbdsetup down $DRBD_TEST_JOB'],
+                        '! [ -e /proc/drbd ] || drbdsetup down {}'.format(resource.name)],
                        prepare=True)
     return resource
 

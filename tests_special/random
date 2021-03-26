@@ -1,0 +1,342 @@
+#! /usr/bin/env python3
+
+import concurrent.futures
+from enum import Enum, auto
+import json
+import threading
+import time
+import random
+
+from python import drbdtest
+from python.drbdtest import log
+
+# Randomized testing. This test performs randomly chosen state changes and
+# checks whether anything breaks.
+#
+# ## Concepts
+#
+# Just one disk for now. So Connection == PeerDevice and Node == Device.
+#
+# Only execute one command on each node at a time - no need to test local locking.
+#
+# Poll for state rather than using the events stream.
+# Our events stream infrastructure is currently only good for waiting for specific events.
+# We want to track the current state and evaluate it.
+#
+# ## Approach
+#
+# * Generate possible steps, with a weight for each:
+#   * Concurrently make all nodes Secondary and then Primary (similar to drbdd promoter). Assert that some node becomes Primary.
+#   * Any node where no command is running: Next commands to progress state.
+#     * Become Primary/Secondary
+#     * Disconnect
+#     * Connect
+#     * Wait for connection attempt to resolve
+#   * TODO Assertions after settle. Only relevant if any might be connected. Not relevant if this was previous step.
+#   * TODO Assertions after sync wait. Only relevant if any might be syncing/have synced. Not relevant if this was previous step.
+# * Select next step randomly according to the step weights. Execute the step.
+# * Wait exponentially distributed.
+#
+# ## Asserts
+#
+# TODO Assert: At most one Primary in a component based on role_command_state.
+#
+# Component defined by both sides of connection being connect_command_state==Connected
+#
+# TODO Assert: (With "settle" pause) Symmetric connectivity. That is, both sides conn_state==Connected or not.
+# TODO Assert: (With "settle" pause and sync wait) Symmetric replication. That is, both sides repl_state==Established or not.
+# TODO Assert: (With "settle" pause and sync wait) Same information from self and peer. That is, role, disk state...
+#
+# TODO Assert: When both sides UpToDate and Connected, check data is equal.
+# That is, disconnect and read.
+# Or read from each without disconnecting.
+# Or down and read underlying data.
+#
+# ### With quorum
+#
+# TODO Assert: Only Primary in majority component.
+#
+# TODO Assert: No split-brain. That is, repl_state != StandAlone if trying to connect.
+#
+# ### Without quorum
+#
+# TODO Resolve split-brains by discarding data.
+#
+# TODO Assert: Data equal after syncing.
+
+class RoleCommandState(Enum):
+    PrimaryRunning = auto()
+    SecondaryRunning = auto()
+
+class RandomNode:
+    def __init__(self):
+        self.role_command_state = None
+        self.role = ''
+        self.disk_state = ''
+        self.connections = {}
+        self.future = None
+
+class ConnectCommandState(Enum):
+    ConnectRunning = auto()
+    DisconnectRunning = auto()
+
+class RandomConnection:
+    def __init__(self):
+        self.connect_command_state = None
+        self.connection_state = ''
+
+    def __str__(self):
+        return '{}'.format(self.connect_command_state)
+
+    def __repr__(self):
+        return self.__str__()
+
+random.seed()
+
+resource = drbdtest.setup()
+resource.resource_options = 'twopc-timeout 300;'
+resource.net_options = 'timeout 10; ping-timeout 10; ping-int 2; connect-int 2;'
+resource.disk_options = 'c-max-rate 32M;'
+resource.add_disk('32M')
+
+resource.up_wait()
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+
+node_count = len(resource.nodes)
+random_nodes = {
+        i: RandomNode()
+        for i in range(node_count)}
+
+for i, random_node in random_nodes.items():
+    random_node.connections = {
+            j: RandomConnection()
+            for j in range(node_count) if i != j}
+
+def read_checksum(node):
+    return node.run(['/bin/bash', '-c',
+        'dd if=%s bs=1M iflag=direct | md5sum' % node.volumes[0].device()],
+        return_stdout=True)
+
+def verify_data(nodes):
+    log('* Verify data')
+    previous_node = nodes[0]
+    previous_checksum = read_checksum(previous_node)
+    for node in nodes[1:]:
+        checksum = read_checksum(node)
+        drbdtest.ensure(previous_checksum, checksum, 'data differs on nodes "{}" and "{}"'.format(previous_node, node))
+        previous_node = node
+        previous_checksum = checksum
+
+def check_for_completion():
+    for i, random_node in random_nodes.items():
+        if random_node.future is not None and random_node.future.done():
+            e = random_node.future.exception()
+            if e is not None:
+                raise e
+            random_node.future = None
+
+def collect_state():
+    for i, random_node in random_nodes.items():
+        if random_node.future is not None:
+            continue
+
+        result = resource.nodes[i].run(['drbdsetup', 'status', '--json'], return_stdout=True)
+        status = json.loads(result)[0]
+
+        random_node.role = status['role']
+        random_node.disk_state = status['devices'][0]['disk-state']
+        for connection_status in status['connections']:
+            to_index = connection_status['peer-node-id']
+            random_node.connections[to_index].connection_state = connection_status['connection-state']
+
+def log_state():
+    for i, random_node in random_nodes.items():
+        log('node-id:{} role:{} disk:{}'.format(i, random_node.role, random_node.disk_state))
+        for to_index, connection in random_node.connections.items():
+            log('  node-id:{} connection:{}'.format(to_index, connection.connection_state))
+
+def find_running():
+    futures = []
+    for i, random_node in random_nodes.items():
+        if random_node.future is not None:
+            futures.append(random_node.future)
+    return futures
+
+def step_primary(executor, node_id):
+    log('******** primary {}'.format(node_id))
+    random_node = random_nodes[node_id]
+    random_node.role_command_state = RoleCommandState.PrimaryRunning
+    random_node.future = executor.submit(primary, node_id)
+
+def primary(node_id):
+    random_node = random_nodes[node_id]
+    drbdtest.Nodes([resource.nodes[node_id]]).run(['drbdadm', 'primary', 'all', '-v'], catch=True)
+    random_node.role_command_state = None
+
+def step_secondary(executor, node_id):
+    log('******** secondary {}'.format(node_id))
+    random_node = random_nodes[node_id]
+    random_node.role_command_state = RoleCommandState.SecondaryRunning
+    random_node.future = executor.submit(secondary, node_id)
+
+def secondary(node_id):
+    random_node = random_nodes[node_id]
+    resource.nodes[node_id].secondary(wait=False)
+    random_node.role_command_state = None
+
+def step_disconnect(executor, from_index, to_index):
+    log('******** disconnect {} {}'.format(from_index, to_index))
+    random_node = random_nodes[from_index]
+    random_node.connections[to_index].connect_command_state = ConnectCommandState.DisconnectRunning
+    random_node.future = executor.submit(disconnect, from_index, to_index)
+
+def disconnect(from_index, to_index):
+    random_node = random_nodes[from_index]
+    drbdtest.Connection(resource.nodes[from_index], resource.nodes[to_index]).disconnect(force=random.choice([False, True]))
+    random_node.connections[to_index].connect_command_state = None
+
+def step_connect(executor, from_index, to_index):
+    log('******** connect {} {}'.format(from_index, to_index))
+    random_node = random_nodes[from_index]
+    random_node.connections[to_index].connect_command_state = ConnectCommandState.ConnectRunning
+    random_node.future = executor.submit(connect, from_index, to_index)
+
+def connect(from_index, to_index):
+    random_node = random_nodes[from_index]
+    drbdtest.Connection(resource.nodes[from_index], resource.nodes[to_index]).connect()
+    random_node.connections[to_index].connect_command_state = None
+
+def step_wait_connect(executor, from_index, to_index):
+    log('******** wait connect {} {}'.format(from_index, to_index))
+    random_node = random_nodes[from_index]
+    peer_node = random_nodes[to_index]
+    for i in range(10):
+        collect_state()
+        if random_node.connections[to_index].connection_state == 'Connected' and peer_node.connections[from_index].connection_state == 'Connected':
+            return
+        if random_node.connections[to_index].connection_state == 'StandAlone' or peer_node.connections[from_index].connection_state == 'StandAlone':
+            return
+        time.sleep(1.0)
+    raise Exception('timeout waiting for connection {}<->{}'.format(from_index, to_index))
+
+def step_concurrent_primary(executor):
+    log('******** concurrent primary')
+    # wait for actions to complete
+    concurrent.futures.wait(find_running())
+    check_for_completion()
+    collect_state()
+
+    # all nodes Secondary
+    for node_id, random_node in random_nodes.items():
+        if random_node.role == 'Primary':
+            random_node.role_command_state = RoleCommandState.SecondaryRunning
+            random_node.future = executor.submit(secondary, node_id)
+    concurrent.futures.wait(find_running())
+    check_for_completion()
+    collect_state()
+
+    # promote all nodes
+    for node_id, random_node in random_nodes.items():
+        random_node.role_command_state = RoleCommandState.PrimaryRunning
+        random_node.future = executor.submit(primary, node_id)
+    concurrent.futures.wait(find_running())
+    check_for_completion()
+    collect_state()
+
+    log_state()
+
+    primary_count = 0
+    for node_id, random_node in random_nodes.items():
+        if random_node.role == 'Primary':
+            primary_count += 1
+            resource.nodes[node_id].write(size='16M')
+
+    # assert at least one Primary
+    if primary_count == 0:
+        raise Exception('have no primary nodes, expected at least 1')
+
+    # all nodes Secondary
+    for node_id, random_node in random_nodes.items():
+        if random_node.role == 'Primary':
+            random_node.role_command_state = RoleCommandState.SecondaryRunning
+            random_node.future = executor.submit(secondary, node_id)
+
+def connected_count(random_node):
+    return sum([1
+        for to_index, connection in random_node.connections.items()
+        if connection.connection_state == 'Connected'])
+
+def cluster_connected_count():
+    return sum([connected_count(random_node)
+            for random_node in random_nodes.values()])
+
+def list_steps():
+    steps = []
+
+    cluster_connected = cluster_connected_count()
+
+    if cluster_connected > 0:
+        steps.append((500, step_concurrent_primary, {}))
+
+    for i, random_node in random_nodes.items():
+        if random_node.future is not None:
+            continue
+
+        if random_node.role == 'Secondary':
+            steps.append((50 + 100 * connected_count(random_node), step_primary, {'node_id': i}))
+        elif random_node.role == 'Primary':
+            steps.append((100, step_secondary, {'node_id': i}))
+
+        for to_index, connection in random_node.connections.items():
+            if connection.connection_state in ['Connecting', 'Connected']:
+                steps.append((10 * cluster_connected, step_disconnect, {'from_index': i, 'to_index': to_index}))
+            elif connection.connection_state == 'StandAlone':
+                steps.append((100, step_connect, {'from_index': i, 'to_index': to_index}))
+
+            if connection.connection_state not in ['Connected', 'StandAlone']:
+                peer_node = random_nodes[to_index]
+                if peer_node.future is None and peer_node.connections[i].connection_state != 'StandAlone':
+                    steps.append((700, step_wait_connect, {'from_index': i, 'to_index': to_index}))
+
+    return steps
+
+# Initial sync
+resource.nodes[0].primary(force=True)
+resource.nodes[0].secondary()
+for node in resource.nodes[1:]:
+    node.event(r'connection .* role:Primary', r'peer-device .* peer-disk:UpToDate')
+    node.event(r'connection .* role:Secondary', r'device .* disk:UpToDate')
+
+verify_data(resource.nodes)
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=node_count) as executor:
+    for step_number in range(100):
+        check_for_completion()
+        collect_state()
+        log_state()
+
+        steps = list_steps()
+
+        if len(steps) == 0:
+            futures = find_running()
+            if len(futures) == 0:
+                log('nothing to do and nothing to wait for => stop')
+                break
+            concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+        else:
+            total_weight = sum([step_weight for step_weight, unused0, unused1 in steps])
+            chosen_step = random.randrange(total_weight)
+            weight_running_sum = 0
+            for step_weight, step_function, step_args in steps:
+                weight_running_sum += step_weight
+                if weight_running_sum > chosen_step:
+                    step_function(executor, **step_args)
+                    break
+
+        # sleep on average 1/20th of a second
+        time.sleep(random.expovariate(20.0))
+
+log('* Shut down and clean up.')
+resource.down()
+resource.rmmod()

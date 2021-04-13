@@ -38,6 +38,9 @@ vms = [2]
 [tests.invalid-names]
 vms = [1]
 
+[tests.invalidate]
+vms = [2]
+
 [tests.io-errors]
 vms = [2]
 

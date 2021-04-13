@@ -1,0 +1,113 @@
+#! /usr/bin/env python3
+
+# Test the various forms of the "invalidate" command.
+
+from python import drbdtest
+from python.drbdtest import log
+
+
+class Invalidate:
+    name = 'invalidate'
+    full = True
+
+    @staticmethod
+    def sync(resource, node1, node2):
+        node2.run(['drbdsetup', 'invalidate', str(resource.volumes[0].minor)])
+
+class InvalidateFrom:
+    name = 'invalidate --sync-from-peer-node-id'
+    full = True
+
+    @staticmethod
+    def sync(resource, node1, node2):
+        node2.run(['drbdsetup', 'invalidate', str(resource.volumes[0].minor), '--sync-from-peer-node-id={}'.format(node1.id)])
+
+class InvalidateRemote:
+    name = 'invalidate-remote'
+    full = True
+
+    @staticmethod
+    def sync(resource, node1, node2):
+        node1.run(['drbdsetup', 'invalidate-remote', resource.name, str(node2.id), '0'])
+
+class InvalidateBitmap:
+    name = 'invalidate --reset-bitmap=no'
+    full = False
+
+    @staticmethod
+    def sync(resource, node1, node2):
+        node2.run(['drbdsetup', 'invalidate', str(resource.volumes[0].minor), '--reset-bitmap=no'])
+
+class InvalidateFromBitmap:
+    name = 'invalidate --sync-from-peer-node-id --reset-bitmap=no'
+    full = False
+
+    @staticmethod
+    def sync(resource, node1, node2):
+        node2.run(['drbdsetup', 'invalidate', str(resource.volumes[0].minor), '--sync-from-peer-node-id={}'.format(node1.id), '--reset-bitmap=no'])
+
+class InvalidateRemoteBitmap:
+    name = 'invalidate-remote --reset-bitmap=no'
+    full = False
+
+    @staticmethod
+    def sync(resource, node1, node2):
+        node1.run(['drbdsetup', 'invalidate-remote', resource.name, str(node2.id), '0', '--reset-bitmap=no'])
+
+
+resource = drbdtest.setup(nodes=2)
+
+resource.add_disk('20M')
+resource.net_options = 'verify-alg md5;'
+
+resource.up_wait()
+# skip sync, we zero out the device anyway
+resource.skip_initial_sync()
+
+node_primary, node_secondary = resource.nodes
+
+# clear the whole device
+node_primary.fio_file(resource.volumes[0].device(), rw='write', zero_buffers=1, bs='1M')
+
+def do_verify(node_source, node_target):
+    node_source.run(['drbdadm', 'verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])
+
+    node_source.peer_devices.event(r'peer-device .* replication:VerifyS')
+    node_target.peer_devices.event(r'peer-device .* replication:VerifyT')
+    node_source.peer_devices.event(r'peer-device .* replication:Established')
+    node_target.peer_devices.event(r'peer-device .* replication:Established')
+
+def wait_sync(node_source, node_target, expect_full_sync):
+    amount_pattern = '' if expect_full_sync else ' .* out-of-sync:4'
+    node_source.peer_devices.event(r'peer-device .* replication:SyncSource' + amount_pattern)
+    node_target.peer_devices.event(r'peer-device .* replication:SyncTarget' + amount_pattern)
+    node_source.peer_devices.event(r'peer-device .* replication:Established')
+    node_target.peer_devices.event(r'peer-device .* replication:Established')
+
+def assert_backing_disks_equal():
+    expected_md5sum = None
+    for node in resource.nodes:
+        # only read 16M to avoid the metadata
+        md5sum = node.run(['/bin/bash', '-c',
+                            'dd if={} bs=1M iflag=direct count=16 | md5sum'.format(resource.volumes[0].disk)],
+                           return_stdout=True)
+        log('## node {} md5sum {}'.format(node, md5sum))
+        if expected_md5sum is not None and md5sum != expected_md5sum:
+            raise Exception('data differs!')
+        expected_md5sum = md5sum
+
+for sync_command in [Invalidate, InvalidateFrom, InvalidateRemote, InvalidateBitmap, InvalidateFromBitmap, InvalidateRemoteBitmap]:
+    drbdtest.log('*** write, verify, then sync with {}'.format(sync_command.name))
+
+    # write 4K at some offset directly to backing disk
+    node_primary.fio_file(resource.volumes[0].disk, rw='write', size='4K', offset='3M', direct=1, randrepeat=0)
+
+    if not sync_command.full:
+        # let DRBD find the out-of-sync block
+        do_verify(node_primary, node_secondary)
+
+    # trigger sync
+    sync_command.sync(resource, node_primary, node_secondary)
+    wait_sync(node_primary, node_secondary, sync_command.full)
+
+    assert_backing_disks_equal()

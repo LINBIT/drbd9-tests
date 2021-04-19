@@ -46,6 +46,8 @@ backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
 slow_primary_c = resource.connections.from_node(secondary_slow).to_node(primary_n)[0]
 slow_primary_pd = drbdtest.PeerDevice(slow_primary_c, resource.volumes[0])
 
+to_primary_c = resource.connections.to_node(primary_n)
+
 resource.forbidden_patterns.difference_update([
     r'connection:NetworkFailure',
     r'connection:BrokenPipe',
@@ -63,6 +65,12 @@ def sectors_received(node, res_name, peer_node_name):
 
 def do_test(with_promote):
     log('* Running variant %d' % (with_promote))
+
+    # Reconnect to primary_n in order to clear received counter.
+    to_primary_c.disconnect()
+    to_primary_c.connect()
+    to_primary_c.event(r'connection .* connection:Connected')
+
     primary_n.primary()
     dev_name = primary_n.volumes[0].device()
 

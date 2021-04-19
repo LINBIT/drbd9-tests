@@ -50,12 +50,11 @@ log('* Promote second primary')
 node_p2.primary()
 node_p2.volumes.write(direct=1)
 
-# flap again to cause a sync from node_p2 to node_s
+# flap
 log('* Disconnect and reconnect secondary from second primary')
 bidir_p2_s.disconnect(force=True)
 bidir_p2_s.connect()
 
-peer_devices_s_p2.event(r'peer-device .* replication:SyncTarget')
 peer_devices_s_p2.event(r'peer-device .* replication:Established')
 
 log('* Reconnect first primary (now Secondary)')

@@ -1,0 +1,62 @@
+#! /usr/bin/env python3
+
+# Tests that we sync after reverting to a snapshot.
+
+from python import drbdtest
+from python.drbdtest import log
+
+resource = drbdtest.setup(nodes=2)
+node_primary, node_secondary = resource.nodes
+
+resource.add_disk('8M')
+
+# Cause a new UUID to be created and allow the peer to sync the new data.
+def write_disconnected():
+    connection_primary_secondary.disconnect()
+    node_primary.write(direct=1)
+    connection_primary_secondary.connect()
+    connection_primary_secondary.event(r'peer-device .* replication:SyncSource')
+    connection_primary_secondary.event(r'peer-device .* replication:Established')
+
+for initial_sync in False, True:
+    for initial_write in False, True:
+        log('*** Test initial_sync:{} initial_write:{}'.format(initial_sync, initial_write))
+
+        resource.nodes.run(['drbdadm', 'create-md', '--force', '--max-peers=2', resource.name])
+        resource.up_wait()
+        if initial_sync:
+            node_primary.primary(force=True)
+            node_primary.secondary()
+            node_secondary.volumes[0].event(r'device .* disk:UpToDate')
+        else:
+            resource.skip_initial_sync()
+        connection_primary_secondary = resource.connections.from_node(node_primary).to_node(node_secondary)
+
+        if initial_write:
+            write_disconnected()
+
+        log('* Take a snapshot including metadata')
+        node_secondary.down()
+        connection_primary_secondary.event(r'connection .* connection:Connecting')
+
+        node_secondary.run(['dd', 'if={}'.format(resource.volumes[0].disk), 'of=/tmp/snapshot', 'iflag=direct'])
+
+        node_secondary.up()
+        connection_primary_secondary.event(r'connection .* connection:Connected')
+
+        log('* Start new data generations')
+        write_disconnected()
+        write_disconnected()
+
+        log('* Restore snapshot including metadata')
+        node_secondary.down()
+        node_secondary.run(['dd', 'if=/tmp/snapshot', 'of={}'.format(resource.volumes[0].disk), 'oflag=direct'])
+        node_secondary.up()
+
+        # Let the Secondary sync back up.
+        connection_primary_secondary.event(r'peer-device .* replication:SyncSource')
+        connection_primary_secondary.event(r'peer-device .* replication:Established')
+
+        resource.down()
+
+resource.rmmod()

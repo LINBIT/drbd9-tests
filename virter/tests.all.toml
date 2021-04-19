@@ -156,6 +156,9 @@ vms = [3]
 [tests.resync-w-dless-pri]
 vms = [3]
 
+[tests.revert-older-data]
+vms = [2]
+
 [tests.split-brain]
 vms = [2]
 

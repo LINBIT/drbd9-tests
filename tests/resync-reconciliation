@@ -6,9 +6,9 @@
 # Then it wants to witness the reconciliation resync between the secondaries
 # after the primary disappeared.
 
+import json
 import time
 import random
-import re
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
@@ -54,14 +54,11 @@ resource.forbidden_patterns.difference_update([
     r'connection:Timeout',
 ])
 
-def sectors_received(node, res_name, peer_node_name):
-    status_str = node.run(["drbdsetup", "status", res_name, "--statistics"], return_stdout=True)
-    m = re.search(r'%s(?:\.\w+)? (?:role:.*|connection:.*)\n\s+peer-disk:.*\n\s+received:([0-9]+) sent:' % (peer_node_name), status_str)
-    if m:
-        received = int(m.group(1))
-        return received
-    else:
-        raise Exception("regex not matching. %s" % (status_str))
+def sectors_received(node, res_name, peer_node_id):
+    result = node.run(['drbdsetup', 'status', res_name, '--json'], return_stdout=True)
+    status = json.loads(result)[0]
+    connection = next(c for c in status['connections'] if c['peer-node-id'] == peer_node_id)
+    return connection['peer_devices'][0]['received']
 
 def do_test(with_promote):
     log('* Running variant %d' % (with_promote))
@@ -89,8 +86,8 @@ def do_test(with_promote):
     # Wait until the "quick" secondary got at least one of those writes
     for i in range(0, 200):
         time.sleep(0.05)
-        slow_received = sectors_received(secondary_slow, resource.name, primary_n.name);
-        quick_received = sectors_received(secondary_quick, resource.name, primary_n.name);
+        slow_received = sectors_received(secondary_slow, resource.name, primary_n.id);
+        quick_received = sectors_received(secondary_quick, resource.name, primary_n.id);
 
         if quick_received - slow_received >= data_amount:
             log('* The quick secondary is at least %d KiB writes ahead' %

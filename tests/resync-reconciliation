@@ -56,7 +56,7 @@ resource.forbidden_patterns.difference_update([
 
 def sectors_received(node, res_name, peer_node_name):
     status_str = node.run(["drbdsetup", "status", res_name, "--statistics"], return_stdout=True)
-    m = re.search(r'%s(?:\.\w+)? role:.*?\n\s+peer-disk:.*\n\s+received:([0-9]+) sent:' % (peer_node_name), status_str)
+    m = re.search(r'%s(?:\.\w+)? (?:role:.*|connection:.*)\n\s+peer-disk:.*\n\s+received:([0-9]+) sent:' % (peer_node_name), status_str)
     if m:
         received = int(m.group(1))
         return received
@@ -73,6 +73,7 @@ def do_test(with_promote):
 
     primary_n.primary()
     dev_name = primary_n.volumes[0].device()
+    to_primary_c.event(r'connection .* role:Primary')
 
     log('* Blocked network connetion to one peer & writing')
     conn_slow.block()
@@ -83,10 +84,10 @@ def do_test(with_promote):
     # and therefore DRBD will not complete the write before the timeout expires.
     # Using setsid and bash background execution to ensure that the teststuite continues
     # and does not wait for the dd to terminate.
-    primary_n.run(["setsid", "bash", "-c", "dd if=/tmp/data of=%s bs=%dk count=1 < /dev/null &> /dev/null &" % (dev_name, data_amount)])
+    primary_n.run(["setsid", "bash", "-c", "dd if=/tmp/data of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null &" % (dev_name, data_amount)])
 
     # Wait until the "quick" secondary got at least one of those writes
-    for i in range(0, 40):
+    for i in range(0, 200):
         time.sleep(0.05)
         slow_received = sectors_received(secondary_slow, resource.name, primary_n.name);
         quick_received = sectors_received(secondary_quick, resource.name, primary_n.name);
@@ -105,9 +106,8 @@ def do_test(with_promote):
     if with_promote == EARLY:
         secondary_slow.primary(wait=False)
 
-    conn_to_primary = resource.connections.to_node(primary_n)
-    failure_state = conn_to_primary.event(r'connection .* connection:(NetworkFailure|Timeout)')
-    conn_to_primary.event(r'connection .* connection:Unconnected')
+    failure_state = to_primary_c.event(r'connection .* connection:(NetworkFailure|Timeout)')
+    to_primary_c.event(r'connection .* connection:Unconnected')
 
     conn_to_secondaries = resource.connections.from_node(primary_n)
     conn_to_secondaries.event(r'connection .* connection:Unconnected')

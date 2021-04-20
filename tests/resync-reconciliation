@@ -106,7 +106,7 @@ def do_test(with_promote):
     if with_promote == EARLY:
         secondary_slow.primary(wait=False)
 
-    failure_state = to_primary_c.event(r'connection .* connection:(NetworkFailure|Timeout)')
+    to_primary_c.event(r'connection .* connection:(NetworkFailure|Timeout)')
     to_primary_c.event(r'connection .* connection:Unconnected')
 
     conn_to_secondaries = resource.connections.from_node(primary_n)
@@ -121,7 +121,7 @@ def do_test(with_promote):
     source_amount = int(evf[0][0])
     target_amount = int(evb[0][0])
     if source_amount != data_amount and target_amount != data_amount:
-        raise Exception('Neither source(%d) nor destination(%d) see right resync amount(d)'
+        raise Exception('Neither source(%d) nor destination(%d) see right resync amount(%d)'
                         % (source_amount, target_amount, data_amount))
 
     if with_promote == DURING_RESYNC:
@@ -148,14 +148,14 @@ def do_test(with_promote):
     primary_n.secondary()
     conn_slow.unblock()
     conn_quick.unblock()
-    conn_slow.event(r'connection:Connected')
-    conn_quick.event(r'connection:Connected')
 
-    if with_promote == EARLY and failure_state[0][0] == 'NetworkFailure':
-        # Expect resync from secondary_slow to primary
-        slow_primary_pd.event(r'peer-device .* replication:SyncSource')
-        slow_primary_pd.event(r'peer-device .* replication:Established')
+    reconnect_events = [r'peer-node-id:{} .* connection:Connected'.format(secondary_slow.id),
+                r'peer-node-id:{} .* connection:Connected'.format(secondary_quick.id)]
 
+    if with_promote != NOT:
+        reconnect_events.extend([r'device .* disk:Inconsistent', r'device .* disk:UpToDate'])
+
+    primary_n.event(*reconnect_events)
 
 do_test(with_promote=NOT)
 do_test(with_promote=EARLY)

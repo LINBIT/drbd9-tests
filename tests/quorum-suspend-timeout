@@ -1,0 +1,80 @@
+#! /usr/bin/env python3
+#
+# This test ensures that writes that get suspended due to loss of quorum
+# are applied to the secondaries when quorum returns.
+#
+# Up to drbd-9.0.28:
+#  * Sometimes DRBD fails to detect the timeout
+#  * Upon reconnect DRBD fails to unfreeze the frozen writes
+#  * data is out-of-sync after this procedure
+
+import time
+from python import drbdtest
+from python.drbdtest import log
+
+def do_verify(node_source, node_target):
+    node_source.run(['drbdadm', 'verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])
+
+    source_target_pds = node_source.peer_devices.to_node(node_target)
+    target_source_pds = node_target.peer_devices.to_node(node_source)
+    source_target_pds.event(r'peer-device .* replication:VerifyS')
+    target_source_pds.event(r'peer-device .* replication:VerifyT')
+    ev1 = source_target_pds.event(r'peer-device .* replication:Established .* out-of-sync:(\d+)')
+    ev2 = target_source_pds.event(r'peer-device .* replication:Established .* out-of-sync:(\d+)')
+
+    if ev1[0][0] != '0' or ev2[0][0] != '0':
+        raise Exception('data differs!')
+
+
+resource = drbdtest.setup(nodes=3)
+resource.resource_options = 'quorum majority; on-no-quorum suspend-io;'
+resource.net_options = 'timeout 20; ko-count 1; verify-alg md5;'
+# timeout 20 (2 seconds) * ko-count (1) = 2 seconds is the time the primary
+# will wait for a write completion from the secondary.
+
+resource.add_disk('10M')
+vol = resource.volumes[0]
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+primary_n, secondary_n, dead_n = resource.nodes
+primary_secondary_c = resource.connections.from_node(primary_n).to_node(secondary_n)
+
+dead_n.down()
+
+primary_n.primary()
+primary_n.fio_file(resource.volumes[0].device(), rw='write', zero_buffers=1, bs='1M', direct=1)
+
+secondary_n.volumes.suspend()
+
+resource.forbidden_patterns.remove(r'connection:Timeout')
+primary_n.run(['setsid', 'bash', '-c',
+               'fio --max-jobs=1 --name=test --filename={} --bs=4K --ioengine=libaio --iodepth=24 --rw=write --size=2M --direct=1 < /dev/null &> /dev/null & echo $!'
+               .format(vol.device())], return_stdout=True)
+
+primary_secondary_c.event(r'connection .* connection:Timeout')
+resource.forbidden_patterns.add(r'connection:Timeout')
+
+secondary_n.volumes.resume()
+
+primary_secondary_c.event(r'connection .* connection:Connected')
+
+
+log('* Waiting up to 5 seconds for fio to terminate.')
+for i in range(0, 10):
+    try:
+        primary_n.secondary()
+    except:
+        time.sleep(0.5)
+    else:
+        break
+
+do_verify(primary_n, secondary_n)
+
+log('* Shut down and clean up.')
+primary_n.down()
+secondary_n.down()
+resource.rmmod()

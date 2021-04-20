@@ -489,6 +489,14 @@ class Volumes(Collection):
         for v in self:
             v.fio(*args, **kwargs)
 
+    def suspend(self):
+        for v in self:
+            v.suspend()
+
+    def resume(self):
+        for v in self:
+            v.resume()
+
 
 class Connections(Collection):
     def __init__(self, members=[]):
@@ -985,6 +993,17 @@ class Volume(object):
         volume.fio(fio_write_args, bs='64K')
         """
         return self.node.fio_file(self.device(), *args, **kwargs)
+
+    def dmsetup(self, cmd):
+        dm_name = '%s-%s' % (self.node.volume_group.replace('-', '--'),
+                             self.disk_lv.replace('-', '--'))
+        self.node.run(['dmsetup', cmd, dm_name])
+
+    def suspend(self):
+        self.dmsetup('suspend')
+
+    def resume(self):
+        self.dmsetup('resume')
 
 class Connection(object):
     def __init__(self, node1, node2):

@@ -114,9 +114,6 @@ vms = [2]
 vms = [2]
 samevms = true
 
-[tests.resync-reconciliation]
-vms = [3]
-
 [tests.resync-source-becomes-target]
 vms = [3]
 
@@ -155,9 +152,6 @@ vms = [3]
 
 [tests.verify]
 vms = [2]
-
-[tests.verify-target-becomes-inconsistent]
-vms = [3]
 
 [tests.write-during-resync]
 vms = [3]

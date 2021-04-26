@@ -32,10 +32,16 @@ vms = [2]
 [tests.invalid-names]
 vms = [1]
 
+[tests.invalidate]
+vms = [2]
+
 [tests.io-errors]
 vms = [2]
 
 [tests.io-errors-diskless]
+vms = [3]
+
+[tests.may-promote]
 vms = [3]
 
 [tests.migrate]
@@ -66,6 +72,9 @@ vms = [3]
 vms = [3]
 
 [tests.quorum-suspended-cancel]
+vms = [3]
+
+[tests.quorum-suspend-timeout]
 vms = [3]
 
 [tests.quorum-tiebreaker]
@@ -125,6 +134,9 @@ vms = [3]
 
 [tests.resync-w-dless-pri]
 vms = [3]
+
+[tests.revert-older-data]
+vms = [2]
 
 [tests.split-brain]
 vms = [2]

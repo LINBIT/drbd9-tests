@@ -1,12 +1,22 @@
 #! /usr/bin/env python3
 #
-# This test ensures that writes that get suspended due to loss of quorum
-# are applied to the secondaries when quorum returns.
+# This test verifies that when a primary loses quorum due to a
+# frozen disk on one of its secondaris (and a configured timeout
+# and ko-count) so that this secondary gets disconnected focefuly:
+# * that the suspended write requests get re-activated when
+#   the node returns with a thawed backing disk.
+# * that the suspended write requests get re-activated when
+#   another node comes and restores quorum
+# * that it is possible to abort the suspended IO requests
+#   by changing the on-no-quorum setting
 #
 # Up to drbd-9.0.28:
 #  * Sometimes DRBD fails to detect the timeout
-#  * Upon reconnect DRBD fails to unfreeze the frozen writes
+#  * upon reconnect DRBD fails to unfreeze the frozen writes
 #  * data is out-of-sync after this procedure
+#  * demote on a device with frozen IO was hanging forever
+#  * changing the on-no-quorum setting failed to unfreeze writes
+#    (if they were network pending)
 
 import time
 from python import drbdtest
@@ -26,7 +36,67 @@ def do_verify(node_source, node_target):
         raise Exception('data differs!')
 
 
-resource = drbdtest.setup(nodes=3)
+def prepare_test(primary_n, freezing_io_n):
+    primary_suspended_c = resource.connections.from_node(primary_n).to_node(freezing_io_n)
+    suspended_primary_c = resource.connections.from_node(freezing_io_n).to_node(primary_n)
+
+    freezing_io_n.volumes.suspend()
+
+    resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+    resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+    resource.forbidden_patterns.remove(r'connection:Timeout')
+    primary_n.run(['setsid', 'bash', '-c',
+                   'fio --max-jobs=1 --name=test --filename={} --bs=4K --ioengine=libaio --iodepth=24 --rw=write --size=2M --direct=1 < /dev/null &> /dev/null & echo $!'
+                   .format(vol.device())], return_stdout=True)
+
+    primary_suspended_c.event(r'connection .* connection:Timeout')
+    suspended_primary_c.event(r'connection .* connection:(BrokenPipe|NetworkFailure)')
+    resource.forbidden_patterns.add(r'connection:Timeout')
+    resource.forbidden_patterns.add(r'connection:BrokenPipe')
+    resource.forbidden_patterns.add(r'connection:NetworkFailure')
+
+    freezing_io_n.volumes.resume()
+
+
+def wait_fio_finish_test(primary_n):
+    for i in range(0, 10):
+        try:
+            primary_n.secondary()
+        except:
+            time.sleep(0.5)
+        else:
+            break
+
+
+def test_escape(nr, escape_opt, restore_opt):
+    log("* Test %d: escape the frozen IO by changing resource-options %s" %(nr, escape_opt))
+    primary_n.primary()
+    dead1_primary_c.disconnect()
+    prepare_test(primary_n, dead2_n)
+    dead2_primary_c.disconnect()
+    primary_n.run(['drbdsetup', 'resource-options', resource.name, escape_opt])
+    wait_fio_finish_test(primary_n)
+    # With the above demote we know that all the stuck write operations completed with error,
+    # after that the fio command terminated, and therefore the demote was successful.
+
+    dead1_primary_c.connect()
+    dead2_primary_c.connect()
+    resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+    resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+    dead1_primary_c.event(r'connection .* connection:Connected')
+    dead2_primary_c.event(r'connection .* connection:Connected')
+    primary_dead2_c.event(r'connection .* connection:Connected')
+    resource.forbidden_patterns.add(r'connection:BrokenPipe')
+    resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    dead1_n.volumes.event(r'device .* disk:UpToDate')
+    dead2_n.volumes.event(r'device .* disk:UpToDate')
+    do_verify(primary_n, dead1_n)
+    do_verify(primary_n, dead2_n)
+
+    primary_n.run(['drbdsetup', 'resource-options', resource.name, restore_opt])
+
+
+resource = drbdtest.setup(nodes=4)
 resource.resource_options = 'quorum majority; on-no-quorum suspend-io;'
 resource.net_options = 'timeout 20; ko-count 1; verify-alg md5;'
 # timeout 20 (2 seconds) * ko-count (1) = 2 seconds is the time the primary
@@ -37,44 +107,47 @@ vol = resource.volumes[0]
 
 resource.up_wait()
 
-log('* Make up-to-date data available.')
-resource.skip_initial_sync();
+primary_n, online_n, dead1_n, dead2_n = resource.nodes
+primary_dead2_c = resource.connections.from_node(primary_n).to_node(dead2_n)
+dead2_other_c = resource.connections.from_node(dead2_n)
+dead2_other_c.remove(resource.connections.from_node(dead2_n).to_node(primary_n)[0])
+dead2_primary_c = resource.connections.from_node(dead2_n).to_node(primary_n)
+dead2_primary_pds = resource.peer_devices.from_node(dead2_n).to_node(primary_n)
+dead1_primary_c = resource.connections.from_node(dead1_n).to_node(primary_n)
+dead1_primary_pds = resource.peer_devices.from_node(dead1_n).to_node(primary_n)
+online_primary_c = resource.connections.from_node(online_n).to_node(primary_n)
 
-primary_n, secondary_n, dead_n = resource.nodes
-primary_secondary_c = resource.connections.from_node(primary_n).to_node(secondary_n)
+log('* Make up-to-date data available by initial resync.')
+primary_n.primary(force=True)
+resource.peer_devices.from_node(primary_n).event(r'peer-device .* replication:Established')
 
-dead_n.down()
+log("* Test 1: a node's disk freezes and thaws.")
+dead1_n.connections.disconnect()
+dead2_other_c.disconnect()
+prepare_test(primary_n, dead2_n)
+primary_dead2_c.event(r'connection .* connection:Connected')
+wait_fio_finish_test(primary_n)
+do_verify(primary_n, dead2_n)
 
+log("* Test 2: a node's disk freezes and the node disappears")
 primary_n.primary()
-primary_n.fio_file(resource.volumes[0].device(), rw='write', zero_buffers=1, bs='1M', direct=1)
+prepare_test(primary_n, dead2_n)
+dead2_primary_c.disconnect()
+dead1_primary_c.connect()
+dead1_primary_pds.event(r'peer-device .* replication:SyncTarget')
+dead1_primary_pds.event(r'peer-device .* replication:Established')
+wait_fio_finish_test(primary_n)
+do_verify(primary_n, dead1_n)
 
-secondary_n.volumes.suspend()
+log("* dissapeared node returns")
+dead2_primary_c.connect()
+dead2_primary_pds.event(r'peer-device .* replication:SyncTarget')
+dead2_primary_pds.event(r'peer-device .* replication:Established')
+do_verify(dead2_n, primary_n)
 
-resource.forbidden_patterns.remove(r'connection:Timeout')
-primary_n.run(['setsid', 'bash', '-c',
-               'fio --max-jobs=1 --name=test --filename={} --bs=4K --ioengine=libaio --iodepth=24 --rw=write --size=2M --direct=1 < /dev/null &> /dev/null & echo $!'
-               .format(vol.device())], return_stdout=True)
-
-primary_secondary_c.event(r'connection .* connection:Timeout')
-resource.forbidden_patterns.add(r'connection:Timeout')
-
-secondary_n.volumes.resume()
-
-primary_secondary_c.event(r'connection .* connection:Connected')
-
-
-log('* Waiting up to 5 seconds for fio to terminate.')
-for i in range(0, 10):
-    try:
-        primary_n.secondary()
-    except:
-        time.sleep(0.5)
-    else:
-        break
-
-do_verify(primary_n, secondary_n)
+test_escape(3, '--on-no-quorum=io-error', '--on-no-quorum=suspend-io')
+test_escape(4, '--quorum=off', '--quorum=majority')
 
 log('* Shut down and clean up.')
-primary_n.down()
-secondary_n.down()
+resource.down()
 resource.rmmod()

@@ -13,15 +13,15 @@ if ! vgs scratch; then
 fi
 
 # Ensure that an additional labeled address is available for multi-path tests.
-# This assumes that the machines communicate over the first address in 192.168.0.0/16.
+# Add a labeled address on the default route which must have a /24 address range.
 if ! ip -oneline address show label "*:1" | grep ^ ; then
-	address_line=$(ip -oneline address show to 192.168.0.0/16 | head -n1)
-	dev=$(printf "%s" "$address_line" | awk '{print $2}')
-	original_address=$(printf "%s" "$address_line" | grep -o '192\.168\.[0-9]*\.[0-9]*' | head -n1)
+	default_gateway=$(ip route show to 0.0.0.0/0 | awk {'print $3'})
+	default_route=$(ip route show to match $default_gateway | grep /24)
+	dev=$(printf "%s" "$default_route" | awk '{print $3}')
+	original_address=$(printf "%s" "$default_route" | grep -o 'src [^ ]*' | awk {'print $2'})
 	original_address_3=$(printf "%s" "$original_address" | cut -d. -f3)
-	original_address_4=$(printf "%s" "$original_address" | cut -d. -f4)
 	new_address_3=$((original_address_3 ^ 0x80))
-	new_address=192.168.$new_address_3.$original_address_4
+	new_address=$(printf %s "$original_address" | sed 's/\([0-9]*\.[0-9]*\.\)[0-9]*\(.[0-9]*\)/\1'$new_address_3'\2/')
 	echo "Adding address $new_address"
 	ip address add dev $dev label $dev:1 $new_address/24
 fi

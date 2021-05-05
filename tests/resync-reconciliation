@@ -75,13 +75,13 @@ def do_test(with_promote):
     log('* Blocked network connetion to one peer & writing')
     conn_slow.block()
 
-    primary_n.run(["dd", "if=/dev/urandom", "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
-    md5sum_p = primary_n.run(['md5sum', '/tmp/data'], return_stdout=True)
-    # The dd command itself will block since one of the secondaries is not reachable,
+    # The fio command itself will block since one of the secondaries is not reachable,
     # and therefore DRBD will not complete the write before the timeout expires.
     # Using setsid and bash background execution to ensure that the teststuite continues
-    # and does not wait for the dd to terminate.
-    primary_n.run(["setsid", "bash", "-c", "dd if=/tmp/data of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null &" % (dev_name, data_amount)])
+    # and does not wait for the fio to terminate.
+    primary_n.run(['setsid', 'bash', '-c',
+                   'fio --max-jobs=1 --name=test --filename=%s --bs=4K --ioengine=libaio --iodepth=24 --rw=write --size=%dk --direct=1 < /dev/null &> /dev/null &'
+                   % (dev_name, data_amount)])
 
     # Wait until the "quick" secondary got at least one of those writes
     for i in range(0, 200):
@@ -130,27 +130,20 @@ def do_test(with_promote):
     if with_promote != NOT:
         secondary_slow.secondary(wait=False)
 
-    secondary_slow.run(["dd", "if=%s" % (dev_name), "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
-    md5sum_ss = secondary_slow.run(['md5sum', '/tmp/data'], return_stdout=True)
-    secondary_slow.run(["rm", "/tmp/data"])
-
-    secondary_quick.run(["dd", "if=%s" % (dev_name), "of=/tmp/data", "bs=%dk" % (data_amount), "count=1"])
-    md5sum_sq = secondary_quick.run(['md5sum', '/tmp/data'], return_stdout=True)
-    secondary_quick.run(["rm", "/tmp/data"])
+    backing_dev = primary_n.volumes[0].disk
+    md5sum_p = primary_n.run(['bash', '-c', 'dd if=%s bs=%dk count=1 iflag=direct | md5sum' % (backing_dev, data_amount)], return_stdout=True)
+    md5sum_ss = secondary_slow.run(['bash', '-c', 'dd if=%s bs=%dk count=1 iflag=direct | md5sum' % (backing_dev, data_amount)], return_stdout=True)
+    md5sum_sq = secondary_quick.run(['bash', '-c', 'dd if=%s bs=%dk count=1 iflag=direct | md5sum' % (backing_dev, data_amount)], return_stdout=True)
 
     if md5sum_p != md5sum_ss or md5sum_p != md5sum_sq:
         raise Exception('Md5 sums differ! %s %s %s' % (md5sum_p, md5sum_sq, md5sum_ss))
 
-    primary_n.run(["rm", "/tmp/data"])
     primary_n.secondary()
     conn_slow.unblock()
     conn_quick.unblock()
 
-    reconnect_events = [r'peer-node-id:{} .* connection:Connected'.format(secondary_slow.id),
-                r'peer-node-id:{} .* connection:Connected'.format(secondary_quick.id)]
-
-    if with_promote != NOT:
-        reconnect_events.extend([r'device .* disk:Inconsistent', r'device .* disk:UpToDate'])
+    reconnect_events = [r'peer-node-id:{} .* volume:0 .* peer-disk:UpToDate'.format(secondary_slow.id),
+                r'peer-node-id:{} .* volume:0 .* peer-disk:UpToDate'.format(secondary_quick.id)]
 
     primary_n.event(*reconnect_events)
 

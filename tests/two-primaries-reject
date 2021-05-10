@@ -154,7 +154,7 @@ for node_p1, node_s, node_p2 in permutations(resource.nodes):
     connection_p1_p2 = connections_from_p1.to_node(node_p2)
     connections_to_p1 = resource.connections.to_node(node_p1)
     connection_s_p1 = connections_to_p1.from_node(node_s)
-    connection_p2_p1 = connections_to_p1.to_node(node_p2)
+    connection_p2_p1 = connections_to_p1.from_node(node_p2)
 
     scenario_disconnect_no_new_data()
     scenario_disconnect_p2_ahead()

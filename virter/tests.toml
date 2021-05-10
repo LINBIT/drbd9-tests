@@ -74,9 +74,6 @@ vms = [3]
 [tests.quorum-suspended-cancel]
 vms = [3]
 
-[tests.quorum-suspend-timeout]
-vms = [4]
-
 [tests.quorum-tiebreaker]
 vms = [3]
 

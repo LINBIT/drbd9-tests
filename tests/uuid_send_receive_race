@@ -21,8 +21,6 @@ def my_log(str):
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.disk_options = 'c-max-rate 750k;'
-resource.nodes.config_changed = True
-resource.nodes.update_config()
 resource.add_disk('10M')
 resource.up_wait()
 

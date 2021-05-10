@@ -95,8 +95,6 @@ megs = 100
 random.seed()
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.disk_options = 'c-max-rate 60M;'
-resource.nodes.config_changed = True
-resource.nodes.update_config()
 resource.add_disk('%dM' % (megs))
 resource.up_wait()
 

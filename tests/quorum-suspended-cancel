@@ -69,8 +69,6 @@ def do_test(primary_n, other_nodes, wait_before_write):
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.resource_options = 'quorum majority; on-no-quorum suspend-io;'
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
-resource.nodes.config_changed = True
-resource.nodes.update_config()
 
 primary_n = resource.nodes[0]
 other_nodes = resource.nodes.difference([primary_n])

@@ -15,8 +15,6 @@ def alarm_handler(signum, frame):
 random.seed()
 resource = drbdtest.setup(min_nodes=2, max_nodes=5)
 resource.disk_options = 'al-extents 67;'
-resource.nodes.config_changed = True
-resource.nodes.update_config()
 
 diskless_n = random.choice(resource.nodes)
 diskful_nodes = resource.nodes.difference([diskless_n])

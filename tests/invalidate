@@ -67,7 +67,7 @@ resource.skip_initial_sync()
 node_primary, node_secondary = resource.nodes
 
 # clear the whole device
-node_primary.fio_file(resource.volumes[0].device(), rw='write', zero_buffers=1, bs='1M')
+node_primary.fio_file(resource.volumes[0].device(), rw='write', zero_buffers=1, bs='4K', direct=1)
 
 def do_verify(node_source, node_target):
     node_source.run(['drbdadm', 'verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])

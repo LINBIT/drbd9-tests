@@ -256,14 +256,6 @@ log('Execution order: ' + str([c.__name__ for c in cases]))
 for case in cases:
     case()
 
-# run all tests again, but this time with a fixed quorum amount
-resource.resource_options = 'quorum 2; on-no-quorum io-error;'
-resource.nodes.config_changed = True
-resource.nodes.update_config()
-
-for case in cases:
-    case()
-
 # clean up
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')
 resource.forbidden_patterns.remove(r'connection:Timeout')

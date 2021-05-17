@@ -37,7 +37,13 @@ sysctl -p
 [[steps]]
 [steps.shell]
 script = """
-for u in unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer; do
+# Disable unnecessary updates
+units="unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer"
+
+# Disable services which fail anyway
+units="$units kdump.service postfix.service"
+
+for u in $units; do
 	if systemctl list-unit-files | grep -Fq $u; then
 		systemctl disable --now $u
 	fi

@@ -25,6 +25,15 @@ if ! ip -oneline address show label "*:1" | grep ^ ; then
 	echo "Adding address $new_address"
 	ip address add dev $dev label $dev:1 $new_address/24
 fi
+
+while true; do
+	running=$(systemctl is-system-running || true)
+	[ "$running" = initializing -o "$running" = starting ] && { sleep 1; continue; }
+	[ "$running" = running ] && break
+	echo "System in unexpected state '$running'; failed units:" 1>&2
+	systemctl list-units --failed 1>&2
+	exit 1
+done
 '''
 [steps.shell.env]
 SCRATCH_DISK = "{{.ScratchDisk}}"

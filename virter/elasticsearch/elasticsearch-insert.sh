@@ -34,9 +34,9 @@ if [ "$index_exists" = false ]; then
 	{
 		"mappings": {
 			"properties": {
-				"drbd_version": { "type": "constant_keyword", "value": "'"$DRBD_VERSION"'" },
-				"drbd_utils_version": { "type": "constant_keyword", "value": "'"$DRBD_UTILS_VERSION"'" },
-				"drbd9_tests_version": { "type": "constant_keyword", "value": "'"$DRBD9_TESTS_VERSION"'" },
+				"drbd_version": { "type": "keyword" },
+				"drbd_utils_version": { "type": "keyword" },
+				"drbd9_tests_version": { "type": "keyword" },
 				"time": { "type": "date" },
 				"name": { "type": "keyword" },
 				"vm_count": { "type": "integer" },
@@ -62,7 +62,13 @@ cat "$results_file" | jq -c '
 	{ index: { _id: .id } },
 	(del(.id) |
 		(.name + "-" + (.vm_count | tostring)) as $nc |
-		.name_count = $nc |
-		.ci_enabled = ('"$ci_tests"' | index($nc) != null))
+		. + {
+			drbd_version: "'"$DRBD_VERSION"'",
+			drbd_utils_version: "'"$DRBD_UTILS_VERSION"'",
+			drbd9_tests_version: "'"$DRBD9_TESTS_VERSION"'",
+			name_count: $nc,
+			ci_enabled: ('"$ci_tests"' | index($nc) != null),
+		}
+	)
 ][]
 ' | curl -f "$url/$index/_bulk?pretty" -H "Content-Type: application/x-ndjson" -XPOST --data-binary @-

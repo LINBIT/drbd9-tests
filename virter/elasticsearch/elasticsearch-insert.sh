@@ -17,6 +17,7 @@ ci_tests_file="$3"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
+[ -z "$CI_COMMIT_REF_NAME" ] && die "Missing \$CI_COMMIT_REF_NAME"
 
 date="$(cat $results_file | jq -r .time | head -1)"
 [ -z "$date" ] && die "No data to insert"
@@ -39,6 +40,7 @@ if [ "$index_exists" = false ]; then
 				"drbd_version": { "type": "keyword" },
 				"drbd_utils_version": { "type": "keyword" },
 				"drbd9_tests_version": { "type": "keyword" },
+				"drbd9_tests_ref": { "type": "keyword" },
 				"time": { "type": "date" },
 				"name": { "type": "keyword" },
 				"vm_count": { "type": "integer" },
@@ -69,6 +71,7 @@ cat "$results_file" | jq -c '
 			drbd_version: "'"$DRBD_VERSION"'",
 			drbd_utils_version: "'"$DRBD_UTILS_VERSION"'",
 			drbd9_tests_version: "'"$DRBD9_TESTS_VERSION"'",
+			drbd9_tests_ref: "'"$CI_COMMIT_REF_NAME"'",
 			name_count: $nc,
 			ci_enabled: ('"$ci_tests"' | index($nc) != null),
 		}

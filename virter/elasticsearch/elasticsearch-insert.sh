@@ -24,7 +24,7 @@ date="$(cat $results_file | jq -r .time | head -1)"
 
 # the index should uniquely identify the test suite run because _id is only
 # unique within a test suite run
-index="drbd-$(date --date=$date --utc +%Y%m%d%H%M%S)"
+index="drbd-$(date --date=$date --utc +%Y%m%d%H%M%S)-$CI_JOB_ID"
 
 echo "Using index: '$index'"
 

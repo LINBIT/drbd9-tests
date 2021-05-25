@@ -76,15 +76,6 @@ def do_test(variant):
 
     other_nodes[-1].volumes[0].event(r'device .* disk:UpToDate')
     if variant == 1:
-        while True:
-            # if the connection between the nodes is a little slow, the
-            # resync might take longer than 30 seconds which would trigger
-            # a spurious timeout while waiting for the UpToDate event.
-            # wait for the intermediate progress events to give the resync
-            # more time.
-            done = pd.event(r'peer-device .* done:([0-9.]+)|call .* helper:(after-resync-target)')
-            if len(done[0]) > 1 and done[0][1] == 'after-resync-target':
-                break
         other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
 
     connect_and_check(writing_n, other_nodes[0])

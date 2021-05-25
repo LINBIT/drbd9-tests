@@ -74,9 +74,10 @@ def do_test(variant):
 
     connect_and_check(writing_n, other_nodes[-1])
 
+    log('* Wait for upstream resync')
     other_nodes[-1].volumes[0].event(r'device .* disk:UpToDate')
-    if variant == 1:
-        other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
+    log('* Wait for downstream resync as a result of upstream resync')
+    other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
 
     connect_and_check(writing_n, other_nodes[0])
 

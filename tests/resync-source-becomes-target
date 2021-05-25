@@ -10,8 +10,6 @@
 # In variant two it starts the upstream resync after downstream
 # completed
 
-import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 
@@ -28,7 +26,7 @@ def disconnect_and_write(n, file_nr):
     to = resource.connections.to_node(n)
     to.event(r'connection .* connection:TearDown')
     to.event(r'connection .* connection:Connecting')
-    write_on_node(writing_n, file_nr, megs_per_file)
+    write_on_node(node_primary, file_nr, megs_per_file)
 
 def connect_and_check(n1, n2):
     forward_c = drbdtest.Connection(n1, n2)
@@ -40,52 +38,59 @@ def connect_and_check(n1, n2):
 def do_test(variant):
     log('* Variant %d of test' % (variant))
     file_nr = 0
-    for n in other_nodes:
+    # Iterate in reverse order so that the data generations are:
+    # node_primary > node_s0 > node_s1
+    for n in [node_s1, node_s0]:
         disconnect_and_write(n, file_nr)
         file_nr += 1
 
-    resource.connections.from_node(writing_n).disconnect()
+    resource.connections.from_node(node_primary).disconnect()
 
     log('* Start downstream resync.')
 
-    forward_c = drbdtest.Connection(other_nodes[0], other_nodes[1])
-    backward_c = drbdtest.Connection(other_nodes[1], other_nodes[0])
-    cs = drbdtest.Connections([forward_c, backward_c])
+    connection_s1_s0 = drbdtest.Connection(node_s1, node_s0)
+    connection_s0_s1 = drbdtest.Connection(node_s0, node_s1)
+    cs = drbdtest.Connections([connection_s1_s0, connection_s0_s1])
     pds = drbdtest.PeerDevices.from_connections(cs)
     if variant == 1:
         pds.peer_device_options("--c-max-rate=10M")
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 
-    pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
+    pd_s1_s0 = drbdtest.PeerDevice(connection_s1_s0, resource.volumes[0])
+    pd_s0_s1 = drbdtest.PeerDevice(connection_s0_s1, resource.volumes[0])
 
     if variant == 1:
         while True:
-            done = pd.event(r'peer-device .* done:([0-9.]+)')
+            done = pd_s1_s0.event(r'peer-device .* done:([0-9.]+)')
             if float(done[0][0]) > 10.0:
                 break
         log('* Start upstream resync at %s of downstream resync.' % (done[0][0]))
         pds.peer_device_options("--c-max-rate=60M")
 
     elif variant == 2:
-        other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
-        time.sleep(0.5)
+        node_s1.volumes[0].event(r'device .* disk:UpToDate')
+        pd_s0_s1.event(r'peer-device .* peer-disk:UpToDate')
         log('* Start upstream resync after downstream resync finished')
 
-    connect_and_check(writing_n, other_nodes[-1])
+    connect_and_check(node_primary, node_s0)
+
+    pd_primary_s0 = drbdtest.PeerDevice(drbdtest.Connection(node_primary, node_s0), resource.volumes[0])
 
     log('* Wait for upstream resync')
-    other_nodes[-1].volumes[0].event(r'device .* disk:UpToDate')
-    log('* Wait for downstream resync as a result of upstream resync')
-    other_nodes[0].volumes[0].event(r'device .* disk:UpToDate')
+    node_s0.volumes[0].event(r'device .* disk:UpToDate')
+    pd_primary_s0.event(r'peer-device .* peer-disk:UpToDate')
 
-    connect_and_check(writing_n, other_nodes[0])
+    log('* Wait for downstream resync as a result of upstream resync')
+    node_s1.volumes[0].event(r'device .* disk:UpToDate')
+    pd_s0_s1.event(r'peer-device .* peer-disk:UpToDate')
+
+    connect_and_check(node_primary, node_s1)
 
 # main
 megs = 100
 
-random.seed()
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 resource.disk_options = 'c-max-rate 60M;'
 resource.add_disk('%dM' % (megs))
 resource.up_wait()
@@ -93,17 +98,16 @@ resource.up_wait()
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
-writing_n = random.choice(resource.nodes)
-other_nodes = resource.nodes.difference([writing_n])
-dev_name = writing_n.volumes[0].device()
+node_primary, node_s0, node_s1 = resource.nodes
+dev_name = node_primary.volumes[0].device()
 megs_per_file = (megs * 8 / 10) / (len(resource.nodes) - 1)
 
-writing_n.run(['mkfs', '-t', 'ext4', dev_name])
+node_primary.run(['mkfs', '-t', 'ext4', dev_name])
 
 do_test(1)
 do_test(2)
 
 log('* Shut down and clean up.')
-writing_n.run(['wipefs', dev_name])
+node_primary.run(['wipefs', dev_name])
 resource.down()
 resource.rmmod()

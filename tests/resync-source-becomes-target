@@ -53,7 +53,7 @@ def do_test(variant):
     cs = drbdtest.Connections([connection_s1_s0, connection_s0_s1])
     pds = drbdtest.PeerDevices.from_connections(cs)
     if variant == 1:
-        pds.peer_device_options("--c-max-rate=10M")
+        pds.peer_device_options("--c-max-rate=5M")
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 

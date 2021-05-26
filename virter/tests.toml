@@ -107,6 +107,9 @@ vms = [3]
 [tests.resync-finish]
 vms = [2]
 
+[tests.resync-finish2]
+vms = [3]
+
 [tests.resync-initial]
 vms = [2]
 samevms = true

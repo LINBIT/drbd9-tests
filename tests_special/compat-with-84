@@ -35,7 +35,7 @@ for n in [first]:
     log((n.run(
                 ['cat', '/proc/drbd'],
                 return_stdout=True,
-                prepare=True,
+                update_config=False,
                 prefix=str(n) + ": ")))
 
     n.drbd_major_version = 8
@@ -51,7 +51,7 @@ for n in [first]:
 
 
 log("conf is<<<<< \n%s\n>>>>" %  first.config())
-resource.nodes.run(['true'], prepare=True)
+resource.nodes.run(['true'], update_config=False)
 
 # we start with 8.4 having valid data.
 # in case we run with 3 nodes we have to tell which one we want.

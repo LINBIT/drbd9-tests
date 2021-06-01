@@ -29,5 +29,5 @@ vmshed										\
 	--tests drbd-test-bundle/virter/tests.toml				\
 	--set values.TestSuiteImage=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$DRBD9_TESTS_VERSION \
 	--set values.DrbdVersion=$DRBD_VERSION					\
-	--set values.RepositoryPackages=exxe\\,drbd-utils=$DRBD_UTILS_VERSION 	\
+	--set values.RepositoryPackages=drbd-utils=$DRBD_UTILS_VERSION		\
 	"$@"

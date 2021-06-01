@@ -18,7 +18,7 @@ def get_ref_counts(lines, which):
     return res
 
 def ref_count(node, compare):
-    lines = node.run(['lsmod'], return_stdout=True, prepare=True).split('\n')
+    lines = node.run(['lsmod'], return_stdout=True, update_config=False).split('\n')
     rc = get_ref_counts(lines, compare)
     log(('expect %s, found %s' % (compare, rc)))
     if compare != rc:

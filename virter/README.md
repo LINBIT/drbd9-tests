@@ -26,7 +26,6 @@ should contain `drbd-test-target.tgz`. The following components can be provided
 as `rpm` or `deb` packages in this directory or via a repository.
 * `drbd`
 * `drbd-utils`
-* `exxe`
 
 Packages to be installed from the repository should be specified using
 `values.RepositoryPackages`. The package name and version should be separated

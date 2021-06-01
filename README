@@ -36,10 +36,6 @@ Running the test suite requires the following components:
  * The DRBD 9 kernel module and user-space utilities must be installed on all
    test nodes.
 
- * The exxe utility (http://git.drbd.org/exxe.git/) must be installed on the
-   test coordinator and on all test nodes.  This utility is used by the
-   coordinator for efficiently executing commands on the test nodes.
-
  * The logscan utility (http://git.drbd.org/logscan.git/) must be installed on
    the test coordinator.
 
@@ -74,9 +70,6 @@ be found in the log directory:
     error combined).
 
   <node-name>.log: The syslog of each node.
-
-  exxe-<node-name>.log: The log of the exxe utility (all commands executed on
-    the test nodes).
 
   .*.pos: positions of the last matches in the events-* files. The logscan
     utility uses these to keep trck of the current scanning positions.

@@ -96,8 +96,6 @@ fi
 # Just to be sure that drbd can be modprobed
 depmod -a
 
-command -v exxe > /dev/null || die "exxe not installed"
-
 echo "Output of 'drbdadm --version':"
 drbdadm --version || die "drbd-utils not installed"
 

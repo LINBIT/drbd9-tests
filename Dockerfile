@@ -19,18 +19,6 @@ RUN wget https://github.com/LINBIT/logscan/archive/master.tar.gz && \
     make install && \
     cd / && rm -rf logscan-master master.tar.gz
 
-# install exxe
-RUN wget https://github.com/LINBIT/exxe/archive/master.tar.gz && \
-    tar xvf master.tar.gz && \
-    cd exxe-master && \
-    ./bootstrap && \
-    ./configure && \
-    make && \
-    make install && \
-    cd python && \
-    python3 setup.py install && \
-    cd / && rm -rf exxe-master master.tar.gz
-
 RUN mkdir -p /drbd-tests
 COPY . /drbd-tests
 COPY docker/entry.sh /

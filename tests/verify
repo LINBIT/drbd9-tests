@@ -9,6 +9,7 @@ import time
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
+from io import StringIO
 
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
 
@@ -70,7 +71,7 @@ def MakeDifference(node, do_changes):
                 "of=%s" % resource.volumes[0].disk,
                 "seek=%d" % blk_nr,
                 "bs=%d" % BLOCK_SIZE, "count=1", "oflag=direct"],
-                stdin=block)
+                stdin=StringIO(block))
 
         blocks.append( (byte, blk_nr, block) )
 

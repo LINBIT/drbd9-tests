@@ -30,10 +30,12 @@ import signal
 from subprocess import CalledProcessError
 import atexit
 from .ordered_set import OrderedSet
-import exxe
+import io
 
 from .syslogd import syslog_server
 from io import StringIO
+
+from .controlmaster import SSH
 
 #Contants for set_fault_injection
 DF_META_WRITE = 1
@@ -177,6 +179,10 @@ def debug(*args, **kwargs):
         pass
     if level <= debug_level:
         print(*args, file=logstream)
+
+def helper(name):
+    """ Get the path of a helper (from the target/ directory) on the test node """
+    return os.path.join(DRBD_TEST_DATA, name)
 
 class Cleanup(object):
     """ Catch uncaught exceptions, set skip_cleanup accordingly and log. """
@@ -331,16 +337,8 @@ class Nodes(Collection):
     def run(self, *args, **kwargs):
         """ Run command on all our nodes. """
 
-        if not kwargs.pop('prepare', False):
-            self.update_config()
-        # by default send all output to the log
-        if not 'stdout' in kwargs:
-            kwargs['stdout'] = logstream
-        if not 'stderr' in kwargs:
-            kwargs['stderr'] = logstream
-        log(' '.join([node.name for node in self]) + ': ' +
-                ' '.join(pipes.quote(str(x)) for x in args[0]))
-        exxe.run(self, *args, **kwargs)
+        for node in self.members:
+            node.run(*args, **kwargs)
 
     def drbdadm(self, *args, **kwargs):
         for node in self.members:
@@ -699,7 +697,10 @@ class Resource(object):
 
     def cleanup(self):
         if not skip_cleanup:
-            self.nodes.run(['cleanup'], prepare=True, catch=True)
+            for node in self.nodes:
+                node.run([helper('cleanup')], update_config=False, catch=True, env={
+                    'DRBD_TEST_JOB': self.job
+                })
         for node in self.nodes:
             node.cleanup()
 
@@ -955,7 +956,7 @@ class Volume(object):
         return '%s:%s' % (self.node, self.volume)
 
     def create_disk(self, size, name, meta, max_peers, thin=False):
-        cmd = ['create-disk']
+        cmd = [helper('create-disk')]
         if meta:
             cmd.extend([meta, '--max-peers', str(max_peers)])
         thin_arg = []
@@ -965,7 +966,7 @@ class Volume(object):
         cmd.extend(['--job', self.resource.job,
                    '--volume-group', self.node.volume_group, '--size', size]
                    + thin_arg + [name])
-        return self.node.run(cmd, return_stdout=True, prepare=True)
+        return self.node.run(cmd, return_stdout=True, update_config=False)
 
     def event(self, *args, **kwargs):
         return Volumes([self]).event(*args, **kwargs)
@@ -1172,18 +1173,18 @@ class ConfigBlock(object):
         self.write_no_indent(content)
 
 
-class Node(exxe.Exxe):
+class Node():
     def __init__(self, resource, name, volume_group,
                  addr=None, port=7789, multi_paths=None):
-        super(Node, self).__init__(['ssh', '-l',
-                                    'root', name,
-                                    'exxe', '--syslog'], prefix='%s: ' % name)
         self.resource = resource
         self.name = name
         try:
             self.addr = addr if addr else socket.gethostbyname(name)
         except:
             raise RuntimeError('Could not determine IP for host %s' % name)
+
+        self.ssh = SSH(self.addr)
+
         self.port = port
         self.disks = []  # by volume
         self.id = len(self.resource.nodes)
@@ -1197,23 +1198,14 @@ class Node(exxe.Exxe):
 
         # FIXME: Move some of these calls into setup() to run them in parallel?
         try:
-            self.run(['test', '-d', DRBD_TEST_DATA], prepare=True)
+            self.run(['test', '-d', DRBD_TEST_DATA], update_config=False)
         except:
             raise RuntimeError('%s: Directory %s does not exist' %
                                (self.name, DRBD_TEST_DATA))
 
-        self.run(['timeout', os.environ['EXXE_TIMEOUT']],
-                 prepare=True)
-        self.run(['export', 'PATH=%s:$PATH' % DRBD_TEST_DATA], quote=False,
-                 prepare=True)
-        self.run(['export', 'DRBD_TEST_DATA=%s' % DRBD_TEST_DATA,
-                  'DRBD_TEST_JOB=%s' % self.resource.job,
-                  'EXXE_IDENT=exxe/%s' % self.resource.job] + self._extra_environment(),
-                 prepare=True)
         self.hostname = self.run(['hostname', '-f'], return_stdout=True,
-                                 prepare=True)
-        drbd_version = self.run(['drbd-version'], return_stdout=True,
-                                prepare=True)
+                                 update_config=False)
+        drbd_version = self.run([helper('drbd-version')], return_stdout=True, update_config=False)
         m = re.match(r'([0-9]+)\.([0-9]+)\.([0-9]+)(.*)', drbd_version);
         self.drbd_version_tuple = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
 
@@ -1235,11 +1227,6 @@ class Node(exxe.Exxe):
         # Ensure that added nodes will be reflected in the DRBD configuration file.
         self.config_changed = True
 
-    def _extra_environment(self):
-        return ['DRBD_TEST_DRBDADM_OPTIONS=%s' %
-                ("-c /var/lib/drbd-test/%s/drbd.conf" %
-                 self.resource.job)]
-
     def addr_port(self, net_num=0):
         return '%s:%s' % (self.addrs[net_num], self.port)
 
@@ -1252,6 +1239,9 @@ class Node(exxe.Exxe):
         self.config_changed = False
         if hasattr(self, 'events'):
             self.events.terminate()
+
+        log('{}: Closing connection to {}'.format(self.name, self.ssh.host))
+        self.ssh.close()
 
     def __str__(self):
         # return '%s:%s' % (self.resource, self.name)
@@ -1393,7 +1383,9 @@ class Node(exxe.Exxe):
                                      'drbd.conf-%s' % self.name), 'w')
             file.write(config)
             file.close
-            self.run(['install-config'], stdin=StringIO(config), prepare=True)
+            self.run([helper('install-config')], stdin=StringIO(config), update_config=False, env={
+                'DRBD_TEST_JOB': self.resource.job
+            })
 
     def config_proxy(self):
         """ Update DRBD proxy options in the configuration file. """
@@ -1415,16 +1407,48 @@ class Node(exxe.Exxe):
             stdout=f, stderr=subprocess.STDOUT, stdin=devnull, close_fds=True)
         self.event(r'exists -', word_boundary=False)
 
-    def run(self, *args, **kwargs):
-        if not kwargs.pop('prepare', False):
+    def run(self, cmd, update_config=True, quote=True, catch=False, return_stdout=False, stdin=None, stdout=None, stderr=None, env={}):
+        """
+        Run a command via SSH on the target node.
+
+        :param cmd: the command as a list of strings
+        :param update_config: whether or not to update the DRBD config file before running
+        :param quote: use shell quoting to prevent environment variable substitution in commands
+        :param catch: report command failures on stderr rather than raising an exception
+        :param return_stdout: return the stdout returned by the command instead of printing it
+        :param stdin: standard input to command (file-like object)
+        :param stdout: standard output from command (file-like object)
+        :param sterr: standard error from command (file-like object)
+        :param env: a dictionary of extra environment variables which will be exported to the command
+        :returns: nothing, or a string if return_stdout is True
+        :raise CalledProcessError: when the command fails (unless catch is True)
+        """
+        if update_config:
             self.update_config()
-        # by default send all output to the log
-        if not 'stdout' in kwargs:
-            kwargs['stdout'] = logstream
-        if not 'stderr' in kwargs:
-            kwargs['stderr'] = logstream
-        log(self.name + ': ' + ' '.join(pipes.quote(str(x)) for x in args[0]))
-        return super(Node, self).run(*args, **kwargs)
+
+        stdout = stdout or logstream
+        stderr = stderr or logstream
+        stdin = stdin or False # False means no stdin
+        if return_stdout:
+            # if stdout should be returned, do not log stdout to logstream too
+            stdout = StringIO()
+
+        if quote:
+            cmd_string = ' '.join(pipes.quote(str(x)) for x in cmd)
+        else:
+            cmd_string = ' '.join(cmd)
+
+        log(self.name + ': ' + cmd_string)
+        result = self.ssh.run(cmd_string, env=env, stdin=stdin, stdout=stdout, stderr=stderr)
+        if result != 0:
+            if catch:
+                print('error: {} failed ({})'.format(cmd[0], result), file=logstream)
+            else:
+                raise CalledProcessError(result, cmd_string)
+
+        if return_stdout:
+            return stdout.getvalue().strip()
+
 
     def drbdadm(self, cmd, **kwargs):
         self.run(['drbdadm', '-c', '/var/lib/drbd-test/{}/drbd.conf'.format(self.resource.job), '-v'] + cmd, **kwargs)
@@ -1727,13 +1751,13 @@ class Node(exxe.Exxe):
         return values
 
     def set_fault_injection(self, volume, faults):
-        self.run(['enable-faults',
+        self.run([helper('enable-faults'),
 	      '--faults=%d' % (faults),
               '--rate=100',
               '--devs=%d' % (1 << volume.minor)])
 
     def disable_fault_injection(self, volume):
-        self.run(['disable-faults', '--devs=%d' % (1 << volume.minor)])
+        self.run([helper('disable-faults'), '--devs=%d' % (1 << volume.minor)])
 
 
 def skip_test(text):
@@ -1839,7 +1863,6 @@ def setup(parser=argparse.ArgumentParser(),
     global no_rmmod
     no_rmmod = args.no_rmmod
 
-    os.environ['EXXE_TIMEOUT'] = '30'
     os.environ['LOGSCAN_TIMEOUT'] = '30'
 
     if not silent:
@@ -1930,8 +1953,8 @@ def setup(parser=argparse.ArgumentParser(),
         syslog_server(args.node, port=syslog_port,
                       acc_name=os.path.join(args.logdir, 'syslog.full.txt'),
                       logfile_name=os.path.join(args.logdir, 'syslog-%s'))
-        resource.nodes.run(['rsyslogd', socket.gethostname(), str(syslog_port)],
-                           prepare=True)
+        resource.nodes.run([helper('rsyslogd'), socket.gethostname(), str(syslog_port)],
+                           update_config=False)
         # Wait for the syslog files to appear ...
         for node in args.node:
             while not os.path.exists(os.path.join(args.logdir, 'syslog-%s' % node)):
@@ -1940,10 +1963,10 @@ def setup(parser=argparse.ArgumentParser(),
 
     for node in resource.nodes:
         node.listen_to_events()
-    resource.nodes.run(['disable-faults'], prepare=True)
-    resource.nodes.run(['register-cleanup', '-t', 'bash', '-c',
-                        '! [ -e /proc/drbd ] || drbdsetup down {}'.format(resource.name)],
-                       prepare=True)
+        node.run([helper('disable-faults')], update_config=False)
+        node.run([helper('register-cleanup'), '-t', 'bash', '-c',
+            '! [ -e /proc/drbd ] || drbdsetup down {}'.format(resource.name)],
+            update_config=False)
     return resource
 
 

@@ -178,6 +178,7 @@ stability-test:
     - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
     - |
       export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
+      export DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
       ./drbd-test-bundle/virter/run-test.sh --repeats="$STABILITY_TEST_COUNT" --tests=drbd-test-bundle/virter/tests.all.toml --error-details=false --quiet $STABILITY_TEST_VMSHED_ARGS || true
       ./drbd-test-bundle/virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json drbd-test-bundle/virter/tests.toml
   dependencies:

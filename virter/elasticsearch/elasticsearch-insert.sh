@@ -77,4 +77,4 @@ cat "$results_file" | jq -c '
 		}
 	)
 ][]
-' | curl -f "$url/$index/_bulk?pretty" -H "Content-Type: application/x-ndjson" -XPOST --data-binary @-
+' | curl -f "$url/$index/_bulk" -H "Content-Type: application/x-ndjson" -XPOST --data-binary @- > /dev/null

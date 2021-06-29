@@ -2,6 +2,20 @@
 name = "t"
 provision_file = "provision-test.toml"
 
+[[vms]]
+base_image = "centos-8-drbd-k305"
+vcpus = 1
+memory = "1G"
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
+
+[vms.metadata]
+BuildDistribution = "rhel8.4"
+KernelRelease = "4.18.0-305.el8"
+SourceImage = "centos-8"
+KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
+
 
 [[vms]]
 base_image = "centos-8-drbd-k193"

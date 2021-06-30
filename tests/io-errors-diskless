@@ -107,5 +107,5 @@ for i in range(0, 20):
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()
 

@@ -54,4 +54,4 @@ def test():
 for x in range(0, 40):
     test()
 
-#resource.rmmod()
+resource.teardown()

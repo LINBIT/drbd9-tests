@@ -59,4 +59,4 @@ peer_device_ca.event(r'peer-device .* replication:Established')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

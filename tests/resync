@@ -181,4 +181,4 @@ part_iii(resource.nodes[0:3])
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

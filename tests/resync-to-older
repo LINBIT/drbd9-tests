@@ -56,4 +56,4 @@ node_b.volumes.event(r'device .* disk:UpToDate')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

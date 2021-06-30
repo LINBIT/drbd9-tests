@@ -72,4 +72,4 @@ node_c.event(may_promote_no_event)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

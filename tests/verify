@@ -185,3 +185,5 @@ for with_changes in (0, 1):
     # for n in resource.nodes:
     #     CheckContent(n, changed)
 
+resource.down()
+resource.teardown()

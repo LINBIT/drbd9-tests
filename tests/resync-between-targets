@@ -148,4 +148,4 @@ verify_data([node_b, node_c])
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

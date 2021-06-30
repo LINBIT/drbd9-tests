@@ -63,4 +63,4 @@ time.sleep(1)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

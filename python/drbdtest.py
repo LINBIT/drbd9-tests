@@ -151,8 +151,11 @@ class Tee(object):
     replicates writes to streams
     """
 
-    def __init__(self, streams):
-        self.streams = streams
+    def __init__(self):
+        self.streams = set()
+
+    def add(self, stream):
+        self.streams.add(stream)
 
     def write(self, message):
         for stream in self.streams:
@@ -183,6 +186,7 @@ def debug(*args, **kwargs):
 def helper(name):
     """ Get the path of a helper (from the target/ directory) on the test node """
     return os.path.join(DRBD_TEST_DATA, name)
+
 
 class Cleanup(object):
     """ Catch uncaught exceptions, set skip_cleanup accordingly and log. """
@@ -704,6 +708,23 @@ class Resource(object):
         for node in self.nodes:
             node.cleanup()
 
+    def teardown(self, validate_dmesg=True):
+        """
+        Tear down a Resource. That is, remove the DRBD module and validate the
+        logs.
+
+        This should be called at the end of a successful test run. General
+        cleanup is performed by functions registered with "atexit".
+        """
+        self.rmmod()
+        ok = True
+        for node in self.nodes:
+            node_ok = node.teardown(validate_dmesg)
+            if not node_ok:
+                ok = False
+        if not ok:
+            sys.exit(3)
+
     def rmmod(self):
         if no_rmmod:
             return
@@ -1224,6 +1245,8 @@ class Node():
         self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"])
         self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"])
 
+        self.start_dmesg()
+
         # Ensure that added nodes will be reflected in the DRBD configuration file.
         self.config_changed = True
 
@@ -1231,6 +1254,8 @@ class Node():
         return '%s:%s' % (self.addrs[net_num], self.port)
 
     def cleanup(self):
+        self.stop_dmesg()
+
         self.run(["iptables", "-D", "INPUT", "-j", "drbd-test-input"])
         self.run(["iptables", "-D", "OUTPUT", "-j", "drbd-test-output"])
         self.run(["bash", "-c", 'iptables -F drbd-test-input && iptables -X drbd-test-input || true'])
@@ -1242,6 +1267,54 @@ class Node():
 
         log('{}: Closing connection to {}'.format(self.name, self.ssh.host))
         self.ssh.close()
+
+    def start_dmesg(self):
+        self.dmesg_out_stream = io.StringIO()
+
+        out_path = os.path.join(self.resource.logdir, 'dmesg-{}'.format(self.name))
+        self.dmesg_out_file = open(out_path, 'w', encoding='utf-8')
+
+        out_tee = Tee()
+        out_tee.add(self.dmesg_out_stream)
+        out_tee.add(self.dmesg_out_file)
+
+        self.dmesg_process = self.ssh.Popen('dmesg --follow')
+        def dmesg_pipe():
+            self.ssh.pipeIO(self.dmesg_process, stdout=out_tee)
+
+        self.dmesg_thread = threading.Thread(target=dmesg_pipe, daemon=True)
+        self.dmesg_thread.start()
+
+    def stop_dmesg(self):
+        if self.dmesg_process:
+            self.dmesg_process.terminate()
+            self.dmesg_process.wait()
+            self.dmesg_process = None
+
+        if self.dmesg_thread:
+            self.dmesg_thread.join()
+            self.dmesg_thread = None
+
+        if self.dmesg_out_file:
+            self.dmesg_out_file.close()
+            self.dmesg_out_file = None
+
+    def teardown(self, validate_dmesg):
+        self.stop_dmesg()
+
+        ok = True
+        if validate_dmesg:
+            self.dmesg_out_stream.seek(0)
+            text = self.dmesg_out_stream.read()
+
+            pattern = re.compile(r'(BUG:|INFO:|ASSERTION|general protection fault)')
+
+            for line in text.split('\n'):
+                if pattern.search(line):
+                    log('Unexpected log line on %s: %s' % (self.name, line))
+                    ok = False
+
+        return ok
 
     def __str__(self):
         # return '%s:%s' % (self.resource, self.name)
@@ -1881,7 +1954,9 @@ def setup(parser=argparse.ArgumentParser(),
     logfile = open(os.path.join(args.logdir, 'test.log'), 'w', encoding='utf-8')
     # no need to close logfile - it is kept open until the program terminates
     global logstream
-    logstream = Tee([sys.stderr, logfile])
+    logstream = Tee()
+    logstream.add(sys.stderr)
+    logstream.add(logfile)
 
     global proxy_enable
     proxy_enable = args.proxy

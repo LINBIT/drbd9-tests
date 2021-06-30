@@ -56,4 +56,4 @@ conn_a_c.connect()
 conn_a_c.event(r'connection:Connected')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

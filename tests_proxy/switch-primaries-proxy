@@ -60,4 +60,4 @@ try:
     resource.down()
 except:
     pass
-resource.rmmod()
+resource.teardown()

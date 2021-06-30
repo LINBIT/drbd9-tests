@@ -80,4 +80,4 @@ test(write_in_between=True, crashed_primary=False)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

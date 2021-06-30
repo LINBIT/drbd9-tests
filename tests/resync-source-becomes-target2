@@ -71,4 +71,4 @@ pd_c_a.event(r'peer-device .* replication:SyncTarget')
 pd_c_a.event(r'peer-device .* replication:Established')
 
 resource.down()
-
+resource.teardown()

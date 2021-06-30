@@ -85,4 +85,4 @@ test(do_resync=True)
 test(do_resync=False)
 
 log('* Shut down and clean up.')
-resource.rmmod()
+resource.teardown()

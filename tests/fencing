@@ -258,7 +258,7 @@ def execute_test_cases(test_func):
 #log('* Shut down and clean up.')
 #time.sleep(0.1)
 #resource.down()
-#resource.rmmod()
+#resource.teardown()
 #exit(0)
 
 execute_test_cases(fencing_test1)
@@ -269,4 +269,4 @@ log('%d times the self-outdate of the disconnected node was quicker' % peer_self
 log('* Shut down and clean up.')
 time.sleep(0.1)
 resource.down()
-resource.rmmod()
+resource.teardown()

@@ -68,4 +68,4 @@ do_test(node_a, node_b, node_c, connect_to_diskless_first=False)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

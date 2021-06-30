@@ -91,4 +91,4 @@ def pre_existing_test(write_between_actions = False):
 pre_existing_test(write_between_actions = True)
 pre_existing_test(write_between_actions = False)
 
-resource.rmmod()
+resource.teardown()

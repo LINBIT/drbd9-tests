@@ -64,4 +64,4 @@ connect_and_check(node_a, node_c)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

@@ -34,3 +34,6 @@ except subprocess.CalledProcessError:
 # verify that the VM is still running by requesting some action
 # and waiting for it to happen.
 node.primary(force=True, wait=True)
+
+node.down()
+resource.teardown()

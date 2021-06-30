@@ -29,4 +29,4 @@ for node in other_nodes:
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

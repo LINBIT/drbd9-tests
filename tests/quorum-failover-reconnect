@@ -64,4 +64,4 @@ peer_devices_p1_s.event(r'peer-device .* replication:SyncTarget')
 peer_devices_p1_s.event(r'peer-device .* replication:Established')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

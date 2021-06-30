@@ -38,4 +38,4 @@ peer_device_cb.event(r'peer-device .* replication:Established')
 peer_device_bc.event(r'peer-device .* replication:Established', timeout=10)
 
 resource.down()
-resource.rmmod()
+resource.teardown()

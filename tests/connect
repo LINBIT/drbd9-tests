@@ -20,4 +20,4 @@ resource.forbidden_patterns.update([
 
 resource.down()
 
-resource.rmmod()
+resource.teardown()

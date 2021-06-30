@@ -267,4 +267,4 @@ try:
 except:
     pass
 
-resource.rmmod()
+resource.teardown()

@@ -54,4 +54,4 @@ forward_pd.event(r'peer-device .* replication:Established')
 backward_pd.event(r'peer-device .* replication:Established')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

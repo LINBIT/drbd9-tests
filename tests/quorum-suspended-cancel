@@ -95,4 +95,4 @@ do_test(primary_n, other_nodes, wait_before_write=False)
 log('* Shut down and clean up.')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

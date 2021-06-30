@@ -153,4 +153,4 @@ do_test(with_promote=LATE)
 do_test(with_promote=DURING_RESYNC)
 
 resource.down()
-resource.rmmod()
+resource.teardown()

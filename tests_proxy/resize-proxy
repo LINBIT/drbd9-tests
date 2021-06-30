@@ -212,4 +212,4 @@ else:
     except:
         pass
 
-resource.rmmod()
+resource.teardown()

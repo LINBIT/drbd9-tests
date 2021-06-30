@@ -96,6 +96,6 @@ for i in range(10):
         break
 
 resource.down()
-resource.rmmod()
+resource.teardown()
 
 log(" * Verified that resync from primary happens. It took %d runs." % (i+1))

@@ -48,4 +48,4 @@ for i in range(RUNS):
     test()
 
 resource.down()
-resource.rmmod()
+resource.teardown()

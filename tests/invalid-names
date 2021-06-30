@@ -50,4 +50,4 @@ resource.name = '\"contains\x04control\"'
 resource.touch_config()
 up_expect_fail(resource)
 
-resource.rmmod()
+resource.teardown()

@@ -150,4 +150,4 @@ test_escape(4, '--quorum=off', '--quorum=majority')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

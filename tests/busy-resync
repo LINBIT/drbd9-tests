@@ -87,4 +87,4 @@ writing_n.secondary()
 log('* Shut down and clean up.')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

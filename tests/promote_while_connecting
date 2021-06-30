@@ -52,4 +52,4 @@ A.run(["tail", "--pid={}".format(dd_pid), "-f", "/dev/null"])
 log('* Shut down and clean up.')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

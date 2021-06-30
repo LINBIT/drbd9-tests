@@ -98,4 +98,4 @@ resource.down()
 expect_drbd(node, 1, 0)
 
 
-resource.rmmod()
+resource.teardown()

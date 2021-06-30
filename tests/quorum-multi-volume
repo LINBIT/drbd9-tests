@@ -60,4 +60,4 @@ test_io_errors()
 log('* Shut down and clean up.')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

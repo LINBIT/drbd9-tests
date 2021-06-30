@@ -41,3 +41,6 @@ for i in range(20):
         r'connection:BrokenPipe',
         r'connection:ProtocolError'
     ])
+
+resource.down()
+resource.teardown()

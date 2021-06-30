@@ -63,4 +63,4 @@ if len(set(md5sums)) > 1:
     raise RuntimeError("Data differs!")
 
 resource.down()
-resource.rmmod()
+resource.teardown()

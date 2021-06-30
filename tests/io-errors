@@ -114,4 +114,4 @@ test_tracking_writes(M_RECREATE_MD)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

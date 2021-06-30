@@ -21,4 +21,4 @@ node.primary(wait=False)
 node.event(r'change resource name:abc role:Primary')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

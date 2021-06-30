@@ -91,4 +91,4 @@ test(method='invalidate', src_method='outdate')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.rmmod()
+resource.teardown()

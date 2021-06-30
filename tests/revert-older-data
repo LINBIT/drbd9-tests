@@ -59,4 +59,4 @@ for initial_sync in False, True:
 
         resource.down()
 
-resource.rmmod()
+resource.teardown()

@@ -58,5 +58,5 @@ l_connections.event(r'connection .* connection:Connecting')
 
 log('* Shut down and clean up.')
 diskful_nodes.down()
-resource.rmmod()
+resource.teardown()
 

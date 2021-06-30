@@ -111,3 +111,6 @@ for sync_command in [Invalidate, InvalidateFrom, InvalidateRemote, InvalidateBit
     wait_sync(node_primary, node_secondary, sync_command.full)
 
     assert_backing_disks_equal()
+
+resource.down()
+resource.teardown()

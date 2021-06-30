@@ -30,4 +30,4 @@ secondaries.attach()
 secondaries.volumes.event(r'device .* disk:UpToDate')
 
 resource.down()
-resource.rmmod()
+resource.teardown()

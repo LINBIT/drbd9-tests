@@ -1,3 +1,4 @@
+import fcntl
 import os
 import sys
 import subprocess
@@ -63,7 +64,7 @@ class SSH:
 
     def run(self, cmd_string, stdin=False, stdout=None, stderr=None, env=None):
         """
-        Execute a command over the ssh ControMaster connection. The user is
+        Execute a command over the ssh ControlMaster connection. The user is
         responsible for making sure that the ControlMaster connection is open
         before calling this function.
 
@@ -87,16 +88,44 @@ class SSH:
             environment variables in the command string
         :returns: the called process's exit code, once it exits
         """
-        stdout = stdout or sys.stdout
-        stderr = stderr or sys.stderr
-        if stdin is None:
-            stdin = sys.stdin
+        p = self.Popen(cmd_string, env)
 
+        self.pipeIO(p, stdin, stdout, stderr)
+
+        return p.wait()
+
+    def Popen(self, cmd_string, env=None):
+        """
+        Low-level interface to start a process over the ssh ControlMaster
+        connection.
+        """
         if env:
             cmd_string = self.inline_env(cmd_string, env)
 
         p = subprocess.Popen(['ssh', '-S', self.sockpath, '_', cmd_string],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+
+        # make the output streams non-blocking so that we can read all
+        # available bytes after 'select'
+        self._set_nonblock(p.stdout)
+        self._set_nonblock(p.stderr)
+
+        return p
+
+    def _set_nonblock(self, stream):
+        fd = stream.fileno()
+        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+    def pipeIO(self, p, stdin=False, stdout=None, stderr=None):
+        """
+        Low-level interface to read/write standard streams of the process p
+        to/from the file objects stdin, stdout and stderr.
+        """
+        stdout = stdout or sys.stdout
+        stderr = stderr or sys.stderr
+        if stdin is None:
+            stdin = sys.stdin
 
         dest = { p.stdout: stdout, p.stderr: stderr }
 
@@ -107,11 +136,10 @@ class SSH:
         def check_io():
             ready_to_read = select.select([p.stdout, p.stderr], [], [], 1000)[0]
             for stream in ready_to_read:
-                dest[stream].write(stream.read(select.PIPE_BUF).decode('utf-8'))
+                # for non-blocking streams 'read()' just reads the available bytes
+                dest[stream].write(stream.read().decode('utf-8'))
 
         while p.poll() is None:
             check_io()
 
         check_io() # check again to catch anything after the process exits
-
-        return p.wait()

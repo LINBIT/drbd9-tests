@@ -24,4 +24,4 @@ done
 
 echo "===== Run test '$TEST_NAME' with nodes: ${nodes[@]}"
 
-tests/$TEST_NAME --no-syslog --logdir /log ${nodes[@]}
+tests/$TEST_NAME --logdir /log ${nodes[@]}

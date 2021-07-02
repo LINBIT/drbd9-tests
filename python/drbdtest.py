@@ -10,7 +10,7 @@
 # FIXME: How to add a diskless volume on a node?
 
 # FIXME: For test cases with multiple resources, we only need to capture the
-# consoles, syslogs, and event logs once. We need to prefix the .pos file names
+# consoles, dmesg logs, and event logs once. We need to prefix the .pos file names
 # and the log messages with the resource name.
 
 import os
@@ -32,7 +32,6 @@ import atexit
 from .ordered_set import OrderedSet
 import io
 
-from .syslogd import syslog_server
 from io import StringIO
 
 from .controlmaster import SSH
@@ -1838,26 +1837,6 @@ def skip_test(text):
     sys.exit(100)
 
 
-def scan_syslog_files(logdir):
-    """ Scan for indications of failures in syslog files. """
-
-    def func():
-        found = False
-
-        for filename in os.listdir(logdir):
-            match = re.match(r'syslog-(.*)', filename)
-            path = os.path.join(logdir, filename)
-            if os.path.isfile(path) and match:
-                for line in open(path):
-                    if re.search(r'(BUG:|INFO:|ASSERTION|general protection fault)', line):
-                        log('%s: %s' % (match.group(1), line))
-                        found = True
-
-        if found:
-            raise SystemExit(3)
-    return func
-
-
 def setup(parser=argparse.ArgumentParser(),
           _node_class=Node, _res_class=Resource,
           nodes=None, max_nodes=None, min_nodes=2, multi_paths=False):
@@ -1880,7 +1859,6 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--cleanup', default='success',
                         choices=('success', 'always', 'never'))
     parser.add_argument('--volume-group', default='scratch')
-    parser.add_argument('--no-syslog', action='store_true')
     parser.add_argument('--vconsole', action='store_true')
     parser.add_argument('--silent', action='store_true')
     parser.add_argument('-d', action='count', dest='debug')
@@ -2022,19 +2000,6 @@ def setup(parser=argparse.ArgumentParser(),
                                            '-p', '0', '-X', 'stuff', '\035'])
                 return func
             atexit.register(close_logfile(logfile))
-
-    if not args.no_syslog:
-        syslog_port = 5140
-        syslog_server(args.node, port=syslog_port,
-                      acc_name=os.path.join(args.logdir, 'syslog.full.txt'),
-                      logfile_name=os.path.join(args.logdir, 'syslog-%s'))
-        resource.nodes.run([helper('rsyslogd'), socket.gethostname(), str(syslog_port)],
-                           update_config=False)
-        # Wait for the syslog files to appear ...
-        for node in args.node:
-            while not os.path.exists(os.path.join(args.logdir, 'syslog-%s' % node)):
-                time.sleep(0.1)
-        atexit.register(scan_syslog_files(args.logdir))
 
     for node in resource.nodes:
         node.listen_to_events()

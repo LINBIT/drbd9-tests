@@ -300,12 +300,6 @@ def run_tests(test_set_iter, all_vm_names, exclude_tests, keep_going, num_skip, 
                     else:
                         return (exit_code, results, num_successful, num_total)
 
-            if result['run_time'] < 4:
-                time.sleep(4 - result['run_time'])
-                # Systemd allows only 5 restarts within 10 seconds.
-                # Everytime a test is executed the rsyslogd gets
-                # restarted on the target VM
-
     return (global_exit_code, results, num_successful, num_total)
 
 def collect_software_versions(all_vm_names):

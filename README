@@ -69,7 +69,7 @@ be found in the log directory:
   test.log: The output of the test script (both standard output and standard
     error combined).
 
-  <node-name>.log: The syslog of each node.
+  dmesg-<node-name>: The dmesg log of each node.
 
   .*.pos: positions of the last matches in the events-* files. The logscan
     utility uses these to keep trck of the current scanning positions.

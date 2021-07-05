@@ -156,6 +156,9 @@ class Tee(object):
     def add(self, stream):
         self.streams.add(stream)
 
+    def remove(self, stream):
+        self.streams.remove(stream)
+
     def write(self, message):
         for stream in self.streams:
             stream.write(message)
@@ -1273,13 +1276,13 @@ class Node():
         out_path = os.path.join(self.resource.logdir, 'dmesg-{}'.format(self.name))
         self.dmesg_out_file = open(out_path, 'w', encoding='utf-8')
 
-        out_tee = Tee()
-        out_tee.add(self.dmesg_out_stream)
-        out_tee.add(self.dmesg_out_file)
+        self.dmesg_out_tee = Tee()
+        self.dmesg_out_tee.add(self.dmesg_out_stream)
+        self.dmesg_out_tee.add(self.dmesg_out_file)
 
         self.dmesg_process = self.ssh.Popen('dmesg --follow')
         def dmesg_pipe():
-            self.ssh.pipeIO(self.dmesg_process, stdout=out_tee)
+            self.ssh.pipeIO(self.dmesg_process, stdout=self.dmesg_out_tee)
 
         self.dmesg_thread = threading.Thread(target=dmesg_pipe, daemon=True)
         self.dmesg_thread.start()
@@ -1314,6 +1317,12 @@ class Node():
                     ok = False
 
         return ok
+
+    def add_dmesg_capture(self, out_stream):
+        self.dmesg_out_tee.add(out_stream)
+
+    def remove_dmesg_capture(self, out_stream):
+        self.dmesg_out_tee.remove(out_stream)
 
     def __str__(self):
         # return '%s:%s' % (self.resource, self.name)
@@ -1749,26 +1758,6 @@ class Node():
 
     def unblock_packet_type(self, packet, from_node=None, volume=0):
         self._block_packet_type(packet, '-D', from_node, volume)
-
-    def dmesg(self, pattern=None, mode='--read-clear'):
-        """Fetches (part of) dmesg; clears it afterwards.
-
-        Returns a list of tuples, containing (string, match object), for each line.
-        If pattern is None, simply returns the list of lines."""
-
-        output = self.run(['dmesg', mode], return_stdout=True)
-        lines = output.splitlines()
-        if not pattern:
-            return lines
-
-        result = []
-        for l in lines:
-            m = re.search(pattern, l)
-            if m:
-                log("line %s, match %s" % (l, m))
-                result.append((l, m))
-
-        return result
 
     def _drbdsetup_lines(self):
         output = node.run(['drbdsetup', 'status', '--s', '--v', self.resource.name],

@@ -97,14 +97,18 @@ def CheckContent(node, blocks):
     return True
 
 
-def GetDifferenceFromDmesg(node):
-    # Clear after reading, so that the next runs won't see old messages.
-    # grep on host, so that the amount of transferred information is small.
+def GetDifferenceFromDmesg(node, dmesg_text):
     #   [4508806.959591] drbd ramdisk/0 drbd28 much: Out of sync: start=40, size=16 (sectors)
-    oos = node.dmesg(r"drbd .* Out of sync:.*start=(\d+), size=(\d+)")
+    pattern = re.compile(r'drbd .* Out of sync:.*start=(\d+), size=(\d+)')
 
     blks = []
-    for (line, match) in oos:
+    for line in dmesg_text.split('\n'):
+        match = pattern.search(line)
+        if not match:
+            continue
+
+        log("on node {} matching line: {}".format(node, line))
+
         sector = int(match.group(1))
         length = int(match.group(2))
 
@@ -122,9 +126,18 @@ def GetDifferenceFromDmesg(node):
     return set(blks)
 
 
+def RemoveCapture(node, dmesg_stream):
+    node.remove_dmesg_capture(dmesg_stream)
+    dmesg_stream.seek(0)
+    return dmesg_stream.read()
+
+
 def DoVerify(src_node, dst_node, expected):
-    src_node.run(["dmesg", "--clear"])
-    dst_node.run(["dmesg", "--clear"])
+    src_dmesg = StringIO()
+    dst_dmesg = StringIO()
+    src_node.add_dmesg_capture(src_dmesg)
+    dst_node.add_dmesg_capture(dst_dmesg)
+
     src_node.drbdadm(['verify', '--start=0', '%s:%s/0' % (resource.name, dst_node.name)])
 
     src_node.peer_devices.event(r'peer-device .* replication:VerifyS')
@@ -133,9 +146,11 @@ def DoVerify(src_node, dst_node, expected):
     src_node.peer_devices.event(r'peer-device .* replication:Established')
     dst_node.peer_devices.event(r'peer-device .* replication:Established')
 
+    src_dmesg_text = RemoveCapture(src_node, src_dmesg)
+    dst_dmesg_text = RemoveCapture(dst_node, dst_dmesg)
     if expected:
-        src_blks = GetDifferenceFromDmesg(src_node)
-        dst_blks = GetDifferenceFromDmesg(dst_node)
+        src_blks = GetDifferenceFromDmesg(src_node, src_dmesg_text)
+        dst_blks = GetDifferenceFromDmesg(dst_node, dst_dmesg_text)
 
         drbdtest.ensure(src_blks, dst_blks)
         drbdtest.ensure(src_blks, set([ l[0] for l in expected ]))

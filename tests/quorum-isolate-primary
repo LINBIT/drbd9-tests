@@ -71,20 +71,17 @@ def test_write_between_disconnects(resource):
 
     connection_to_cut1.event(r'connection .* connection:Unconnected')
     connection_to_cut2.event(r'connection .* connection:Unconnected')
-    #tmp_pri = random.choice(secondaries_n)
-    tmp_pri = cut1_sec
-    tmp_pri.primary(wait=False)
+    cut1_sec.primary(wait=False)
 
-    # Make sure the reconciliation resync happens
-    reconciliation_c = resource.connections.from_node(cut1_sec).to_node(cut2_sec)[0]
-    reconciliation_pd = drbdtest.PeerDevice(reconciliation_c, resource.volumes[0])
-    reconciliation_pd.event(r'peer-device .* replication:SyncTarget')
-    reconciliation_pd.event(r'peer-device .* replication:Established')
-    tmp_pri.event(r'resource .* role:Primary')
-    tmp_pri.write(direct=1)
+    # Make sure the promotion and reconciliation resync happen
+    cut1_sec.event(r'resource name:{} role:Primary'.format(resource.name),
+            r'peer-device name:{} peer-node-id:{} .* replication:SyncTarget'.format(resource.name, cut2_sec.id),
+            r'peer-device name:{} peer-node-id:{} .* replication:Established'.format(resource.name, cut2_sec.id))
+
+    cut1_sec.write(direct=1)
 
     log('* re-integrating')
-    tmp_pri.secondary()
+    cut1_sec.secondary()
     primary_n.secondary()
 
     cut2_sec.unblock_packet_type(drbdtest.P_PING_ACK, from_node=primary_n, volume=0xFFFF)

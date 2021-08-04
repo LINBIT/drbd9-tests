@@ -108,7 +108,7 @@ SourceImage = "ubuntu-xenial"
 
 
 [[vms]]
-base_image = "ubuntu-bionic-drbd-k142"
+base_image = "ubuntu-bionic-drbd-k153"
 vcpus = 1
 memory = "1G"
 
@@ -118,7 +118,7 @@ RepositoryDistribution = "bionic"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-bionic"
-KernelRelease = "4.15.0-142"
+KernelRelease = "4.15.0-153"
 SourceImage = "ubuntu-bionic"
 
 

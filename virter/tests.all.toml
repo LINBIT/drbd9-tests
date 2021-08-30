@@ -183,6 +183,9 @@ vms = [3]
 [tests.two-primaries-reject]
 vms = [3]
 
+[tests.unstable-retry]
+vms = [4]
+
 [tests.uuid_send_receive_race]
 vms = [3]
 

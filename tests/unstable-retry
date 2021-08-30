@@ -1,0 +1,57 @@
+#! /usr/bin/env python3
+
+# Test that DRBD syncs up and becomes UpToDate when connecting to the diskless
+# Primary during an unstable sync. In particular, test the case where are 2
+# nodes from which we can sync. This was broken from DRBD 9.0.26 to
+# 9.0.30/9.1.3 inclusive.
+
+from python import drbdtest
+from python.drbdtest import log
+
+resource = drbdtest.setup(nodes=4)
+resource.disk_options = 'c-max-rate 4M;'
+diskful_nodes = resource.nodes[1:]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+
+resource.up_wait()
+
+node_a, node_b, node_c, node_d = resource.nodes
+connections_to_a = resource.connections.to_node(node_a)
+connections_from_d = resource.connections.from_node(node_d)
+connection_da = resource.connections.from_node(node_d).to_node(node_a)
+connection_db = resource.connections.from_node(node_d).to_node(node_b)
+connection_dc = resource.connections.from_node(node_d).to_node(node_c)
+peer_device_db = drbdtest.PeerDevices.from_connections(connection_db)
+peer_device_dc = drbdtest.PeerDevices.from_connections(connection_dc)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+node_a.primary()
+connections_to_a.event(r'connection .* role:Primary')
+
+log('* Disconnect node_d and write new data')
+connections_from_d.disconnect()
+node_a.write(direct=1, size='8M')
+
+log('* Start sync from node_b')
+connection_db.connect()
+peer_device_db.event(r'peer-device .* replication:SyncTarget')
+
+log('* Start sync from node_c')
+connection_dc.connect()
+peer_device_dc.event(r'peer-device .* replication:(SyncTarget|PausedSyncT)')
+
+log('* Connect with Primary node_a')
+connection_da.connect()
+connection_da.event(r'connection .* connection:Connected')
+
+log('* Wait for syncs to complete')
+node_d.volumes.event(
+        r'peer-device .* peer-node-id:{} .* replication:Established'.format(node_b.id),
+        r'peer-device .* peer-node-id:{} .* replication:Established'.format(node_c.id),
+        r'device .* disk:UpToDate')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

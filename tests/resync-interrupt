@@ -1,0 +1,81 @@
+#! /usr/bin/env python3
+
+# Test that DRBD correctly resumes syncs after disconnection and reconnection.
+# In particular, test the case where 2 nodes are both SyncTarget and they first
+# connect to each other on reconnection.
+
+from python import drbdtest
+from python.drbdtest import log
+
+resource = drbdtest.setup(nodes=3)
+resource.disk_options = 'c-max-rate 2M;'
+resource.add_disk('12M')
+
+resource.up_wait()
+
+node_a, node_b, node_c = resource.nodes
+connections_to_a = resource.connections.to_node(node_a)
+connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+connection_bc = resource.connections.from_node(node_b).to_node(node_c)
+connection_ca = resource.connections.from_node(node_c).to_node(node_a)
+connection_cb = resource.connections.from_node(node_c).to_node(node_b)
+peer_device_ba = drbdtest.PeerDevices.from_connections(connection_ba)
+peer_device_bc = drbdtest.PeerDevices.from_connections(connection_bc)
+peer_device_ca = drbdtest.PeerDevices.from_connections(connection_ca)
+peer_device_cb = drbdtest.PeerDevices.from_connections(connection_cb)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+log('* Write new data on node_a only')
+connections_to_a.disconnect()
+node_a.write(direct=1, size='8M')
+
+log('* Start sync to node_b and let it run a bit')
+connection_ba.connect()
+peer_device_ba.event(r'peer-device .* replication:SyncTarget')
+
+while True:
+    done = peer_device_ba.event(r'peer-device .* done:([0-9.]+)')
+    if float(done[0][0]) > 20.0:
+        log(done)
+        break
+
+log('* Start sync to node_c')
+connection_ca.connect()
+peer_device_ca.event(r'peer-device .* replication:SyncTarget')
+
+log('* Break off syncs')
+connections_to_a.disconnect()
+
+log('* Disconnect and reconnect node_b and node_c')
+connection_bc.disconnect()
+connection_bc.connect()
+peer_device_bc.event(r'peer-device .* replication:Established')
+peer_device_cb.event(r'peer-device .* replication:Established')
+
+log('* Resume sync from node_a to node_b')
+connection_ba.connect()
+peer_device_ba.event(r'peer-device .* replication:SyncTarget')
+node_b.volumes.event(r'device .* disk:UpToDate',
+        r'peer-device .* peer-node-id:{} .* replication:Established'.format(node_a.id))
+
+log('* Let sync from node_b to node_c run')
+peer_device_cb.event(r'peer-device .* replication:SyncTarget')
+node_c.volumes.event(r'device .* disk:UpToDate',
+        r'peer-device .* peer-node-id:{} .* replication:Established'.format(node_b.id))
+
+log('* Validate data')
+md5sums=[]
+for n in resource.nodes:
+    md5sum = n.run(['/bin/bash', '-c', 'dd if={} bs=64k iflag=direct count=150 | md5sum'.format(n.volumes[0].device())],
+                    return_stdout=True)
+    md5sums.append(md5sum)
+
+if len(set(md5sums)) > 1:
+    print(md5sums)
+    raise RuntimeError("Data differs!")
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

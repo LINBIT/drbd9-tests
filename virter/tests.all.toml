@@ -135,6 +135,9 @@ vms = [3]
 vms = [2, 5]
 samevms = true
 
+[tests.resync-interrupt]
+vms = [3]
+
 [tests.resync-reconciliation]
 vms = [3]
 

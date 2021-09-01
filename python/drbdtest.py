@@ -34,7 +34,7 @@ import io
 
 from io import StringIO
 
-from .controlmaster import SSH
+from lbpytest.controlmaster import SSH
 
 #Contants for set_fault_injection
 DF_META_WRITE = 1

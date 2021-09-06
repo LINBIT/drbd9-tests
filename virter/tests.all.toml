@@ -107,6 +107,9 @@ vms = [1]
 [tests.resize]
 vms = [2, 5]
 
+[tests.resize-one]
+vms = [3]
+
 [tests.resync]
 vms = [3]
 

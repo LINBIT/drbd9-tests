@@ -1,0 +1,69 @@
+#! /usr/bin/env python3
+
+# Test that a diskless DRBD primary node survives if one of the peers is
+# resized and reset. This was broken up to DRBD 9.0.30/9.1.3 inclusive.
+
+from python import drbdtest
+from python.drbdtest import log
+
+def get_size(node):
+    # do not use "blockdev" because it opens the device
+    get_size_command = ['lsblk', '--bytes', '--noheadings', '--output', 'SIZE', node.volumes[0].device()]
+    return int(node.run(get_size_command, return_stdout=True))
+
+def check_size(node, size_bytes_before):
+    size_bytes_after = get_size(node)
+
+    if size_bytes_before != size_bytes_after:
+        raise Exception('unexpected change of size from {} bytes to {} bytes'.format(size_bytes_before, size_bytes_after))
+
+def check_readable(node):
+    # check that the primary still has access to UpToDate data
+    node.run(['dd', 'if={}'.format(node.volumes[0].device()), 'bs=4K', 'count=1', 'iflag=direct'])
+
+resource = drbdtest.setup(nodes=3)
+diskful_nodes = resource.nodes[:2]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+
+resource.up_wait()
+
+node_a, node_b, node_c = resource.nodes
+connections_to_c = resource.connections.to_node(node_c)
+connection_ab = resource.connections.from_node(node_a).to_node(node_b)
+connection_ac = resource.connections.from_node(node_a).to_node(node_c)
+connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+node_c.primary()
+connections_to_c.event(r'connection .* role:Primary')
+
+size_bytes_before = get_size(node_c)
+
+node_a.down()
+node_a.volumes.resize('20M')
+node_a.drbdadm(['create-md', '--force', resource.name])
+
+# disconnect to ensure that node_a first connects to node_c
+connection_ba.disconnect()
+
+node_a.up()
+
+connection_ac.event(r'connection .* connection:Connected')
+
+check_size(node_c, size_bytes_before)
+check_readable(node_c)
+
+connection_ba.connect()
+connection_ba.event(r'connection .* connection:Connected')
+connection_ab.event(r'connection .* connection:Connected')
+
+check_size(node_c, size_bytes_before)
+check_readable(node_c)
+
+node_c.secondary()
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

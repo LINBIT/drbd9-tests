@@ -135,7 +135,7 @@ kernel::deb() {
 }
 
 # Set some kernel command line parameters for debugging convenience
-sed -i '/GRUB_CMDLINE_LINUX=/s/"\(.*\)"/"\1 nokaslr page_poison=1"/' /etc/default/grub
+sed -i '/GRUB_CMDLINE_LINUX=/s/"\(.*\)"/"\1 nokaslr page_poison=1 crashkernel=no"/' /etc/default/grub
 
 if command -v yum > /dev/null; then
 	kernel::rpm

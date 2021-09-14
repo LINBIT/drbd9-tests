@@ -19,4 +19,4 @@ clean:
 
 .PHONY: docker
 docker:
-	docker build -t $(DOCKER_IMAGE_NAME) .
+	docker build --no-cache -t $(DOCKER_IMAGE_NAME) .

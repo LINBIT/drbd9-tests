@@ -21,24 +21,7 @@
 
 from python import drbdtest
 from python.drbdtest import log
-import time
-import socket
-
-def slow_down_connection(from_n, to_n, speed='', delay=''):
-    dev = from_n.net_device_to_peer(to_n)
-    ip = socket.gethostbyname(to_n.hostname)
-    log('Slowing down connection from {0} to {1} ({2})'.format(from_n.hostname, to_n.hostname, ip))
-    from_n.run(['tc', 'qdisc', 'replace', 'dev', dev, 'root', 'handle', '1:', 'prio'])
-    if delay != '':
-        from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'delay', delay])
-    else:
-        from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'rate', speed])
-
-    from_n.run(['tc', 'filter', 'add', 'dev', dev, 'parent', '1:0', 'protocol', 'ip', 'pref', '55', 'handle', '::55', 'u32', 'match', 'ip', 'dst', ip, 'flowid', '2:1'])
-
-def restore_slow_down(from_n, to_n):
-    dev = from_n.net_device_to_peer(to_n)
-    from_n.run(['tc', 'qdisc', 'del', 'root', 'dev', dev])
+from python import trafficcontrol
 
 def write_on_node(node):
     node.volumes.write(size='100M', offset='10M', end_fsync=1)
@@ -57,6 +40,9 @@ c_a = drbdtest.Connection(c, a)
 c_b = drbdtest.Connection(c, b)
 from_c = drbdtest.Connections([c_a, c_b])
 
+a_tc = trafficcontrol.TrafficControl(a, resource.nodes)
+b_tc = trafficcontrol.TrafficControl(b, resource.nodes)
+
 resource.add_disk('128M')
 resource.up_wait()
 
@@ -70,8 +56,8 @@ b.primary()
 
 write_on_node(b)
 
-slow_down_connection(a, c, delay='50ms')
-slow_down_connection(b, c, speed='100mbit')
+a_tc.slow_down(c, delay='50ms')
+b_tc.slow_down(c, speed='100mbit')
 b_c.connect()
 b_c.event(r'connection .* connection:Connected')
 c_b.event(r'connection .* connection:Connected')
@@ -84,7 +70,7 @@ c.event(r'response helper .* helper:after-resync-target')
 
 log('* Shut down and clean up.')
 
-restore_slow_down(a, c)
-restore_slow_down(b, c)
 resource.down()
+a_tc.reset()
+b_tc.reset()
 resource.teardown()

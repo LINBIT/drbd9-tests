@@ -16,31 +16,16 @@
 # Result: B should become SyncSource for C and sync should continue
 
 
-import time
 from python import drbdtest
 from python.drbdtest import log
-from subprocess import CalledProcessError
-import socket
-
-def slow_down_connection(from_n, to_n, speed='', delay=''):
-    dev = from_n.net_device_to_peer(to_n)
-    ip = socket.gethostbyname(to_n.hostname)
-    log('Slowing down connection from {0} to {1} ({2})'.format(from_n.hostname, to_n.hostname, ip))
-    from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'root', 'handle', '1:', 'prio'])
-    if delay != '':
-        from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'delay', delay])
-    else:
-        from_n.run(['tc', 'qdisc', 'add', 'dev', dev, 'parent', '1:1', 'handle', '2:', 'netem', 'rate', speed])
-
-    from_n.run(['tc', 'filter', 'add', 'dev', dev, 'parent', '1:0', 'protocol', 'ip', 'pref', '55', 'handle', '::55', 'u32', 'match', 'ip', 'dst', ip, 'flowid', '2:1'])
-
-def restore_slow_down(from_n, to_n):
-    dev = from_n.net_device_to_peer(to_n)
-    from_n.run(['tc', 'qdisc', 'del', 'root', 'dev', dev])
+from python import trafficcontrol
 
 resource = drbdtest.setup(nodes=3)
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
 primary, fast, slow = resource.nodes
+
+primary_tc = trafficcontrol.TrafficControl(primary, resource.nodes)
+
 resource.add_disk('128M')
 resource.up_wait()
 
@@ -54,7 +39,7 @@ fast.detach()
 slow.detach()
 
 # ensure "fast" node finishes before "slow" node
-slow_down_connection(primary, slow, speed='100mbit')
+primary_tc.slow_down(slow, speed='100mbit')
 
 c = resource.connections.to_node(primary)
 
@@ -69,7 +54,7 @@ primary.down()
 slow.event('response helper .* helper:after-resync-target')
 
 log('* Shut down and clean up.')
-restore_slow_down(primary, slow)
 fast.down()
 slow.down()
+primary_tc.reset()
 resource.teardown()

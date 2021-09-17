@@ -150,6 +150,7 @@ test:
     when: always
     reports:
       junit: tests-out/test-results/*.xml
+    expire_in: 1 week
 
 
 stability-test:
@@ -190,4 +191,4 @@ stability-test:
     paths:
       - tests-out/
     when: always
-    expire_in: 2 weeks
+    expire_in: 1 week

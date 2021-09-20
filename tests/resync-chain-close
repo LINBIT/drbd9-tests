@@ -1,0 +1,69 @@
+#! /usr/bin/env python3
+
+# Test that DRBD completes the correct syncs when it starts syncing along a 3
+# node chain but then the 2 ends of the chain are connected. This was broken in
+# DRBD 9.0.29 and 9.0.30, as well as the corresponding 9.1.x versions. The
+# syncs were correct as far as the states are concerned, but the wrong bitmap
+# was used, resulting in skipped sectors.
+
+from python import drbdtest
+from python.drbdtest import log
+
+resource = drbdtest.setup(nodes=3)
+resource.disk_options = 'c-max-rate 3M;'
+resource.add_disk('12M')
+
+log('* Pre-fill backing disks with the same data on each node')
+# This helps with debugging
+for n in resource.nodes:
+    byte_count = n.run(['blockdev', '--getsize64', n.volumes[0].disk], return_stdout=True)
+    n.run(['/bin/bash', '-c', 'set -o pipefail ; {} --label "initial " --bytes {} | dd iflag=fullblock of={} bs=1M oflag=direct'
+        .format(drbdtest.helper('data_generator.py'), byte_count, n.volumes[0].disk)])
+    n.drbdadm(['create-md', '--force', resource.name])
+
+resource.up_wait()
+resource.skip_initial_sync()
+
+node_a, node_b, node_c = resource.nodes
+
+connection_ab = resource.connections.from_node(node_a).to_node(node_b)
+connection_ac = resource.connections.from_node(node_a).to_node(node_c)
+connection_bc = resource.connections.from_node(node_b).to_node(node_c)
+peer_devices_ab = drbdtest.PeerDevices.from_connections(connection_ab)
+peer_devices_ac = drbdtest.PeerDevices.from_connections(connection_ac)
+peer_devices_bc = drbdtest.PeerDevices.from_connections(connection_bc)
+
+connection_ab.disconnect()
+connection_ac.disconnect()
+connection_bc.disconnect()
+
+node_c.write(size='6M', bs='1M', direct=1)
+
+log('* Start upstream sync')
+connection_bc.connect()
+peer_devices_bc.event(r'peer-device .* replication:SyncTarget')
+
+log('* Start downstream sync (paused)')
+connection_ab.connect()
+peer_devices_ab.event(r'peer-device .* replication:PausedSyncT')
+
+log('* Wait for upstream sync to finish')
+peer_devices_bc.event(r'peer-device .* replication:Established')
+
+log('* Close the chain')
+connection_ac.connect()
+peer_devices_ac.event(r'peer-device .* replication:Established')
+
+md5sums=[]
+for n in resource.nodes:
+    md5sum = n.run(['/bin/bash', '-c', 'dd if={} bs=1M iflag=direct | md5sum'.format(n.volumes[0].device())],
+                    return_stdout=True)
+    md5sums.append(md5sum)
+
+if len(set(md5sums)) > 1:
+    log(md5sums)
+    raise RuntimeError("Data differs!")
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

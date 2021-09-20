@@ -30,6 +30,7 @@ data_scripts := \
 	enable-faults \
 	install-config \
 	register-cleanup \
+	data_generator.py \
 	misaligned_bio.py \
 	stress-al.py \
 	unusual_bios.py \

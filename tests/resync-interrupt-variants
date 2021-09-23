@@ -1,0 +1,266 @@
+#! /usr/bin/env python3
+
+# Test DRBD's behavior when a resync or verify operation is interrupted by
+# connection loss and reconnection. Includes variants with busy writing primary
+# nodes which only pass with DRBD 9.2. Multiple variants are tested with
+# different combinations of primary node, disconnection type and resync type.
+
+from enum import Enum
+import json
+import time
+
+from python import drbdtest
+from python.drbdtest import log
+from python import busywrite
+from python import datatools
+from python import trafficcontrol
+
+
+disk_options = 'c-max-rate 20M; c-min-rate 0;'
+net_options = 'verify-alg md5;'
+source_target_mbit = 120
+
+fio_same_data_args = {
+        'rw': 'randwrite',
+        'ioengine': 'libaio',
+        'size': '96M',
+        'bs': '256K',
+        'blockalign': '1M', # scatter blocks
+        'norandommap': 1, # required for blockalign
+        'direct': 1,
+        'buffer_pattern': '"a"'}
+
+fio_zero_args = {
+        'rw': 'randwrite',
+        'ioengine': 'libaio',
+        'size': '96M',
+        'bs': '128K',
+        'blockalign': '512K', # scatter blocks
+        'norandommap': 1, # required for blockalign
+        'direct': 1,
+        'zero_buffers': 1}
+
+
+class VariantDisconnect(Enum):
+    NORMAL = 0
+    FORCE = 1
+    DOWN = 2
+
+
+class VariantType(Enum):
+    NORMAL = 0
+    CHECKSUM = 1
+    THIN = 2
+
+
+def fetch_status(node):
+    result = node.run(['drbdsetup', 'status', resource.name, '--json'], return_stdout=True)
+    return json.loads(result)[0]
+
+def validate_statistic(context, values, name, expected):
+    drbdtest.ensure(expected, values[name], '{}: Expect "{}" to be {}'.format(context, name, expected))
+
+def validate_status_inactive(nodes=None, busy=True):
+    for node, peer in [(source_n, target_n), (target_n, source_n)]:
+        if nodes is not None and not node in nodes:
+            continue
+
+        status = fetch_status(node)
+        connection_status = next(c for c in status['connections'] if c['name'] == peer.name)
+        pd_status = connection_status['peer_devices'][0]
+
+        context = '{} -> {}'.format(node.name, peer.name)
+        validate_statistic(context, connection_status, 'rs-in-flight', 0)
+        validate_statistic(context, pd_status, 'unacked', 0)
+        validate_statistic(context, pd_status, 'pending', 0)
+
+        if not busy:
+            device_status = {}
+            # Allow several attempts because DRBD might be updating metadata
+            for attempt in range(3):
+                device_status = status['devices'][0]
+                if device_status['lower-pending'] != 0:
+                    time.sleep(1)
+                    status = fetch_status(node)
+            validate_statistic(node.name, device_status, 'lower-pending', 0)
+
+def start_writer(primary_n):
+    if primary_n is None:
+        return None
+
+    writer = busywrite.BusyWrite(primary_n.volumes[0])
+
+    # Scatter writes to increase likelihood of interrupting with conflicts
+    fio_arg_str='--size=96M --bs=64K --blockalign=256K --norandommap=1'
+    if primary_n == source_n:
+        # Rate limit to avoid saturating the network with application IO so
+        # that sync is reasonably fast
+        fio_arg_str += ' --rate={}K'.format(1024 * source_target_mbit // 8 // 2)
+
+    log('* Start writing in background')
+    writer.start(fio_arg_str)
+    return writer
+
+def wait_for_sync_progress():
+    while True:
+        done = target_source_pd.event(r'peer-device .* done:([0-9.]+)')
+        if float(done[0][0]) > 20.0:
+            break
+
+def interrupt_connection(disconnect_type):
+    log('* Break connection')
+    if disconnect_type == VariantDisconnect.NORMAL:
+        target_source_c.disconnect()
+    elif disconnect_type == VariantDisconnect.FORCE:
+        resource.forbidden_patterns.difference_update([
+            r'connection:NetworkFailure',
+            r'connection:BrokenPipe',
+            r'connection:ProtocolError'
+        ])
+        target_source_c.disconnect(force=True)
+    elif disconnect_type == VariantDisconnect.DOWN:
+        target_n.down()
+    source_target_c.event(r'connection .* connection:Connecting')
+
+    log('* Restore connection')
+    if disconnect_type == VariantDisconnect.DOWN:
+        validate_status_inactive(nodes=[source_n])
+        target_n.up()
+    else:
+        if disconnect_type == VariantDisconnect.FORCE:
+            resource.forbidden_patterns.update([
+                r'connection:NetworkFailure',
+                r'connection:BrokenPipe',
+                r'connection:ProtocolError'
+            ])
+        validate_status_inactive()
+        target_source_c.connect()
+
+def test_variant(primary_n, disconnect_type, resync_type):
+    log('*** Variant: primary={} disconnect={} type={}'.format(primary_n, disconnect_type, resync_type))
+
+    resource.disk_options = '{} rs-discard-granularity {};'.format(disk_options,
+            '64K' if resync_type == VariantType.THIN else '0')
+    resource.net_options = '{} csums-alg {};'.format(net_options,
+            'md5' if resync_type == VariantType.CHECKSUM else '""')
+    resource.touch_config()
+    resource.nodes.adjust()
+
+    diskless_n.fio(fio_same_data_args)
+
+    log('* Write data without target node')
+    from_target.disconnect()
+    source_n.write(size='96M', bs='1M', direct=1)
+
+    # Make part of the data equal so that checksum sync skips some blocks
+    source_n.fio(fio_same_data_args)
+
+    # Zero out part of the data so that there is something to discard
+    source_n.fio(fio_zero_args)
+
+    target_diskless_c.connect()
+    target_diskless_c.event(r'connection .* connection:Connected')
+
+    log('* Let sync start')
+    target_source_c.connect()
+    source_target_pd.event(r'peer-device .* replication:SyncSource')
+    target_source_pd.event(r'peer-device .* replication:SyncTarget')
+
+    writer = start_writer(primary_n)
+
+    wait_for_sync_progress()
+
+    interrupt_connection(disconnect_type)
+
+    log('* Let sync finish')
+    source_target_pd.event(r'peer-device .* replication:SyncSource')
+    target_source_pd.event(r'peer-device .* replication:SyncTarget')
+    source_target_pd.event(r'peer-device .* replication:Established')
+    # "Outdated" is allowed as part of the workaround mentioned below
+    target_n.volumes.event(r'device .* disk:(UpToDate|Outdated)',
+            r'peer-device .* peer-node-id:{} .* replication:Established'.format(source_n.id))
+
+    if primary_n == target_n:
+        # If writer was on the target then it will have failed when the resync
+        # was interrupted. So there is no need to stop it explicitly.
+
+        # Work around a DRBD bug which often causes both disks to become
+        # Outdated in this situation. This bug is demonstrated by the test
+        # "resync-target-promote-interrupt".
+        source_n.drbdadm(['primary', '--force', 'all'])
+        source_n.event(r'resource .* role:Primary')
+        source_n.secondary()
+    elif writer is not None:
+        writer.stop()
+
+    validate_status_inactive(busy=False)
+    datatools.verify_data([source_n, target_n], 96)
+
+def test_verify_variant(primary_n, disconnect_type):
+    log('*** Variant: primary={} disconnect={} type=verify'.format(primary_n, disconnect_type))
+
+    log('* Write data to backing disk so that there are out-of-sync blocks')
+    source_n.fio_file(source_n.volumes[0].disk, rw='randwrite', size='96M', bs='256K', blockalign='1M', norandommap=1, randrepeat=0, direct=1)
+
+    log('* Start verify')
+    source_target_pd.verify(options=['--start=0'])
+
+    writer = start_writer(primary_n)
+
+    wait_for_sync_progress()
+
+    interrupt_connection(disconnect_type)
+
+    source_target_pd.event(r'peer-device .* replication:Established')
+    target_source_pd.event(r'peer-device .* replication:Established')
+
+    if writer is not None:
+        writer.stop()
+
+    validate_status_inactive(busy=False)
+
+
+resource = drbdtest.setup(nodes=3)
+diskless_n, source_n, target_n = resource.nodes
+
+source_tc = trafficcontrol.TrafficControl(source_n, resource.nodes)
+
+resource.disk_options = disk_options
+resource.net_options = net_options
+resource.add_disk('100M', diskful_nodes=[source_n, target_n])
+resource.up_wait()
+
+from_target = resource.connections.from_node(target_n)
+source_target_c = resource.connections.from_node(source_n).to_node(target_n)
+source_target_pd = resource.peer_devices.from_node(source_n).to_node(target_n)
+target_diskless_c = resource.connections.from_node(target_n).to_node(diskless_n)
+target_source_c = resource.connections.from_node(target_n).to_node(source_n)
+target_source_pd = resource.peer_devices.from_node(target_n).to_node(source_n)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+# Throttle connection from source to target to lower than c-max-rate so that
+# there is resync data in-flight when we cut the connection
+source_tc.slow_down(target_n, speed='{}mbit'.format(source_target_mbit))
+
+test_variant(None, VariantDisconnect.FORCE, VariantType.NORMAL)
+test_variant(None, VariantDisconnect.FORCE, VariantType.THIN)
+test_variant(None, VariantDisconnect.FORCE, VariantType.CHECKSUM)
+test_variant(diskless_n, VariantDisconnect.FORCE, VariantType.NORMAL)
+test_variant(diskless_n, VariantDisconnect.FORCE, VariantType.THIN)
+test_variant(diskless_n, VariantDisconnect.FORCE, VariantType.CHECKSUM)
+test_variant(source_n, VariantDisconnect.FORCE, VariantType.NORMAL)
+test_variant(target_n, VariantDisconnect.FORCE, VariantType.NORMAL)
+test_variant(diskless_n, VariantDisconnect.NORMAL, VariantType.NORMAL)
+test_variant(diskless_n, VariantDisconnect.DOWN, VariantType.NORMAL)
+
+test_verify_variant(None, VariantDisconnect.FORCE)
+test_verify_variant(diskless_n, VariantDisconnect.FORCE)
+test_verify_variant(source_n, VariantDisconnect.DOWN)
+test_verify_variant(target_n, VariantDisconnect.NORMAL)
+
+log('* Shut down and clean up.')
+resource.down()
+source_tc.reset()
+resource.teardown()

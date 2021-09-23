@@ -141,6 +141,9 @@ vms = [3]
 vms = [2, 5]
 samevms = true
 
+[tests.resync-interrupt-variants]
+vms = [3]
+
 [tests.resync-multiple-interrupt]
 vms = [3]
 

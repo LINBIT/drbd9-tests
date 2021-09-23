@@ -45,12 +45,14 @@ writing_n.volumes.write(size='80M', offset='20M', direct=1)
 # run fio in background
 fio_cmd = ['setsid', 'bash', '-c',
         'fio --max-jobs=1 --name=test --filename={} --ioengine=libaio --rw=write --direct=1 --iodepth=32 '.format(writing_n.volumes[0].device()) +
-        # Some fio versions (including fio-3.16 on Ubuntu Focal) ignore "size"
-        # when "time_based" is given. Use an offset after the dirty region so
-        # that this job does not overwrite it. Otherwise the application IO
-        # from this job will enable DRBD to finish the sync regardless of
-        # whether the busy resync problem occurred or not.
-        '--offset=100M ' +
+        # fio-3.16 (default on Ubuntu Focal) has a bug affecting the
+        # combination of "size" and "offset". The effects vary depending on
+        # whether "time_based" is given. With "time_based" and "size ==
+        # offset", fio writes from "offset" to the end of the device. This
+        # would allow the application IO from this job to finish the sync
+        # regardless of whether the busy resync problem occurred or not.
+        # Avoid using "offset".
+        # See https://bugs.launchpad.net/ubuntu/+source/fio/+bug/1891169
         '--size=8M --time_based --runtime=600 < /dev/null &> /dev/null & echo $!']
 fio_pid = writing_n.run(fio_cmd, return_stdout=True)
 

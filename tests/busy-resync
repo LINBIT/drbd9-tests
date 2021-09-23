@@ -16,6 +16,7 @@
 
 from python import drbdtest
 from python.drbdtest import log
+from python import busywrite
 import time
 
 
@@ -42,19 +43,9 @@ to_writing.event(r'connection .* connection:Connecting')
 # write to node
 writing_n.volumes.write(size='80M', offset='20M', direct=1)
 
-# run fio in background
-fio_cmd = ['setsid', 'bash', '-c',
-        'fio --max-jobs=1 --name=test --filename={} --ioengine=libaio --rw=write --direct=1 --iodepth=32 '.format(writing_n.volumes[0].device()) +
-        # fio-3.16 (default on Ubuntu Focal) has a bug affecting the
-        # combination of "size" and "offset". The effects vary depending on
-        # whether "time_based" is given. With "time_based" and "size ==
-        # offset", fio writes from "offset" to the end of the device. This
-        # would allow the application IO from this job to finish the sync
-        # regardless of whether the busy resync problem occurred or not.
-        # Avoid using "offset".
-        # See https://bugs.launchpad.net/ubuntu/+source/fio/+bug/1891169
-        '--size=8M --time_based --runtime=600 < /dev/null &> /dev/null & echo $!']
-fio_pid = writing_n.run(fio_cmd, return_stdout=True)
+# start writing in background
+writer = busywrite.BusyWrite(writing_n.volumes[0])
+writer.start('--size=8M')
 
 # reconnect
 writing_conn.connect()
@@ -81,9 +72,7 @@ while True:
             # test successful after 1000 synced blocks (arbitrary limit)
             break
 
-writing_n.run(['kill', str(fio_pid)])
-# wait for fio to terminate
-writing_n.run(['tail', '--pid={}'.format(fio_pid), '-f', '/dev/null'])
+writer.stop()
 writing_n.secondary()
 
 log('* Shut down and clean up.')

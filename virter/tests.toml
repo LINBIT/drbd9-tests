@@ -77,9 +77,6 @@ vms = [3]
 [tests.quorum-multi-volume]
 vms = [3]
 
-[tests.quorum-suspended-cancel]
-vms = [3]
-
 [tests.quorum-tiebreaker]
 vms = [3]
 
@@ -98,6 +95,9 @@ vms = [1]
 [tests.resize]
 vms = [2, 5]
 
+[tests.resize-one]
+vms = [3]
+
 [tests.resync]
 vms = [3]
 
@@ -108,6 +108,9 @@ vms = [3]
 vms = [3]
 
 [tests.resync-between-targets]
+vms = [3]
+
+[tests.resync-chain-close]
 vms = [3]
 
 [tests.resync-downstream-upstream]
@@ -122,6 +125,9 @@ vms = [3]
 [tests.resync-initial]
 vms = [2]
 samevms = true
+
+[tests.resync-multiple-interrupt]
+vms = [3]
 
 [tests.resync-reconciliation]
 vms = [3]
@@ -162,11 +168,11 @@ vms = [2, 5]
 [tests.twopc_abort_connect]
 vms = [3]
 
+[tests.unstable-retry]
+vms = [4]
+
 [tests.verify]
 vms = [2]
-
-[tests.verify-target-becomes-inconsistent]
-vms = [3]
 
 [tests.write-during-resync]
 vms = [3]

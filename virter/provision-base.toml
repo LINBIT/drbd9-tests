@@ -122,15 +122,15 @@ kernel::deb() {
 	[ -z "$install_package" ] && install_package="linux-image-$KERNEL_RELEASE-generic"
 
 	# Prevent the newest kernel from being installed automatically
-	DEBIAN_FRONTEND=noninteractive apt-get autoremove -y linux-virtual linux-image-virtual
+	apt-get autoremove -y linux-virtual linux-image-virtual
 
 	dpkg-query -f '${Package}\n' -W "linux-image-*" | grep 'linux-image-[0-9]\+' | sort > /tmp/had
-	apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y "$install_package"
+	apt-get update && apt-get install -y "$install_package"
 	dpkg-query -f '${Package}\n' -W "linux-image-*" | grep 'linux-image-[0-9]\+' | sort > /tmp/have
 
 	for k in $(comm -12 /tmp/had /tmp/have); do
 		[ "$k" = "$install_package" ] && continue
-		DEBIAN_FRONTEND=noninteractive apt-get autoremove -y $k
+		apt-get autoremove -y $k
 	done
 }
 
@@ -151,6 +151,7 @@ rm -f /tmp/ha{d,ve}
 [steps.shell.env]
 KERNEL_RELEASE = "{{.KernelRelease}}"
 KERNEL_REPOSITORY_URL = "{{.KernelRepositoryURL}}"
+DEBIAN_FRONTEND=noninteractive
 
 # Install packages
 [[steps]]
@@ -162,15 +163,19 @@ if command -v yum > /dev/null; then
 	if ! command -v tc > /dev/null; then
 		packages="$packages iproute-tc"
 	fi
+	yum update -y
 	yum install -y $packages
 elif command -v apt-get > /dev/null; then
 	apt-get update
+	apt-get -y upgrade
 	apt-get -y install fio thin-provisioning-tools make
 else
 	echo "Unknown package manager"
 	exit 1
 fi
 """
+[steps.shell.env]
+DEBIAN_FRONTEND=noninteractive
 
 # Install lbdisttool.py (only for yum)
 [[steps]]

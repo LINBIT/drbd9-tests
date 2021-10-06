@@ -39,12 +39,14 @@ base_image:
       ci_fetch_binary virter virter-$VIRTER_VERSION https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64
     - |
       cd virter
-      virter image rm drbd-base-image
-      for image in $(make -s print_base_images); do
-        make "base_image_$image" BASE_IMAGE_NAME=drbd-base-image
-        virter image save drbd-base-image | curl -isSf -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD -H "Tranfer-Encoding: chunked" -F raw.directory=/ -F raw.asset0=@- -F "raw.asset0.filename=$image" "$LINBIT_REGISTRY_URL/service/rest/v1/components?repository=vm-image"
-        virter image rm drbd-base-image
-      done
+      virter registry update
+      make pull_source_images
+      make -s print_base_images | parallel --line-buffer --tag \
+        'virter image rm drbd-base-image-{%} &&' \
+        'id=$(echo "100+{%}" | bc) &&' \
+        'make "base_image_{}" BASE_IMAGE_NAME=drbd-base-image-{%} VIRTER_BUILD_ID=$id &&' \
+        'virter image push drbd-base-image-{%} $LINBIT_DOCKER_REGISTRY/vm/drbd9-tests/{}:latest &&' \
+        'virter image rm drbd-base-image-{%}'
 
 check-test-list:
   stage: check

@@ -151,7 +151,7 @@ rm -f /tmp/ha{d,ve}
 [steps.shell.env]
 KERNEL_RELEASE = "{{.KernelRelease}}"
 KERNEL_REPOSITORY_URL = "{{.KernelRepositoryURL}}"
-DEBIAN_FRONTEND=noninteractive
+DEBIAN_FRONTEND = "noninteractive"
 
 # Install packages
 [[steps]]
@@ -175,7 +175,7 @@ else
 fi
 """
 [steps.shell.env]
-DEBIAN_FRONTEND=noninteractive
+DEBIAN_FRONTEND = "noninteractive"
 
 # Install lbdisttool.py (only for yum)
 [[steps]]

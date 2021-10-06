@@ -12,10 +12,7 @@ die() {
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
 
 for BASE_IMAGE in $(rq -t < drbd-test-bundle/virter/vms.toml | jq -r '.vms[] | .base_image'); do
-	LIBVIRT_POOL=${LIBVIRT_POOL:-default}
-	if ! virsh vol-info --pool $LIBVIRT_POOL $BASE_IMAGE; then
-		virter image pull --url $LINBIT_REGISTRY_URL/repository/vm-image/$BASE_IMAGE $BASE_IMAGE
-	fi
+	virter image pull $BASE_IMAGE $LINBIT_DOCKER_REGISTRY/vm/drbd9-tests/$BASE_IMAGE:latest
 done
 
 mkdir -p packages

@@ -11,6 +11,7 @@
 
 from python import drbdtest
 from python.drbdtest import log
+from python import datatools
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(nodes=3)
@@ -52,15 +53,7 @@ resource.up()
 source_pds.event(r'peer-device .* replication:Established peer-disk:UpToDate')
 target_pds.event(r'peer-device .* replication:Established')
 
-md5sums=[]
-for n in resource.nodes:
-    md5sum = n.run(['/bin/bash', '-c', 'dd if=%s bs=64k iflag=direct count=150 | md5sum' % (n.volumes[0].device())],
-                    return_stdout=True)
-    md5sums.append(md5sum)
-
-if len(set(md5sums)) > 1:
-    print(md5sums)
-    raise RuntimeError("Data differs!")
+datatools.verify_data(resource.nodes)
 
 resource.down()
 resource.teardown()

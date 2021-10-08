@@ -265,7 +265,7 @@ class Collection(object):
             return result
         return property(func)
 
-    def __str__(self):
+    def __repr__(self):
         return ' '.join([str(_) for _ in self])
 
     def __iter__(self):
@@ -662,7 +662,7 @@ class Resource(object):
         self.add_new_posfile('.events.pos')
         atexit.register(self.cleanup)
 
-    def __str__(self):
+    def __repr__(self):
         return self.name
 
     def next_volume(self):
@@ -975,7 +975,7 @@ class Volume(object):
         return peer_devices
     peer_devices = property(get_peer_devices)
 
-    def __str__(self):
+    def __repr__(self):
         return '%s:%s' % (self.node, self.volume)
 
     def create_disk(self, size, name, meta, max_peers, thin=False):
@@ -1040,7 +1040,7 @@ class Connection(object):
         return self.nodes[0].resource
     resource = property(get_resource)
 
-    def __str__(self):
+    def __repr__(self):
         # return '%s:%s:%s' % (self.nodes[0].resource, self.nodes[0].name, self.nodes[1].name)
         return '%s:%s' % (self.nodes[0].name, self.nodes[1].name)
 
@@ -1099,7 +1099,7 @@ class PeerDevice(object):
         return self.connection.resource
     resource = property(get_resource)
 
-    def __str__(self):
+    def __repr__(self):
         return '%s:%s' % (self.connection, self.volume.volume)
 
     def __hash__(self):
@@ -1324,7 +1324,7 @@ class Node():
     def remove_dmesg_capture(self, out_stream):
         self.dmesg_out_tee.remove(out_stream)
 
-    def __str__(self):
+    def __repr__(self):
         # return '%s:%s' % (self.resource, self.name)
         return self.name
 

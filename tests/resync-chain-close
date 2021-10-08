@@ -8,6 +8,7 @@
 
 from python import drbdtest
 from python.drbdtest import log
+from python import datatools
 
 resource = drbdtest.setup(nodes=3)
 resource.disk_options = 'c-max-rate 3M;'
@@ -54,15 +55,7 @@ log('* Close the chain')
 connection_ac.connect()
 peer_devices_ac.event(r'peer-device .* replication:Established')
 
-md5sums=[]
-for n in resource.nodes:
-    md5sum = n.run(['/bin/bash', '-c', 'dd if={} bs=1M iflag=direct | md5sum'.format(n.volumes[0].device())],
-                    return_stdout=True)
-    md5sums.append(md5sum)
-
-if len(set(md5sums)) > 1:
-    log(md5sums)
-    raise RuntimeError("Data differs!")
+datatools.verify_data(resource.nodes)
 
 log('* Shut down and clean up.')
 resource.down()

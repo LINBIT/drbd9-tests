@@ -29,6 +29,7 @@ base_image:
     paths:
       - download
   script:
+    - ln -snf $DOCKER_AUTH_CONFIG_FILE $HOME/.docker/config.json
     - . virter/version.env
     - curl -sSfL -u gitlab-ci-token:$CI_JOB_TOKEN $CI_SERVER_URL/linbit/build-helpers/-/archive/$BUILD_HELPERS_VERSION/ignored.tar.gz | tar -xvzf -
     - mv build-helpers-* build-helpers
@@ -86,7 +87,7 @@ build-docker:
     - if: $CI_COMMIT_BRANCH == 'master'
     - if: $CI_PIPELINE_SOURCE == 'schedule'
   script:
-    - docker login -u $LINBIT_REGISTRY_USER -p $LINBIT_REGISTRY_PASSWORD $LINBIT_DOCKER_REGISTRY
+    - ln -snf $DOCKER_AUTH_CONFIG_FILE $HOME/.docker/config.json
     - make DOCKER_IMAGE_NAME=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA docker
     - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
 
@@ -99,7 +100,7 @@ push-docker:
   dependencies:
     - build-docker
   script:
-    - docker login -u $LINBIT_REGISTRY_USER -p $LINBIT_REGISTRY_PASSWORD $LINBIT_DOCKER_REGISTRY
+    - ln -snf $DOCKER_AUTH_CONFIG_FILE $HOME/.docker/config.json
     - docker pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
     - docker tag $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA $LINBIT_DOCKER_REGISTRY/drbd9-tests:latest
     - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests:latest

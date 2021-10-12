@@ -93,7 +93,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 
 
 [[vms]]
-base_image = "ubuntu-xenial-drbd-k210"
+base_image = "ubuntu-xenial-drbd-k217"
 vcpus = 1
 memory = "1G"
 
@@ -103,12 +103,12 @@ RepositoryDistribution = "xenial"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-xenial"
-KernelRelease = "4.4.0-210"
+KernelRelease = "4.4.0-217"
 SourceImage = "ubuntu-xenial"
 
 
 [[vms]]
-base_image = "ubuntu-bionic-drbd-k153"
+base_image = "ubuntu-bionic-drbd-k159"
 vcpus = 1
 memory = "1G"
 
@@ -118,12 +118,12 @@ RepositoryDistribution = "bionic"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-bionic"
-KernelRelease = "4.15.0-153"
+KernelRelease = "4.15.0-159"
 SourceImage = "ubuntu-bionic"
 
 
 [[vms]]
-base_image = "ubuntu-focal-drbd-k72"
+base_image = "ubuntu-focal-drbd-k88"
 vcpus = 1
 memory = "1G"
 
@@ -133,5 +133,5 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
-KernelRelease = "5.4.0-72"
+KernelRelease = "5.4.0-88"
 SourceImage = "ubuntu-focal"

@@ -159,6 +159,9 @@ vms = [3]
 [tests.resync-target-promote]
 vms = [3]
 
+[tests.resync-target-promote-interrupt]
+vms = [3]
+
 [tests.resync-to-older]
 vms = [3]
 

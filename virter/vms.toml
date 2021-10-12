@@ -93,7 +93,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 
 
 [[vms]]
-base_image = "ubuntu-xenial-drbd-k217"
+base_image = "ubuntu-xenial-drbd-k210"
 vcpus = 1
 memory = "1G"
 
@@ -103,7 +103,7 @@ RepositoryDistribution = "xenial"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-xenial"
-KernelRelease = "4.4.0-217"
+KernelRelease = "4.4.0-210"
 SourceImage = "ubuntu-xenial"
 
 

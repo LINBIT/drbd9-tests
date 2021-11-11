@@ -3,7 +3,7 @@ name = "t"
 provision_file = "provision-test.toml"
 
 [[vms]]
-base_image = "centos-8-drbd-k305"
+base_image = "alma-8-drbd-k305"
 vcpus = 1
 memory = "1G"
 
@@ -13,12 +13,12 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
 [vms.metadata]
 BuildDistribution = "rhel8.4"
 KernelRelease = "4.18.0-305.el8"
-SourceImage = "centos-8"
+SourceImage = "alma-8"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
 
 
 [[vms]]
-base_image = "centos-8-drbd-k193"
+base_image = "alma-8-drbd-k193"
 vcpus = 1
 memory = "1G"
 
@@ -28,12 +28,12 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
 [vms.metadata]
 BuildDistribution = "rhel8.2"
 KernelRelease = "4.18.0-193.el8"
-SourceImage = "centos-8"
+SourceImage = "alma-8"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
 
 
 [[vms]]
-base_image = "centos-8-drbd-k147"
+base_image = "alma-8-drbd-k147"
 vcpus = 1
 memory = "1G"
 
@@ -43,7 +43,7 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
 [vms.metadata]
 BuildDistribution = "rhel8.1"
 KernelRelease = "4.18.0-147.el8"
-SourceImage = "centos-8"
+SourceImage = "alma-8"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
 
 

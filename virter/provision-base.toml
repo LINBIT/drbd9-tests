@@ -100,14 +100,14 @@ kernel::rpm() {
 	for k in $(comm -12 /tmp/had /tmp/have); do
 		[ "$k" = "$install_package" ] && continue
 
-		# on RHEL8 the kernel package is called kernel-core, but we
-		# want to remove the kernel metapackage
-		meta=$(printf %s $k | sed s/kernel-core/kernel/)
-
 		to_remove=$k
-		rpm -q $meta && to_remove=$meta
+		# On RHEL8 the kernel package is called kernel-core, but we
+		# want to remove the kernel metapackage. For AlmaLinux we have
+		# to explicitly remove the kernel-core and kernel-modules
+		# packages too.
+		[ "$kernel_prefix" = "kernel-core" ] && to_remove="${k/kernel-core/kernel} $k ${k/kernel-core/kernel-modules}"
 
-		printf "Removing '%s'\n" $to_remove
+		printf "Removing '%s'\n" "$to_remove"
 		# yum autoremove does not like to remove the running kernel
 		rpm -e $to_remove
 	done

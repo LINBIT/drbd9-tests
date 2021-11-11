@@ -163,7 +163,7 @@ if command -v yum > /dev/null; then
 	if ! command -v tc > /dev/null; then
 		packages="$packages iproute-tc"
 	fi
-	yum update -y
+	yum update -y --exclude=kernel*
 	yum install -y $packages
 elif command -v apt-get > /dev/null; then
 	apt-get update

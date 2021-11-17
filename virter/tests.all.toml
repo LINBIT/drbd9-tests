@@ -7,6 +7,9 @@ vms = [2]
 [tests.add-path-multiple-times]
 vms = [2]
 
+[tests.ahead-behind]
+vms = [2]
+
 [tests.allow-remote-read]
 vms = [2]
 

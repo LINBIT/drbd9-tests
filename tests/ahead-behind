@@ -1,0 +1,36 @@
+#! /usr/bin/env python3
+
+from python import drbdtest
+from python.drbdtest import log
+from python import trafficcontrol
+
+resource = drbdtest.setup(nodes=2)
+
+resource.add_disk('64M')
+resource.net_options = 'on-congestion pull-ahead; congestion-fill 10k; protocol A;'
+
+resource.up_wait()
+
+primary_n, secondary_n = resource.nodes
+primary_tc = trafficcontrol.TrafficControl(primary_n, resource.nodes)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+primary_tc.slow_down(secondary_n, speed='10mbit')
+
+with primary_n.asPrimary():
+    primary_n.write(size='4M', bs='1M', direct=1)
+
+    primary_n.peer_devices.event(r'peer-device .* replication:Ahead')
+    secondary_n.peer_devices.event(r'peer-device .* replication:Behind')
+
+    primary_n.peer_devices.event(r'peer-device .* replication:SyncSource')
+    secondary_n.peer_devices.event(r'peer-device .* replication:SyncTarget')
+
+    resource.nodes.peer_devices.event(r'peer-device .* replication:Established')
+
+log('* Shut down and clean up.')
+resource.down()
+primary_tc.reset()
+resource.teardown()

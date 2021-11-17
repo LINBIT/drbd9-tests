@@ -19,6 +19,9 @@ vms = [3]
 [tests.busy-resync]
 vms = [2]
 
+[tests.c-min-rate]
+vms = [2]
+
 [tests.connect]
 vms = [2, 5]
 

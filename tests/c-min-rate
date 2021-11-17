@@ -1,0 +1,61 @@
+#! /usr/bin/env python3
+
+import time
+from python import drbdtest
+from python.drbdtest import log
+from python import busywrite
+
+resource = drbdtest.setup(nodes=2)
+
+resource.add_disk('150M')
+resource.disk_options = 'c-max-rate 40M; c-min-rate 5M;'
+
+resource.up_wait()
+
+source_n, target_n = resource.nodes
+source_target_c = resource.connections.from_node(source_n).to_node(target_n)
+source_target_pd = resource.peer_devices.from_node(source_n).to_node(target_n)
+target_source_pd = resource.peer_devices.from_node(target_n).to_node(source_n)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+log('* Write new data on only the source node')
+source_target_c.disconnect()
+# Offset the new data so that it is in a different "resync extent". Otherwise
+# DRBD before 9.2 would fail to complete the resync due to the locking with the
+# application activity.
+source_n.write(size='20M', offset='128M', bs='1M', direct=1)
+
+log('* Start writing')
+writer = busywrite.BusyWrite(source_n.volumes[0])
+# Limit the IO rate to avoid blocking resync by outcompeting it.
+writer.start('--size=8M --rate=20M')
+
+log('* Reconnect and let sync')
+source_target_c.connect()
+
+source_target_pd.event(r'peer-device .* replication:SyncSource')
+target_source_pd.event(r'peer-device .* replication:SyncTarget')
+
+start = time.time()
+
+source_target_pd.event(r'peer-device .* replication:Established')
+target_source_pd.event(r'peer-device .* replication:Established')
+
+resync_duration = time.time() - start
+log('* Resync duration: {:.2f}s'.format(resync_duration))
+
+# Expect at least 20MiB / (5MiB/s) == 4s, plus a bit due to the initial 8MiB
+# that are being actively overwritten. If the sync were being regulated by
+# c-max-rate, we would expect it to take around 20MiB / (40MiB/s) == 0.5s.
+if resync_duration < 3.0:
+    raise RuntimeError('Resync too quick')
+if resync_duration > 16.0:
+    raise RuntimeError('Resync too slow')
+
+writer.stop()
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

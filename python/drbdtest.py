@@ -900,7 +900,6 @@ class Resource(object):
                 node.down()
 
     def initial_resync(self, sync_from):
-        self.nodes.drbdadm(['peer-device-options', '--c-min-rate', '0', 'all'])
         # All diskless nodes should see all diskfull nodes as UpToDate
         diskful_nodes = self.nodes.diskful
         pds = PeerDevices()

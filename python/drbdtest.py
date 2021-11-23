@@ -1,13 +1,6 @@
-# setup parameters: console
-
 # FIXME: Why are the prefixes missing from output of the target cleanup scripts?
 
-# FIXME: class Collection: Switch to an ordered set?  Right now, the order in
-# which nodes are given on the command line is not preserved.
-
 # FIXME: Check for synchronized time on the test nodes.
-
-# FIXME: How to add a diskless volume on a node?
 
 # FIXME: For test cases with multiple resources, we only need to capture the
 # consoles, dmesg logs, and event logs once. We need to prefix the .pos file names
@@ -1869,10 +1862,6 @@ def setup(parser=argparse.ArgumentParser(),
         if max_nodes:
             print("max_nodes=%d" % max_nodes)
         sys.exit(0)
-
-    # FIXME: Python's argparse module does not support parsing interleaved
-    # command-line options and arguments, which we would need for the per-node
-    # --console option.  Drop support for per-node options for now.
 
     if max_nodes is not None and min_nodes == max_nodes and \
        len(args.node) != min_nodes:

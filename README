@@ -15,9 +15,8 @@ until all nodes are fully connected.  All the test results are collected on the
 coordinator.  Finally, when a test ends, it attempts to clean up any changes
 made on the target nodes.
 
-The test scripts themselves are relatively simple shell scripts, with
-additional utilities for running commands remotely and for scanning log files
-for events.
+The test scripts themselves are python scripts, with additional utilities for
+running commands remotely and for scanning log files for events.
 
 
 Requirements
@@ -66,8 +65,8 @@ be found in the log directory:
   events-<node-name>: The output of "drbdsetup events" on each node.  These
     event traces are used for checking for state transitions.
 
-  test.log: The output of the test script (both standard output and standard
-    error combined).
+  test.log: The output of the test script (everything written to "logstream",
+    including messages logged by calling the "log" function).
 
   dmesg-<node-name>: The dmesg log of each node.
 
@@ -75,54 +74,19 @@ be found in the log directory:
     utility uses these to keep trck of the current scanning positions.
 
   console-<node-name>: the serial console output of each node (if the
-    --console or --vconsole options are used).
+    --vconsole option is used).
 
 
 The most important options supported by the test scripts are:
 
-  --node=<node-name> or just <node-name>: The name of one of the test nodes.
+  Positional arguments: The names of the test nodes.
     Depending on the test, one, two, or more nodes are required.
 
-  --disk=<size>, --meta=<size>: Create a volume of the specified size on each
-    test node.  If the --meta option is not used, the volumes are created with
-    internal metadata; otherwise, the data and metadata are split.
-  
-  --verbose: Log more information while running the test.
-
   --debug: Include some information for debugging the test suite.
-
-All --disk and --meta options specified before the first --node option apply to
-all nodes.  Any --disk or --meta options specified after a --node option apply
-only to that node.
-
-In addition, the test scripts can be run with "bash -x" for a complete
-execution trace.
-
-
-Batched Test Runs
------------------
-
-In addition to running test scripts individually, the test suite defines job
-files, each of which runs an individual test case with specific parameters, on
-a specific number of target nodes.  The lib/run-jobs script, when passed a list
-of target nodes and a list of job files, will run each of the jobs on (a subset
-of) the target nodes.
-
-
-Virtual Machines
-----------------
-
- * When testing virtual machines and logging their serial consoles, the virtual
-   machine names must match the names under which the nodes are reachable via
-   ssh.
 
 
 Serial Consoles
 ---------------
-
- * Logging of serial console output is supported via the --console=/dev/...
-   option.  The file permissions of that device must be set to allow read
-   access to he user running the test suite.
 
  * Logging the serial console output of virtual machines running on the test
    coordinator is supported via the --vconsole option.  This requires that
@@ -135,5 +99,3 @@ Examples
 --------
 
   tests/connect tick trick track
-  tests/initial-sync --verbose --disk=100M jekyll hyde
-  lib/run-jobs maja willi flip max alexander -- jobs/*

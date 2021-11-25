@@ -23,7 +23,8 @@ def check_readable(node):
 
 resource = drbdtest.setup(nodes=3)
 diskful_nodes = resource.nodes[:2]
-resource.add_disk('10M', diskful_nodes=diskful_nodes)
+# Use external metadata so that some test makes use of this feature
+resource.add_disk('10M', meta_size='4M', diskful_nodes=diskful_nodes)
 
 resource.up_wait()
 

@@ -16,20 +16,13 @@ localstatedir := /var
 INSTALL := install
 
 DRBD_TEST_DATA := $(datadir)/$(PACKAGE)
-DRBD_TEST_LIB := $(DRBD_TEST_DATA)/$(PACKAGE).sh
 DRBD_TEST_VAR := $(localstatedir)/lib/$(PACKAGE)
 
-data_libs := \
-	drbd-test.sh
-
 data_scripts := \
-	cleanup \
-	create-disk \
 	disable-faults \
 	drbd-version \
 	enable-faults \
 	install-config \
-	register-cleanup \
 	data_generator.py \
 	misaligned_bio.py \
 	stress-al.py \
@@ -38,13 +31,12 @@ data_scripts := \
 
 tarball := $(PACKAGE)-target.tgz
 
-all: $(data_libs) $(data_scripts)
+all: $(data_scripts)
 
-$(data_libs) $(data_scripts): %: %.in
+$(data_scripts): %: %.in
 	@echo "$< -> $@"
 	@sed \
 		-e 's:@''DRBD_TEST_DATA@:$(DRBD_TEST_DATA):g' \
-		-e 's:@''DRBD_TEST_LIB@:$(DRBD_TEST_LIB):g' \
 		-e 's:@''DRBD_TEST_VAR@:$(DRBD_TEST_VAR):g' \
 		< $< > $@.tmp
 	@test \! -x $< || chmod +x $@.tmp
@@ -53,18 +45,17 @@ $(data_libs) $(data_scripts): %: %.in
 install:
 	$(INSTALL) -d $(DESTDIR)$(DRBD_TEST_VAR)
 	$(INSTALL) -d $(DESTDIR)$(DRBD_TEST_DATA)
-	$(INSTALL) -m 644 $(data_libs) $(DESTDIR)$(DRBD_TEST_DATA)
 	$(INSTALL) -m 755 $(data_scripts) $(DESTDIR)$(DRBD_TEST_DATA)
 
 uninstall:
-	rm -f $(patsubst %,$(DESTDIR)$(DRBD_TEST_DATA)/%,$(data_libs) $(data_scripts))
+	rm -f $(patsubst %,$(DESTDIR)$(DRBD_TEST_DATA)/%,$(data_scripts))
 	rmdir $(DESTDIR)$(DRBD_TEST_VAR) 2> /dev/null || :
 	rmdir $(DESTDIR)$(DRBD_TEST_DATA) 2> /dev/null || :
 
-$(tarball): $(data_libs) $(data_scripts) Makefile
+$(tarball): $(data_scripts) Makefile
 	tar -czf $(tarball) $^
 
 tar: $(tarball)
 
 clean:
-	rm -f $(data_libs) $(data_scripts) $(tarball)
+	rm -f $(data_scripts) $(tarball)

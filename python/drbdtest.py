@@ -1,5 +1,3 @@
-# FIXME: Why are the prefixes missing from output of the target cleanup scripts?
-
 # FIXME: Check for synchronized time on the test nodes.
 
 # FIXME: For test cases with multiple resources, we only need to capture the
@@ -23,6 +21,7 @@ import signal
 from subprocess import CalledProcessError
 import atexit
 from .ordered_set import OrderedSet
+from .disktools import DiskTools
 import io
 
 from io import StringIO
@@ -676,13 +675,19 @@ class Resource(object):
         diskful_nodes   -- nodes which shall have a local lower-level device
                            (defaults to all nodes)
         """
-        volume = self.next_volume()
+
+        volume_number = self.next_volume()
+        diskful_volumes = []
+
         for node in self.nodes:
             if diskful_nodes is None or node in diskful_nodes:
-                node.add_disk(volume, size, meta_size, thin=thin,
-                              max_peers=max_peers)
+                diskful_volumes.append(node.add_disk(
+                    volume_number, size, meta_size, thin=thin))
             else:
-                node.add_disk(volume)
+                node.add_disk(volume_number)
+
+        for volume in diskful_volumes:
+            volume.create_md(max_peers)
 
     volumes = property(lambda self: self.nodes.volumes)
     connections = property(lambda self: self.nodes.connections)
@@ -733,11 +738,9 @@ class Resource(object):
     def cleanup(self):
         if not skip_cleanup:
             for node in self.nodes:
-                node.run([helper('cleanup')], update_config=False, catch=True, env={
-                    'DRBD_TEST_JOB': self.job
-                })
+                node.cleanup()
         for node in self.nodes:
-            node.cleanup()
+            node.cleanup_framework()
 
     def teardown(self, validate_dmesg=True):
         """
@@ -962,8 +965,7 @@ class Resource(object):
         self.touch_config()
 
 class Volume(object):
-    def __init__(self, node, volume, size=None, meta_size=None, minor=None,
-                 max_peers=None, thin=False):
+    def __init__(self, node, volume, minor=None):
         if volume is None:
             volume = node.resource.next_volume()
         if minor is None:
@@ -971,26 +973,10 @@ class Volume(object):
         self.volume = volume
         self.minor = minor
         self.node = node
-        if max_peers is None:
-            max_peers = len(node.resource.nodes) - 1
-            if max_peers < 1:
-                max_peers = 1
         self.disk = None
         self.meta = None
         self.disk_lv = None
         self.meta_lv = None
-        if size:
-            self.disk_lv = '%s-disk%d' % (self.node.resource.name, volume)
-            self.disk = self.create_disk(
-                size, self.disk_lv,
-                None if meta_size else '--internal-meta', max_peers,
-                thin=thin)
-            if meta_size:
-                self.meta_lv = '%s-meta%d' % (self.node.resource.name, volume)
-                self.meta = self.create_disk(
-                    meta_size, self.meta_lv,
-                    '--external-meta', max_peers,
-                    thin=thin)
 
     def get_resource(self):
         return self.node.resource
@@ -1006,18 +992,19 @@ class Volume(object):
     def __repr__(self):
         return '%s:%s' % (self.node, self.volume)
 
-    def create_disk(self, size, name, meta, max_peers, thin=False):
-        cmd = [helper('create-disk')]
-        if meta:
-            cmd.extend([meta, '--max-peers', str(max_peers)])
-        thin_arg = []
-        if thin:
-            thin_arg = ['--thinpool', 'drbdthinpool']
+    def create_disks(self, size, meta_size=None, *, thin=False):
+        self.disk_lv = '{}-disk{}'.format(self.node.resource.name, self.volume)
+        self.disk = DiskTools.create_disk(self.node, self.disk_lv, size, thin=thin)
+        if meta_size:
+            self.meta_lv = '{}-meta{}'.format(self.node.resource.name, self.volume)
+            self.meta = DiskTools.create_disk(self.node, self.meta_lv, meta_size, thin=thin)
 
-        cmd.extend(['--job', self.resource.job,
-                   '--volume-group', self.node.volume_group, '--size', size]
-                   + thin_arg + [name])
-        return self.node.run(cmd, return_stdout=True, update_config=False)
+    def create_md(self, max_peers):
+        if max_peers is None:
+            max_peers = len(self.node.resource.nodes) - 1
+            if max_peers < 1:
+                max_peers = 1
+        DiskTools.create_md(self.node, self.volume, max_peers=max_peers)
 
     def event(self, *args, **kwargs):
         return Volumes([self]).event(*args, **kwargs)
@@ -1284,6 +1271,25 @@ class Node():
         return '%s:%s' % (self.addrs[net_num], self.port)
 
     def cleanup(self):
+        """
+        Clean up resource artifacts. This may or may not be run depending on
+        the command line argument "cleanup".
+        """
+        self.run(['bash', '-c',
+            '! [ -e /proc/drbd ] || drbdsetup down {}'.format(self.resource.name)],
+            update_config=False)
+        for volume in self.volumes:
+            if volume.disk is not None:
+                DiskTools.remove_disk(self, volume.disk)
+            if volume.meta is not None:
+                DiskTools.remove_disk(self, volume.meta)
+
+    def cleanup_framework(self):
+        """
+        Clean up changes made for the test framework. This should always be
+        run.
+        """
+
         self.stop_dmesg()
 
         self.run(["iptables", "-D", "INPUT", "-j", "drbd-test-input"])
@@ -1360,18 +1366,22 @@ class Node():
         self.minors += 1
         return self.minors
 
-    def add_disk(self, volume, size=None, meta_size=None, thin=False, max_peers=None):
+    def add_disk(self, volume_number, size=None, meta_size=None, thin=False):
         """
         Keyword arguments:
-        volume -- volume number of the new disk
+        volume_number -- volume number of the new disk
         size -- size of the data device or None for a diskless node
         meta_size -- size of the meta-data device
+        thin -- whether to create a thin LV
         """
         # FIXME: Volume is not added at the right index (by volume number)
         # here.  Does that matter?
-        self.disks.append(Volume(self, volume, size, meta_size, thin=thin,
-                                 max_peers=max_peers))
+        volume = Volume(self, volume_number)
+        if size is not None:
+            volume.create_disks(size, meta_size, thin=thin)
+        self.disks.append(volume)
         self.config_changed = True
+        return volume
 
     def _config_conns_84(self):
         # no explicit connections for 8.4
@@ -2017,9 +2027,6 @@ def setup(parser=argparse.ArgumentParser(),
     for node in resource.nodes:
         node.listen_to_events()
         node.run([helper('disable-faults')], update_config=False)
-        node.run([helper('register-cleanup'), '-t', 'bash', '-c',
-            '! [ -e /proc/drbd ] || drbdsetup down {}'.format(resource.name)],
-            update_config=False)
     return resource
 
 

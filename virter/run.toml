@@ -10,6 +10,7 @@ set -e
 
 if ! vgs scratch; then
 	vgcreate scratch "$SCRATCH_DISK"
+	lvcreate --thin --size 200M scratch/drbdthinpool
 fi
 
 # Ensure that an additional labeled address is available for multi-path tests.

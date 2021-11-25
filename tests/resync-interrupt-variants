@@ -227,7 +227,10 @@ source_tc = trafficcontrol.TrafficControl(source_n, resource.nodes)
 
 resource.disk_options = disk_options
 resource.net_options = net_options
-resource.add_disk('100M', diskful_nodes=[source_n, target_n])
+# Use a thin backing volume so that the discard is definitely reported as being
+# supported. This is necessary for VariantType.THIN to actually test thin
+# resync.
+resource.add_disk('100M', thin=True, diskful_nodes=[source_n, target_n])
 resource.up_wait()
 
 from_target = resource.connections.from_node(target_n)

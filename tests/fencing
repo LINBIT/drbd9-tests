@@ -55,10 +55,6 @@ def prepare(description, fencing_mode, handler_exit, test_mode, nodes):
     else:
         resource.handlers = 'fence-peer "exit %d";' % (handler_exit)
 
-    for n in nodes:
-        n.config_changed = True
-
-    drbdtest.Nodes(nodes).update_config()
     drbdtest.Nodes(nodes).drbdadm(['adjust', resource.name])
 
 def fencing_disconnect(n1, n2, test_mode):

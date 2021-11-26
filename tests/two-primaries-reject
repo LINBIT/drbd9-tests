@@ -30,7 +30,6 @@ resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
 
 def adjust_rr_conflict(rr_conflict):
     resource.net_options = 'timeout 10; ping-int 2; connect-int 2; rr-conflict {};'.format(rr_conflict)
-    resource.touch_config()
     resource.nodes.adjust()
 
 def promote_both(new_data_p1=False, new_data_p2=False):

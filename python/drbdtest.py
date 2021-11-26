@@ -640,12 +640,12 @@ Volumes.finish()
 class Resource(object):
     def __init__(self, name, logdir, rdma=False):
         self.name = name
-        self.net_options = ""
-        self.disk_options = ""
-        self.resource_options = ""
+        self._net_options = ""
+        self._disk_options = ""
+        self._resource_options = ""
         # NOTE: (wap) Not needed for now
         # self.proxy_options = ""
-        self.handlers = ""
+        self._handlers = ""
         self.nodes = Nodes()
         self.num_volumes = 0
         self.logdir = logdir
@@ -687,6 +687,42 @@ class Resource(object):
     volumes = property(lambda self: self.nodes.volumes)
     connections = property(lambda self: self.nodes.connections)
     peer_devices = property(lambda self: self.nodes.peer_devices)
+
+    @property
+    def net_options(self):
+        return self._net_options
+
+    @net_options.setter
+    def net_options(self, value):
+        self._net_options = value
+        self.touch_config()
+
+    @property
+    def disk_options(self):
+        return self._disk_options
+
+    @disk_options.setter
+    def disk_options(self, value):
+        self._disk_options = value
+        self.touch_config()
+
+    @property
+    def resource_options(self):
+        return self._resource_options
+
+    @resource_options.setter
+    def resource_options(self, value):
+        self._resource_options = value
+        self.touch_config()
+
+    @property
+    def handlers(self):
+        return self._handlers
+
+    @handlers.setter
+    def handlers(self, value):
+        self._handlers = value
+        self.touch_config()
 
     def peer_devices_to_peer(self, peer):
         pds = self.peer_devices
@@ -1403,20 +1439,20 @@ class Node():
                          t="resource %s" % resource.name):
 
             with ConfigBlock(t='handlers') as handlers:
-                handlers.write(resource.handlers)
+                handlers.write(resource._handlers)
 
             with ConfigBlock(t='options') as res_options:
-                res_options.write(resource.resource_options)
+                res_options.write(resource._resource_options)
 
             with ConfigBlock(t='disk') as disk:
                 disk.write("disk-flushes no;")
                 disk.write("md-flushes no;")
-                disk.write(resource.disk_options)
+                disk.write(resource._disk_options)
 
             with ConfigBlock(t='net') as net:
                 if resource.rdma:
                     net.write("transport rdma;")
-                net.write(resource.net_options)
+                net.write(resource._net_options)
 
             # NOTE: (wap) W/ drbd9/LINSTOR, separate proxy stanza not needed
             #       for proxy but only for proxy options like compressions

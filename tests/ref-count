@@ -76,8 +76,6 @@ node.down()
 time.sleep(0.1) # the reference doesn't get freed immediately. give it some time to settle
 expect_drbd(node, 1, 0)
 resource.net_options = 'verify-alg quaxi-wurstly;'
-node.config_changed = True
-node.update_config()
 try:
     node.up()
 except:
@@ -87,8 +85,6 @@ expect_drbd(node, 2, 0)
 
 
 resource.net_options = 'verify-alg md5;';
-node.config_changed = True
-node.update_config()
 node.drbdadm(['adjust', resource.name])
 expect_drbd(node, 2, 1)
 

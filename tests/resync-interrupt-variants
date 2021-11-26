@@ -143,7 +143,6 @@ def test_variant(primary_n, disconnect_type, resync_type):
             '64K' if resync_type == VariantType.THIN else '0')
     resource.net_options = '{} csums-alg {};'.format(net_options,
             'md5' if resync_type == VariantType.CHECKSUM else '""')
-    resource.touch_config()
     resource.nodes.adjust()
 
     diskless_n.fio(fio_same_data_args)

@@ -11,12 +11,22 @@ die() {
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
 
+echo "=== virter version:" >&2
+virter version >&2
+
+echo "=== vmshed version:" >&2
+vmshed --version >&2
+
+echo "=== Pull images" >&2
+
 for BASE_IMAGE in $(rq -t < drbd-test-bundle/virter/vms.toml | jq -r '.vms[] | .base_image'); do
 	virter image pull $BASE_IMAGE $LINBIT_DOCKER_REGISTRY/vm/drbd9-tests/$BASE_IMAGE:latest
 done
 
 mkdir -p packages
 cp drbd-test-bundle/target/drbd-test-target.tgz packages/
+
+echo "=== Run vmshed" >&2
 
 vmshed										\
 	--out-dir "$(readlink -f tests-out)"					\

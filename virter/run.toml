@@ -1,6 +1,7 @@
 [values]
 ScratchDisk = "/dev/sda"
 TestSuiteImage = "drbd9-tests"
+RDMA = "" # set to "true" to enable
 OutDir = ""
 
 [[steps]]
@@ -13,18 +14,29 @@ if ! vgs scratch; then
 	lvcreate --thin --size 200M scratch/drbdthinpool
 fi
 
+# Find the default route which must have a /24 address range.
+default_gateway=$(ip route show to 0.0.0.0/0 | awk {'print $3'})
+default_route=$(ip route show to match $default_gateway | grep /24)
+
+# Find the device for the default route.
+dev=$(printf "%s" "$default_route" | awk '{print $3}')
+
 # Ensure that an additional labeled address is available for multi-path tests.
-# Add a labeled address on the default route which must have a /24 address range.
 if ! ip -oneline address show label "*:1" | grep ^ ; then
-	default_gateway=$(ip route show to 0.0.0.0/0 | awk {'print $3'})
-	default_route=$(ip route show to match $default_gateway | grep /24)
-	dev=$(printf "%s" "$default_route" | awk '{print $3}')
 	original_address=$(printf "%s" "$default_route" | grep -o 'src [^ ]*' | awk {'print $2'})
 	original_address_3=$(printf "%s" "$original_address" | cut -d. -f3)
 	new_address_3=$((original_address_3 ^ 0x80))
 	new_address=$(printf %s "$original_address" | sed 's/\([0-9]*\.[0-9]*\.\)[0-9]*\(.[0-9]*\)/\1'$new_address_3'\2/')
 	echo "Adding address $new_address"
 	ip address add dev $dev label $dev:1 $new_address/24
+fi
+
+if [ "$DRBD_TEST_RDMA" = "true" ] ; then
+	# Ensure that an RDMA link is available.
+	if ! rdma link show | grep ^ ; then
+		modprobe rdma_rxe
+		echo $dev > /sys/module/rdma_rxe/parameters/add
+	fi
 fi
 
 while true; do
@@ -38,10 +50,13 @@ done
 '''
 [steps.shell.env]
 SCRATCH_DISK = "{{.ScratchDisk}}"
+DRBD_TEST_RDMA = "{{.RDMA}}"
 
 [[steps]]
 [steps.docker]
 image = "{{.TestSuiteImage}}"
+[steps.docker.env]
+DRBD_TEST_RDMA = "{{.RDMA}}"
 [steps.docker.copy]
 source = "/log"
 dest = "{{.OutDir}}"

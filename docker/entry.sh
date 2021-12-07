@@ -14,14 +14,19 @@ fi
 
 echo "===== Get the FQDN from the test nodes"
 
-nodes=()
+# Read TARGETS into array targets without messing up IFS
+IFS=, read -a targets <<< "$TARGETS"
 
-IFS=,; for t in $TARGETS; do
+nodes=()
+for t in "${targets[@]}"; do
     t_host=$(ssh $t hostname -f)
     echo "=== Target $t => $t_host"
     nodes+=( "$t_host" )
 done
 
-echo "===== Run test '$TEST_NAME' with nodes: ${nodes[@]}"
+test_args=( "--logdir" "/log" )
+[ "$DRBD_TEST_RDMA" = "true" ] && test_args+=( "--rdma" )
 
-tests/$TEST_NAME --logdir /log ${nodes[@]}
+echo "===== Run test '$TEST_NAME' with args '${test_args[*]}' on nodes '${nodes[*]}'"
+
+tests/"$TEST_NAME" "${test_args[@]}" "${nodes[@]}"

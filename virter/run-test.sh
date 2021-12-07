@@ -11,6 +11,17 @@ die() {
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
 
+extra_args=()
+# We want to default to "--variant tcp". However, vmshed collects all values of
+# this option, so if "--variant" is given as an argument we must avoid setting
+# it.
+variant_set=false
+for arg in "${@}"; do
+	[[ "$arg" = "--variant" || "$arg" == "--variant="* ]] && variant_set=true
+	extra_args+=( "$arg" )
+done
+[ "$variant_set" = "true" ] || extra_args+=( "--variant" "tcp" )
+
 echo "=== virter version:" >&2
 virter version >&2
 
@@ -26,7 +37,7 @@ done
 mkdir -p packages
 cp drbd-test-bundle/target/drbd-test-target.tgz packages/
 
-echo "=== Run vmshed" >&2
+echo "=== Run vmshed with extra args '${extra_args[*]}'" >&2
 
 vmshed										\
 	--out-dir "$(readlink -f tests-out)"					\
@@ -37,4 +48,4 @@ vmshed										\
 	--set values.TestSuiteImage=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$DRBD9_TESTS_VERSION \
 	--set values.DrbdVersion=$DRBD_VERSION					\
 	--set values.RepositoryPackages=drbd-utils=$DRBD_UTILS_VERSION		\
-	"$@"
+	"${extra_args[@]}"

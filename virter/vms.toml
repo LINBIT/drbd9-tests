@@ -6,6 +6,8 @@ provision_file = "provision-test.toml"
 base_image = "alma-8-drbd-k348"
 vcpus = 1
 memory = "1G"
+# No RDMA support. rdma_rxe module prints:
+# Warning: Soft-RoCE Transport Driver - This driver has not undergone sufficient testing by Red Hat for this release and therefore cannot be used in production systems.
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
@@ -22,6 +24,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 base_image = "alma-8-drbd-k305"
 vcpus = 1
 memory = "1G"
+# No RDMA support. Connection frequently fails with "repost of tx_desc failed! -104".
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
@@ -38,6 +41,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 base_image = "alma-8-drbd-k147"
 vcpus = 1
 memory = "1G"
+vm_tags = [ "rdma" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
@@ -54,6 +58,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 base_image = "centos-7-drbd-k1160"
 vcpus = 1
 memory = "1G"
+vm_tags = [ "rdma" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
@@ -70,6 +75,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 base_image = "centos-7-drbd-k862"
 vcpus = 1
 memory = "1G"
+vm_tags = [ "rdma" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
@@ -86,6 +92,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 base_image = "centos-7-drbd-k229"
 vcpus = 1
 memory = "1G"
+# No RDMA support. No rdma_rxe module.
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
@@ -102,6 +109,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 base_image = "ubuntu-xenial-drbd-k210"
 vcpus = 1
 memory = "1G"
+# No RDMA support. No rdma_rxe module.
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-xenial/"
@@ -118,6 +126,7 @@ SourceImage = "ubuntu-xenial"
 base_image = "ubuntu-bionic-drbd-k159"
 vcpus = 1
 memory = "1G"
+# No RDMA support. rdma_rxe module not installed.
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-bionic/"
@@ -134,6 +143,7 @@ SourceImage = "ubuntu-bionic"
 base_image = "ubuntu-focal-drbd-k88"
 vcpus = 1
 memory = "1G"
+# No RDMA support. rdma_rxe module not installed.
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-focal/"

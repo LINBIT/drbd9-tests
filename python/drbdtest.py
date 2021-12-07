@@ -1890,7 +1890,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--silent', action='store_true')
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
-    parser.add_argument('--rdma')
+    parser.add_argument('--rdma', action='store_true')
     parser.add_argument('--override-max', action="store_true")
     parser.add_argument('--report-and-quit', action="store_true")
     parser.add_argument('--no-rmmod', action="store_true")

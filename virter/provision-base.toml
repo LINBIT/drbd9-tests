@@ -83,6 +83,7 @@ kernel::rpm() {
 	fi
 	[ -z "$install_package" ] && install_package="${kernel_prefix}-$KERNEL_RELEASE.$(uname -m)"
 
+	repo_arg=
 	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/kernel.repo
 		[drbd-kernel]
@@ -91,10 +92,12 @@ kernel::rpm() {
 		gpgcheck=0
 		enabled=1
 		EOF
+
+		repo_arg="--disablerepo=* --enablerepo=drbd-kernel"
 	fi
 
 	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/had
-	yum install -y "$install_package"
+	yum install -y $repo_arg "$install_package"
 	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/have
 
 	for k in $(comm -12 /tmp/had /tmp/have); do
@@ -114,7 +117,7 @@ kernel::rpm() {
 
 	# also install kernel-modules-extra if available
 	if yum list kernel-modules-extra-$KERNEL_RELEASE; then
-		yum install -y "kernel-modules-extra-$KERNEL_RELEASE"
+		yum install -y $repo_arg  "kernel-modules-extra-$KERNEL_RELEASE"
 	fi
 }
 

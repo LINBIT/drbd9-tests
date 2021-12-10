@@ -12,7 +12,8 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
 
 [vms.metadata]
 BuildDistribution = "rhel8.5"
-KernelRelease = "4.18.0-348.el8"
+BuildKernel = "4.18.0-348.el8"
+KernelRelease = "4.18.0-348.2.1.el8_5"
 SourceImage = "alma-8"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
 
@@ -27,7 +28,8 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
 
 [vms.metadata]
 BuildDistribution = "rhel8.4"
-KernelRelease = "4.18.0-305.el8"
+BuildKernel = "4.18.0-305.el8"
+KernelRelease = "4.18.0-305.25.1.el8_4"
 SourceImage = "alma-8"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
 
@@ -42,7 +44,8 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
 
 [vms.metadata]
 BuildDistribution = "rhel8.1"
-KernelRelease = "4.18.0-147.el8"
+BuildKernel = "4.18.0-147.el8"
+KernelRelease = "4.18.0-147.8.1.el8_1"
 SourceImage = "alma-8"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
 
@@ -57,7 +60,8 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
 
 [vms.metadata]
 BuildDistribution = "rhel7.9"
-KernelRelease = "3.10.0-1160.el7"
+BuildKernel = "3.10.0-1160.el7"
+KernelRelease = "3.10.0-1160.49.1.el7"
 SourceImage = "centos-7"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
 
@@ -72,7 +76,8 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
 
 [vms.metadata]
 BuildDistribution = "rhel7.5"
-KernelRelease = "3.10.0-862.el7"
+BuildKernel = "3.10.0-862.el7"
+KernelRelease = "3.10.0-862.14.4.el7"
 SourceImage = "centos-7"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
 
@@ -87,7 +92,8 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
 
 [vms.metadata]
 BuildDistribution = "rhel7.1"
-KernelRelease = "3.10.0-229.1.2.el7"
+BuildKernel = "3.10.0-229.1.2.el7"
+KernelRelease = "3.10.0-229.20.1.el7"
 SourceImage = "centos-7"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
 
@@ -103,6 +109,7 @@ RepositoryDistribution = "xenial"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-xenial"
+BuildKernel = "4.4.0-210"
 KernelRelease = "4.4.0-210"
 SourceImage = "ubuntu-xenial"
 
@@ -118,6 +125,7 @@ RepositoryDistribution = "bionic"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-bionic"
+BuildKernel = "4.15.0-159"
 KernelRelease = "4.15.0-159"
 SourceImage = "ubuntu-bionic"
 
@@ -133,5 +141,6 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
+BuildKernel = "5.4.0-88"
 KernelRelease = "5.4.0-88"
 SourceImage = "ubuntu-focal"

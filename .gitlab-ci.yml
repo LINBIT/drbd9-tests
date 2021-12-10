@@ -42,12 +42,15 @@ base_image:
       cd virter
       virter registry update
       make pull_source_images
-      make -s print_base_images | parallel --line-buffer --tag \
-        'virter image rm drbd-base-image-{%} &&' \
-        'id=$(echo "100+{%}" | bc) &&' \
-        'make "base_image_{}" BASE_IMAGE_NAME=drbd-base-image-{%} VIRTER_BUILD_ID=$id &&' \
-        'virter image push drbd-base-image-{%} $LINBIT_DOCKER_REGISTRY/vm/drbd9-tests/{}:latest &&' \
-        'virter image rm drbd-base-image-{%}'
+      mkdir -p base-image-build-log
+      make -s print_base_images | \
+        parallel --line-buffer --tag \
+          ./build-push-base-image.sh '{%}' '{}' "2>&1" "|" tee 'base-image-build-log/{}'
+  artifacts:
+    paths:
+      - virter/base-image-build-log
+    when: always
+    expire_in: 1 week
 
 check-test-list:
   stage: check

@@ -75,6 +75,20 @@ install_package=$(find /opt/packages-kernel -type f)
 
 [ -z "$KERNEL_RELEASE" -a -z "$install_package" ] && exit 0
 
+# Install a package from a specific repo, reinstalling if necessary. If the
+# package is a file, it will be installed as usual.
+rpm_install_repo() {
+	local repo="$1"
+	local package="$2"
+	if [ -e "$package" ] ; then
+		yum install -y "$package"
+	elif rpm -q "$package" ; then
+		yum reinstall -y --disablerepo=* --enablerepo="$repo" "$package"
+	else
+		yum install -y --disablerepo=* --enablerepo="$repo" "$package"
+	fi
+}
+
 kernel::rpm() {
 	if yum list kernel-core >/dev/null 2>/dev/null; then
 		kernel_prefix=kernel-core
@@ -83,7 +97,6 @@ kernel::rpm() {
 	fi
 	[ -z "$install_package" ] && install_package="${kernel_prefix}-$KERNEL_RELEASE.$(uname -m)"
 
-	repo_arg=
 	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/kernel.repo
 		[drbd-kernel]
@@ -92,12 +105,10 @@ kernel::rpm() {
 		gpgcheck=0
 		enabled=1
 		EOF
-
-		repo_arg="--disablerepo=* --enablerepo=drbd-kernel"
 	fi
 
 	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/had
-	yum install -y $repo_arg "$install_package"
+	rpm_install_repo drbd-kernel "$install_package"
 	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/have
 
 	for k in $(comm -12 /tmp/had /tmp/have); do
@@ -117,7 +128,7 @@ kernel::rpm() {
 
 	# also install kernel-modules-extra if available
 	if yum list kernel-modules-extra-$KERNEL_RELEASE; then
-		yum install -y $repo_arg  "kernel-modules-extra-$KERNEL_RELEASE"
+		rpm_install_repo drbd-kernel "kernel-modules-extra-$KERNEL_RELEASE"
 	fi
 }
 

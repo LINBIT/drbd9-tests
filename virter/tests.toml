@@ -7,7 +7,13 @@ vms = [2]
 [tests.add-path-multiple-times]
 vms = [2]
 
+[tests.ahead-behind]
+vms = [2]
+
 [tests.allow-remote-read]
+vms = [2]
+
+[tests.c-min-rate]
 vms = [2]
 
 [tests.connect]
@@ -173,6 +179,9 @@ vms = [4]
 
 [tests.verify]
 vms = [2]
+
+[tests.verify-target-becomes-inconsistent]
+vms = [3]
 
 [tests.write-during-resync]
 vms = [3]

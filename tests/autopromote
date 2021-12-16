@@ -1,0 +1,57 @@
+#! /usr/bin/env python3
+
+# This test checks that autopromote works immediately after
+# conneciton loss to the peer (I.e. before the local node
+# noticed the absence of the peer).
+
+from python import drbdtest
+from python.drbdtest import log
+
+READ_ONLY = '<'
+READ_WRITE = '>'
+SUCCESS = 'OK'
+FAILURE = 'FAILED'
+
+def test_open(node, mode, expect):
+    r = node.run(['bash', '-c',
+                  'time : %s %s && echo OK || echo FAILED' %
+                  (mode, resource.volumes[0].device())], return_stdout=True)
+    assert r == expect
+
+###
+
+resource = drbdtest.setup(nodes=2)
+node_a, node_b = resource.nodes
+resource.add_disk('10M')
+
+log('* Make up-to-date data available.')
+resource.up_wait()
+resource.skip_initial_sync()
+resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:Timeout')
+
+log('* Tests with peer secondary.')
+
+test_open(node_a, READ_ONLY, SUCCESS)
+resource.connections.block(jump_to="DROP")
+test_open(node_a, READ_ONLY, SUCCESS)
+test_open(node_a, READ_WRITE, SUCCESS)
+test_open(node_a, READ_ONLY, SUCCESS)
+resource.connections.unblock(jump_to="DROP")
+resource.peer_devices.event(r'peer-device .* replication:Established')
+
+node_b.primary()
+log('* Tests with peer primary.')
+test_open(node_a, READ_ONLY, FAILURE)
+resource.connections.block(jump_to="DROP")
+test_open(node_a, READ_ONLY, SUCCESS)
+test_open(node_a, READ_WRITE, SUCCESS)
+test_open(node_a, READ_ONLY, SUCESS)
+resource.connections.unblock(jump_to="DROP")
+resource.peer_devices.event(r'peer-device .* replication:Established')
+
+log('* Shut down and clean up.')
+node_b.secondary()
+resource.down()
+resource.teardown()

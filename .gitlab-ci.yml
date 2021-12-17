@@ -14,7 +14,17 @@ stages:
   - test
   - publish
 
+.cache-download:
+  cache:
+    key:
+      prefix: download
+      files:
+        - virter/version.env
+    paths:
+      - download
+
 base_image:
+  extends: .cache-download
   stage: base_image
   rules:
     - if: $CI_MERGE_REQUEST_ID
@@ -25,9 +35,6 @@ base_image:
     - libvirt
   # avoid blocking the pipeline with a manual job
   allow_failure: true
-  cache:
-    paths:
-      - download
   script:
     - ln -snf $DOCKER_AUTH_CONFIG_FILE $HOME/.docker/config.json
     - . virter/version.env
@@ -53,12 +60,10 @@ base_image:
     expire_in: 1 week
 
 check-test-list:
+  extends: .cache-download
   stage: check
   rules:
     - if: $CI_MERGE_REQUEST_ID
-  cache:
-    paths:
-      - download
   script:
     - |
       . /usr/local/bin/gitlab-utils.sh
@@ -120,14 +125,12 @@ publish:
 
 
 test:
+  extends: .cache-download
   stage: test
   rules:
     - if: $CI_MERGE_REQUEST_ID
   tags:
     - libvirt
-  cache:
-    paths:
-      - download
   script:
     - |
       mkdir -p drbd-test-bundle
@@ -160,14 +163,12 @@ test:
 
 
 stability-test:
+  extends: .cache-download
   stage: test
   rules:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
   tags:
     - libvirt
-  cache:
-    paths:
-      - download
   timeout: 12h
   script:
     - |

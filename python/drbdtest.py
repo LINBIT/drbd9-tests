@@ -1717,13 +1717,10 @@ class Node():
 
         fio_output = json.loads(result)
 
-        # Ubuntu Xenial distributes fio version 2, which names the io_kbytes field wrongly
-        io_kbytes_field = 'io_bytes' if fio_output['fio version'].startswith('fio-2') else 'io_kbytes'
-
         job = fio_output['jobs'][0]
         log('fio results: read={}KiB, write={}KiB, time={}s'.format(
-            job['read'][io_kbytes_field],
-            job['write'][io_kbytes_field],
+            job['read']['io_kbytes'],
+            job['write']['io_kbytes'],
             job['elapsed']))
 
         self.fio_count = self.fio_count + 1

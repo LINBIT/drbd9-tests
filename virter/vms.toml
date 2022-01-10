@@ -106,23 +106,6 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 
 
 [[vms]]
-base_image = "ubuntu-xenial-drbd-k218"
-vcpus = 1
-memory = "1G"
-# No RDMA support. No rdma_rxe module.
-
-[vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-xenial/"
-RepositoryDistribution = "xenial"
-
-[vms.metadata]
-BuildDistribution = "ubuntu-xenial"
-BuildKernel = "4.4.0-218"
-KernelRelease = "4.4.0-210"
-SourceImage = "ubuntu-xenial"
-
-
-[[vms]]
 base_image = "ubuntu-bionic-drbd-k159"
 vcpus = 1
 memory = "1G"

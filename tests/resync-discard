@@ -1,0 +1,49 @@
+#! /usr/bin/env python3
+
+# Before DRBD-9.1.6 this caused a fully allocated
+# backing volume on the resync target node after
+# the resync
+
+import json
+from python import drbdtest
+from python.drbdtest import log
+
+def data_percent(n):
+    json_str = n.run(['lvs', '--reportformat', 'json'], return_stdout=True)
+    lvs_rep = json.loads(json_str)
+
+    for lvsl in lvs_rep['report'][0]['lv']:
+        if lvsl['lv_name'] == n.volumes[0].disk_lv:
+            return lvsl['data_percent']
+
+    raise Exception("My volume was not in the lvs output. Kaboom!")
+
+
+resource = drbdtest.setup(nodes=2)
+resource.disk_options = 'discard-zeroes-if-aligned yes; rs-discard-granularity 65536; c-max-rate 10M;'
+resource.add_disk('11M', thin=True)
+
+node_a, node_b = resource.nodes
+dev_name = node_a.volumes[0].device()
+
+node_a.up_wait()
+node_a.primary(force=True)
+node_a.secondary()
+
+node_b.up_wait()
+
+connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+peer_devices_ba = drbdtest.PeerDevices.from_connections(connection_ba)
+peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
+peer_devices_ba.event(r'peer-device .* replication:Established')
+
+data_percent_a = data_percent(node_a)
+data_percent_b = data_percent(node_b)
+
+if data_percent_a != data_percent_b:
+    raise Exception("node_a data_percent {} while node_b shows {}"
+                    .format(data_percent_a, data_percent_b))
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

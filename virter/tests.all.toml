@@ -145,6 +145,9 @@ vms = [3]
 [tests.resync-chain-close]
 vms = [3]
 
+[tests.resync-discard]
+vms = [2]
+
 [tests.resync-downstream-upstream]
 vms = [3]
 

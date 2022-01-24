@@ -47,7 +47,7 @@ test_open(node_a, READ_ONLY, FAILURE)
 resource.connections.block(jump_to="DROP")
 test_open(node_a, READ_ONLY, SUCCESS)
 test_open(node_a, READ_WRITE, SUCCESS)
-test_open(node_a, READ_ONLY, SUCESS)
+test_open(node_a, READ_ONLY, SUCCESS)
 resource.connections.unblock(jump_to="DROP")
 resource.peer_devices.event(r'peer-device .* replication:Established')
 

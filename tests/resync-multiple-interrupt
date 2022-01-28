@@ -10,7 +10,7 @@ from python import datatools
 
 resource = drbdtest.setup(nodes=3)
 resource.disk_options = 'c-max-rate 2M;'
-resource.add_disk('12M')
+resource.add_disk('16M')
 
 resource.up_wait()
 
@@ -30,7 +30,7 @@ resource.skip_initial_sync()
 
 log('* Write new data on node_a only')
 connections_to_a.disconnect()
-node_a.write(direct=1, size='8M')
+node_a.write(direct=1, size='14M')
 
 log('* Start sync to node_b and let it run a bit')
 connection_ba.connect()

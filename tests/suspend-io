@@ -1,0 +1,49 @@
+#! /usr/bin/env python3
+
+# This test makes drbd call a broken fence peer script with
+# fencing=resource-and-stonith. This causes DRBD to freeze IO.
+# After that it initiates a write, and verifies that this
+# does not lead to a new current-uuid.
+# This was broken since drbd-9.0.15 until 9.0.32 and 9.1.5
+
+from python import drbdtest
+from python.drbdtest import log
+import time
+
+resource = drbdtest.setup(nodes=2)
+resource.net_options = 'fencing resource-and-stonith;'
+# "1" is not a valid exit code for a fence handler.
+# This simulates a broken fence peer script.
+resource.handlers = 'fence-peer "exit 1";'
+resource.add_disk('10M')
+resource.up_wait()
+
+node_a, node_b = resource.nodes
+connection_a_b = resource.connections.from_node(node_a).to_node(node_b)
+connection_b_a = resource.connections.from_node(node_b).to_node(node_a)
+peer_device_a_b = resource.peer_devices.from_node(node_a).to_node(node_b)
+peer_device_b_a = resource.peer_devices.from_node(node_b).to_node(node_a)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+
+node_b.primary()
+connection_a_b.disconnect(force=True)
+node_b.event(r'resource .* suspended:fencing')
+node_b.run(['bash', '-c',
+            'nohup dd if=/dev/zero of=%s bs=4k oflag=direct count=1 </dev/null &> /dev/null &' %
+            (node_b.volumes[0].device())])
+time.sleep(0.1)
+peer_device_b_a.event(r'peer-device .* replication:Off')
+connection_a_b.connect()
+ev_a_b = peer_device_a_b.event(r'peer-device .* replication:(WFBitMapT|WFBitMapS|Established)')
+ev_b_a = peer_device_b_a.event(r'peer-device .* replication:(WFBitMapT|WFBitMapS|Established)')
+
+if ev_a_b[0][0] != 'Established' or ev_b_a[0][0] != 'Established':
+    raise Exception('Uhh, looks like the write while IO suspended created a new current UUID!')
+
+resource.down()
+resource.teardown()

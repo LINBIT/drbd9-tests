@@ -206,6 +206,9 @@ vms = [2, 3]
 [tests.stress-connect-and-2pc]
 vms = [2, 5]
 
+[tests.suspend-io]
+vms = [2]
+
 [tests.switch-primaries]
 vms = [2, 5]
 

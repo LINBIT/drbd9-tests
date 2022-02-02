@@ -1,0 +1,109 @@
+#! /usr/bin/env python3
+
+import time
+import json
+from python import drbdtest
+from python.drbdtest import log
+from python import trafficcontrol
+
+MEGS = 512
+report = ''
+resource = drbdtest.setup(nodes=2)
+resource.add_disk('%dM' % (MEGS))
+resource.up_wait()
+
+node_a, node_b = resource.nodes
+connection_a_b = resource.connections.from_node(node_a).to_node(node_b)
+connection_b_a = resource.connections.from_node(node_b).to_node(node_a)
+
+def dbdt(node, res_name, peer_node_id):
+    result = node.run(['drbdsetup', 'status', res_name, '--json'], return_stdout=True)
+    status = json.loads(result)[0]
+    connection = next(c for c in status['connections'] if c['peer-node-id'] == peer_node_id)
+    return connection['peer_devices'][0]['db/dt [MiB/s]']
+
+def test_resync_rate(c_max_rate=0, rs_discard_granularity=0, speed=0, delay=''):
+    global report
+
+    connection_a_b.disconnect()
+    connection_b_a.event(r'connection:Connecting')
+
+    speed_tc = '' if speed == 0 else '{}kbps'.format(speed)
+    if speed_tc != '' or delay != '':
+        node_a_tc.slow_down(node_b, speed=speed_tc, delay=delay)
+
+    node_b.run(['drbdsetup', 'invalidate', str(resource.volumes[0].minor)])
+
+    resource.disk_options = 'c-max-rate {}; c-fill-target 1000; rs-discard-granularity {};'.format(c_max_rate, rs_discard_granularity)
+    resource.nodes.adjust()
+
+    node_a.peer_devices.event(r'peer-device .* replication:SyncSource')
+    node_b.peer_devices.event(r'peer-device .* replication:SyncTarget')
+
+    rates = []
+    stable_rate = None
+    while len(rates) < 20:
+        time.sleep(1)
+        rate = dbdt(node_a, resource.name, node_b.id)
+        log(rate)
+        rates.append(rate)
+        if len(rates) < 3:
+            continue
+
+        last_rates = rates[-3:]
+        if min(last_rates) < 0.01:
+            continue
+
+        if max(last_rates) / min(last_rates) < 1.05:
+            stable_rate = sum(last_rates) / len(last_rates)
+            break
+
+    if speed_tc != '' or delay != '':
+        node_a_tc.remove_slow_down(node_b)
+
+    if speed == 0:
+        if c_max_rate == 0:
+            expect = -1
+        else:
+            expect = c_max_rate
+    else:
+        if c_max_rate == 0:
+            expect = speed
+        else:
+            expect = min(c_max_rate, speed)
+
+    rate_report = 'real = {:.2f}KiB/sec'.format(stable_rate * 1024) if stable_rate else 'UNSTABLE last = {:.2f}KiB/sec'.format(rates[-1] * 1024)
+    report_line = "result: expect = {}KiB/sec {} (c-max-rate={} rs-discard-granularity={} speed={} delay={})".format(
+            expect, rate_report, c_max_rate, rs_discard_granularity, speed, delay)
+    log(report_line)
+    report += report_line + "\n"
+    #if stable_rate < expect - expect/5 or stable_rate > expect + expect/5:
+    #    raise Exception("Achieved resync rate more than 20% off!")
+
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+# Shouldn't happen, because we only do graceful disconnect, but apparently it does sometimes.
+# Ignore. We are investigating other things here.
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+resource.forbidden_patterns.remove(r'connection:ProtocolError')
+
+node_a_tc = trafficcontrol.TrafficControl(node_a, resource.nodes)
+
+test_resync_rate(128)
+test_resync_rate(speed=128)
+test_resync_rate(10000, speed=2000)
+test_resync_rate(speed=1000)
+test_resync_rate(3000)
+test_resync_rate(3000, delay='30ms')
+test_resync_rate(15000, delay='30ms')
+test_resync_rate(3000, delay='100ms')
+test_resync_rate(15000, delay='100ms')
+test_resync_rate(speed=5000, delay='100ms')
+test_resync_rate(3000, rs_discard_granularity='64K')
+print(report)
+
+resource.down()
+resource.teardown()

@@ -49,7 +49,11 @@ class TrafficControl(object):
         dev = self.source_node.net_device_to_peer(to_node)
         log('Slowing down connection from {0} to {1}'.format(self.source_node, to_node))
 
-        netem_args = ['delay', delay] if delay != '' else ['rate', speed]
+        netem_args = []
+        if delay != '':
+            netem_args += ['delay', delay]
+        if speed != '':
+            netem_args += ['rate', speed]
 
         # Add our netem qdisc as the child of the corresponding class of the 'prio' qdisc.
         self.source_node.run(['tc', 'qdisc', 'replace', 'dev', dev,

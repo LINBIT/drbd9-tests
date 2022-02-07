@@ -96,7 +96,11 @@ build-docker:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
   script:
     - ln -snf $DOCKER_AUTH_CONFIG_FILE $HOME/.docker/config.json
-    - make DOCKER_IMAGE_NAME=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA docker
+    - >-
+      make
+      NOCACHE=$([ "$CI_COMMIT_BRANCH" = master -a "$CI_PIPELINE_SOURCE" != schedule ] && echo true || echo false)
+      DOCKER_IMAGE_NAME=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
+      docker
     - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
 
 push-docker:

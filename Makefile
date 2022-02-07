@@ -1,5 +1,6 @@
 BUNDLE ?= drbd-test-bundle.tgz
 DOCKER_IMAGE_NAME ?= drbd9-tests
+NOCACHE ?= false
 
 # The 'all' and 'install' targets are used by lbtest.
 # This rule can be removed once lbtest is fully replaced.
@@ -19,4 +20,4 @@ clean:
 
 .PHONY: docker
 docker:
-	docker build --no-cache -t $(DOCKER_IMAGE_NAME) .
+	docker build --no-cache=$(NOCACHE) -t $(DOCKER_IMAGE_NAME) .

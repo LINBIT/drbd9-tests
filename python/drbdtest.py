@@ -551,9 +551,6 @@ class Connections(Collection):
             node0, node1 = connection.nodes
             node0.connections.remove(connection)
 
-    def verify(self, options=[]):
-        self.run_drbdadm('verify', None, false, options)
-
     def run_cmd(self, *args):
         for connection in self:
             connection.run_cmd(*args)
@@ -1101,9 +1098,6 @@ class Connection(object):
                                 return_stdout=True)
         m = re.match(r'\s*agreed_pro_version: ([0-9]+)', str);
         return int(m.group(1))
-
-    def verify(self, *args, **kwargs):
-        return Connections([self]).verify(*args, **kwargs)
 
 class PeerDevice(object):
     def __init__(self, connection, volume):

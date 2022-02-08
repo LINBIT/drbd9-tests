@@ -10,11 +10,13 @@ MEGS = 512
 report = ''
 resource = drbdtest.setup(nodes=2)
 resource.add_disk('%dM' % (MEGS))
+resource.net_options = 'verify-alg md5;'
 resource.up_wait()
 
 node_a, node_b = resource.nodes
 connection_a_b = resource.connections.from_node(node_a).to_node(node_b)
 connection_b_a = resource.connections.from_node(node_b).to_node(node_a)
+peer_device_b_a = resource.peer_devices.from_node(node_b).to_node(node_a)
 
 def dbdt(node, res_name, peer_node_id):
     result = node.run(['drbdsetup', 'status', res_name, '--json'], return_stdout=True)
@@ -22,7 +24,7 @@ def dbdt(node, res_name, peer_node_id):
     connection = next(c for c in status['connections'] if c['peer-node-id'] == peer_node_id)
     return connection['peer_devices'][0]['db/dt [MiB/s]']
 
-def test_resync_rate(c_max_rate=0, rs_discard_granularity=0, speed=0, delay=''):
+def test_resync_rate(c_max_rate=0, rs_discard_granularity=0, speed=0, delay='', online_verify=False):
     global report
 
     connection_a_b.disconnect()
@@ -32,13 +34,18 @@ def test_resync_rate(c_max_rate=0, rs_discard_granularity=0, speed=0, delay=''):
     if speed_tc != '' or delay != '':
         node_a_tc.slow_down(node_b, speed=speed_tc, delay=delay)
 
-    node_b.run(['drbdsetup', 'invalidate', str(resource.volumes[0].minor)])
+    if not online_verify:
+        node_b.run(['drbdsetup', 'invalidate', str(resource.volumes[0].minor)])
 
     resource.disk_options = 'c-max-rate {}; c-fill-target 1000; rs-discard-granularity {};'.format(c_max_rate, rs_discard_granularity)
     resource.nodes.adjust()
 
-    node_a.peer_devices.event(r'peer-device .* replication:SyncSource')
-    node_b.peer_devices.event(r'peer-device .* replication:SyncTarget')
+    if online_verify:
+        peer_device_b_a.event(r'peer-device .* peer-disk:UpToDate')
+        peer_device_b_a.verify()
+    else:
+        node_a.peer_devices.event(r'peer-device .* replication:SyncSource')
+        node_b.peer_devices.event(r'peer-device .* replication:SyncTarget')
 
     rates = []
     stable_rate = None
@@ -91,6 +98,13 @@ resource.forbidden_patterns.remove(r'connection:NetworkFailure')
 resource.forbidden_patterns.remove(r'connection:ProtocolError')
 
 node_a_tc = trafficcontrol.TrafficControl(node_a, resource.nodes)
+
+# Run verify cases first because the resync cases leave the nodes in a state
+# where they require resync on connection
+test_resync_rate(256, online_verify=True)
+test_resync_rate(5000, online_verify=True)
+test_resync_rate(5000, delay='30ms', online_verify=True)
+test_resync_rate(5000, delay='100ms', online_verify=True)
 
 test_resync_rate(128)
 test_resync_rate(speed=128)

@@ -1241,6 +1241,11 @@ class Node():
         m = re.match(r'([0-9]+)\.([0-9]+)\.([0-9]+)(.*)', drbd_version);
         self.drbd_version_tuple = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
 
+        self.os_id, self.os_version_id = self.run(
+                ['bash', '-c', '. /etc/os-release ; echo $ID ; echo $VERSION_ID'],
+                update_config=False, return_stdout=True).splitlines()
+        log("node {} is running '{}' version '{}'".format(name, self.os_id, self.os_version_id))
+
         self.addrs = [self.addr]
         if multi_paths:
             net_2 = self.run(['ip', '-oneline', 'a', 'show', 'label', '*:1'],
@@ -1451,6 +1456,10 @@ class Node():
             with ConfigBlock(t='disk') as disk:
                 disk.write("disk-flushes no;")
                 disk.write("md-flushes no;")
+                if 'c-min-rate' not in resource._disk_options and self.os_id == 'ubuntu' and self.os_version_id == '18.04':
+                    # Work around issue on Ubuntu Bionic.
+                    # Application IO activity is detected when there is none, causing c-min-rate throttling to be applied.
+                    disk.write("c-min-rate 0;")
                 disk.write(resource._disk_options)
 
             with ConfigBlock(t='net') as net:

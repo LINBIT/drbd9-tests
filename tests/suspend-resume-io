@@ -1,0 +1,251 @@
+#! /usr/bin/env python3
+
+# Test handling of active IO that is suspended due to loss of minimum
+# redundancy. node_a is Primary and has peers node_b and node_c. For
+# simplicity, node_b and node_c are not connected.
+#
+# In each test variant, the connections to the peers are lost while a write is
+# being processed. This causes DRBD to suspend IO. Then the peers are connected
+# and the write should be resent or resynced as appropriate.
+#
+# The variants differ in which nodes have an attached disk, the precise
+# disconnection and reconnection sequences, and whether node_b is down while
+# disconnected.
+
+from enum import Enum
+import time
+
+from python import drbdtest
+from python.drbdtest import log
+from python import busywrite
+from python import datatools
+
+
+class AllowAcks(Enum):
+    NONE = 0
+    WRITE_ACK_C = 1
+    BARRIER_ACK_C = 2
+
+
+class DownType(Enum):
+    DOWN_UP = 0
+    CREATE_MD = 1
+
+
+resource = drbdtest.setup(nodes=3)
+resource.resource_options = 'quorum 2; quorum-minimum-redundancy 2; on-no-quorum suspend-io; on-no-data-accessible suspend-io;'
+resource.net_options = 'ping-int 3; connect-int 2; timeout 10; ko-count 7;'
+resource.add_disk('20M')
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+node_a, node_b, node_c = resource.nodes
+connection_ab = resource.connections.from_node(node_a).to_node(node_b)
+connection_ac = resource.connections.from_node(node_a).to_node(node_c)
+connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+connection_bc = resource.connections.from_node(node_b).to_node(node_c)
+connection_ca = resource.connections.from_node(node_c).to_node(node_a)
+connection_cb = resource.connections.from_node(node_c).to_node(node_b)
+peer_device_ab = resource.peer_devices.from_node(node_a).to_node(node_b)
+
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+
+def packet_filter(allow_acks, block):
+    filter_method = node_a.block_packet_type if block else node_a.unblock_packet_type
+
+    if allow_acks == AllowAcks.NONE:
+        filter_method(drbdtest.P_WRITE_ACK, from_node=node_c)
+        filter_method(drbdtest.P_WRITE_ACK, from_node=node_b)
+    elif allow_acks == AllowAcks.WRITE_ACK_C:
+        # Allow P_WRITE_ACK from node_c, but not from node_b
+        filter_method(drbdtest.P_WRITE_ACK, from_node=node_b)
+    else:
+        # Allow P_BARRIER_ACK from node_c, but not from node_b
+        filter_method(drbdtest.P_BARRIER_ACK, from_node=node_b)
+
+def ensure_write_success(writer):
+    writer.wait()
+    if writer.get_write_kib() <= 0:
+        raise RuntimeError('write failed')
+
+def ensure_writer_running(writer):
+    # Pause to allow fio to terminate if request completed
+    time.sleep(0.5)
+    if not writer.is_running():
+        raise RuntimeError('writer no longer running')
+
+def down_up_disconnected(node, down_type):
+    if down_type is None:
+        return
+
+    log('* Restart peer')
+    node.down()
+
+    if down_type == DownType.CREATE_MD:
+        node.drbdadm(['create-md', '--force', resource.name])
+
+    node.new_resource()
+    node.new_minor()
+    node.new_peer()
+    node.peer_device_options()
+    node.new_path()
+    node.attach()
+
+def check_resync(expect_resync_source, running_writer):
+    if expect_resync_source == node_c:
+        connection_bc.connect()
+
+    peer_device_source = drbdtest.PeerDevice(
+            drbdtest.Connection(expect_resync_source, node_b),
+            resource.volumes[0])
+    peer_device_source.event(r'peer-device .* replication:SyncSource')
+
+    if running_writer is not None:
+        ensure_writer_running(running_writer)
+
+    node_b.unblock_packet_type(drbdtest.P_RS_DATA_REPLY, from_node=expect_resync_source)
+    peer_device_source.event(r'peer-device .* replication:Established')
+
+    if expect_resync_source == node_c:
+        connection_bc.disconnect()
+
+def test_connection_loss(allow_acks, detach_node=None,
+        disconnect_first=node_b, block_other_connection=True,
+        reconnect_first=node_b, down_type=None):
+    if detach_node == node_a and reconnect_first == node_b:
+        raise RuntimeError('diskless primary must reconnect first to node_c to regain minimum redundancy')
+
+    log('*** Variant: allow_acks={} detach={} disconnect={} block_other={} reconnect={} down={}'.format(
+        allow_acks, detach_node, disconnect_first, block_other_connection, reconnect_first, down_type))
+
+    if detach_node is not None:
+        detach_node.detach()
+
+    node_a.primary()
+
+    log('* Write with blocked packets')
+    packet_filter(allow_acks, block=True)
+
+    # Use BusyWrite because it runs asynchronously
+    writer = busywrite.BusyWrite(node_a.volumes[0])
+    writer.start('--size=4K --time_based=0')
+    # Pause to allow fio to submit write
+    time.sleep(0.5)
+
+    log('* Break connections')
+    if block_other_connection:
+        # Block path to other before disconnecting so that DRBD on node_a detects connection loss "simultaneously"
+        (node_c if disconnect_first == node_b else node_b).block_path(node_a, 0)
+
+    if disconnect_first == node_b:
+        connection_ba.disconnect(force=True)
+        connection_ab.event(r'connection .* connection:BrokenPipe')
+        connection_ca.disconnect(force=True)
+    else:
+        connection_ca.disconnect(force=True)
+        connection_ac.event(r'connection .* connection:BrokenPipe')
+        connection_ba.disconnect(force=True)
+
+    if block_other_connection:
+        (node_c if disconnect_first == node_b else node_b).unblock_path(node_a, 0)
+
+    log('* Validate disconnected state')
+    packet_filter(allow_acks, block=False)
+
+    connection_ab.event(r'connection .* connection:Connecting')
+    connection_ac.event(r'connection .* connection:Connecting')
+
+    if allow_acks == AllowAcks.BARRIER_ACK_C:
+        ensure_write_success(writer)
+    else:
+        ensure_writer_running(writer)
+
+    down_up_disconnected(node_b, down_type)
+
+    expect_resync_source = None
+    if down_type is not None and detach_node != node_a:
+        expect_resync_source = node_a
+    if down_type == DownType.CREATE_MD and detach_node == node_a:
+        expect_resync_source = node_c
+
+    if expect_resync_source is not None:
+        # Prevent the resync from actually running until we have verified that the write has not completed
+        node_b.block_packet_type(drbdtest.P_RS_DATA_REPLY, from_node=expect_resync_source)
+
+    log('* Reconnect peer(s)')
+    if reconnect_first == node_c:
+        connection_ca.connect()
+        connection_ac.event(r'connection .* connection:Connected')
+
+    connection_ba.connect()
+    connection_ab.event(r'connection .* connection:Connected')
+
+    if expect_resync_source is not None:
+        # Ensure fio is still running if we need the UpToDate disk for minimum redundancy
+        if allow_acks != AllowAcks.BARRIER_ACK_C and (reconnect_first == node_b or detach_node is not None):
+            check_resync(expect_resync_source, writer)
+        else:
+            check_resync(expect_resync_source, None)
+    else:
+        peer_device_ab.event(r'peer-device .* replication:Established', no=r'peer-device .* replication:SyncSource')
+
+    if allow_acks != AllowAcks.BARRIER_ACK_C:
+        ensure_write_success(writer)
+
+    log('* Check that we can still write and demote')
+    node_a.write(direct=1)
+    node_a.secondary()
+
+    if reconnect_first != node_c:
+        log('* Reconnect remaining peer')
+        connection_ca.connect()
+        connection_ac.event(r'connection .* connection:Connected')
+        if detach_node != node_c:
+            node_c.volumes.event(r'device .* disk:UpToDate')
+
+    datatools.verify_data([n for n in resource.nodes if n != detach_node], size_mb=1, backing_disk=True)
+
+    if detach_node is not None:
+        detach_node.attach()
+        detach_node.volumes.event(r'device .* disk:UpToDate')
+
+connection_bc.disconnect(force=True)
+connection_cb.event(r'connection .* connection:Connecting')
+
+# Fixed in drbd-9.1.6 by commit:
+# abef05ce0395 drbd: do not attempt to "resend" requests to diskless peers
+test_connection_loss(AllowAcks.NONE, detach_node=node_c, block_other_connection=False, reconnect_first=node_c)
+
+# Fixed in drbd-9.1.6 by commit:
+# d6a7bb6bda3a drbd: do not mark requests to diskless peers as RQ_NET_DONE
+test_connection_loss(AllowAcks.NONE, detach_node=node_c, disconnect_first=node_c, reconnect_first=node_c)
+
+# Fails on drbd-9.1.6 with "NULL pointer dereference" (when write completion checks are skipped)
+test_connection_loss(AllowAcks.WRITE_ACK_C)
+
+# Fails on drbd-9.1.6 because required resync does not occur
+# Minimum redundancy is reached with node_c, but node_b never receives this data
+test_connection_loss(AllowAcks.NONE, reconnect_first=node_c, down_type=DownType.DOWN_UP)
+
+test_connection_loss(AllowAcks.NONE)
+test_connection_loss(AllowAcks.BARRIER_ACK_C)
+
+test_connection_loss(AllowAcks.NONE, detach_node=node_a, reconnect_first=node_c)
+test_connection_loss(AllowAcks.WRITE_ACK_C, detach_node=node_a, reconnect_first=node_c)
+test_connection_loss(AllowAcks.BARRIER_ACK_C, detach_node=node_a, reconnect_first=node_c)
+
+test_connection_loss(AllowAcks.NONE, detach_node=node_a, reconnect_first=node_c, down_type=DownType.DOWN_UP)
+
+# These cases require resync to reach minimum redundancy which is not yet implemented
+test_connection_loss(AllowAcks.NONE, down_type=DownType.DOWN_UP)
+test_connection_loss(AllowAcks.WRITE_ACK_C, down_type=DownType.DOWN_UP)
+test_connection_loss(AllowAcks.BARRIER_ACK_C, down_type=DownType.DOWN_UP)
+test_connection_loss(AllowAcks.NONE, detach_node=node_a, reconnect_first=node_c, down_type=DownType.CREATE_MD)
+
+log('* Shut down and clean up.')
+resource.down()
+log('* Tear down.')
+resource.teardown()

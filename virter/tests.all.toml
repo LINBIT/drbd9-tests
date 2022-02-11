@@ -209,6 +209,9 @@ vms = [2, 5]
 [tests.suspend-io]
 vms = [2]
 
+[tests.suspend-resume-io]
+vms = [3]
+
 [tests.switch-primaries]
 vms = [2, 5]
 

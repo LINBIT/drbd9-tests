@@ -1,3 +1,6 @@
+import json
+import os
+
 class BusyWrite(object):
     """ Keep DRBD device busy using 'fio'. """
 
@@ -5,6 +8,7 @@ class BusyWrite(object):
         self._volume = volume
         self._node = volume.node
         self._fio_pid = None
+        self._fio_out_str = None
 
     def start(self, fio_arg_str=''):
         """
@@ -21,17 +25,53 @@ class BusyWrite(object):
         Keyword arguments:
         fio_arg_str -- extra arguments to pass to fio
         """
+        self._output_filename = 'fio-{}-{}-async.json'.format(self._node.name, self._node.fio_count)
+
         # run fio in background
         fio_cmd = ['setsid', 'bash', '-c',
-                'fio --max-jobs=1 --name=test --filename={} --ioengine=libaio --rw=randwrite --direct=1 --iodepth=32 '.format(self._volume.device()) +
-                '--time_based --runtime=600 {} < /dev/null &> /dev/null & echo $!'.format(fio_arg_str)]
+                'fio --output-format=json --max-jobs=1 --name=test ' +
+                '--filename={} '.format(self._volume.device()) +
+                '--ioengine=libaio --rw=randwrite --direct=1 --iodepth=32 ' +
+                '--time_based --runtime=600 ' +
+                fio_arg_str +
+                ' < /dev/null > /tmp/{} 2> /dev/null & echo $!'.format(self._output_filename)]
         self._fio_pid = self._node.run(fio_cmd, return_stdout=True)
+
+        self._node.fio_count = self._node.fio_count + 1
+
+    def is_running(self):
+        if self._fio_pid is None:
+            return False
+
+        running_str = self._node.run([
+            'bash', '-c', 'ps -p {} > /dev/null && echo true || echo false'.format(self._fio_pid)],
+            return_stdout=True)
+
+        if running_str == 'true':
+            return True
+        if running_str == 'false':
+            return False
+        raise RuntimeError('unexpected output from running check: ' + running_str)
+
+    def wait(self):
+        """ Wait for fio to terminate and collect results. """
+        self._node.run(['tail', '--pid={}'.format(self._fio_pid), '-f', '/dev/null'])
+        self._fio_pid = None
+        self._fio_out_str = self._node.run(['cat', '/tmp/{}'.format(self._output_filename)], return_stdout=True)
+        # Some fio versions write non-json messages before the json output
+        self._fio_out_str = self._fio_out_str[self._fio_out_str.find('{'):]
+        with open(os.path.join(self._node.resource.logdir, self._output_filename), 'w') as output_file:
+            output_file.write(self._fio_out_str)
 
     def stop(self):
         if self._fio_pid is None:
             raise RuntimeError('Start first')
 
         self._node.run(['kill', str(self._fio_pid)])
-        # wait for fio to terminate
-        self._node.run(['tail', '--pid={}'.format(self._fio_pid), '-f', '/dev/null'])
-        self._fio_pid = None
+        self.wait()
+
+    def get_write_kib(self):
+        if self._fio_out_str is None:
+            raise RuntimeError('Wait for fio to stop first')
+        fio_output = json.loads(self._fio_out_str)
+        return fio_output['jobs'][0]['write']['io_kbytes']

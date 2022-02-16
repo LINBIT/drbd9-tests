@@ -21,6 +21,9 @@ vms = [2]
 [tests.allow-remote-read]
 vms = [2]
 
+[tests.autopromote]
+vms = [2]
+
 [tests.c-min-rate]
 vms = [2]
 
@@ -174,6 +177,9 @@ vms = [2]
 vms = [2, 3]
 
 [tests.stress-connect-and-2pc]
+vms = [2]
+
+[tests.suspend-io]
 vms = [2]
 
 [tests.switch-primaries]

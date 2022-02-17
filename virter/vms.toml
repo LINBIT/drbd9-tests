@@ -123,7 +123,7 @@ SourceImage = "ubuntu-bionic"
 
 
 [[vms]]
-base_image = "ubuntu-focal-drbd-k94"
+base_image = "ubuntu-focal-drbd-k100"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
@@ -134,6 +134,6 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
-BuildKernel = "5.4.0-94"
-KernelRelease = "5.4.0-94"
+BuildKernel = "5.4.0-100"
+KernelRelease = "5.4.0-100"
 SourceImage = "ubuntu-focal"

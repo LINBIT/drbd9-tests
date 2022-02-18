@@ -73,19 +73,6 @@ check-test-list:
     - printf "Comparison of 'tests' directory with 'virter/tests.all.toml' listing:\n%s\n" "$COMPARISON"
     - if [ -n "$COMPARISON" ]; then exit 1; fi
 
-bundle:
-  stage: build
-  rules:
-    - if: $CI_MERGE_REQUEST_ID
-    - if: $CI_COMMIT_BRANCH == 'master'
-    - if: $CI_PIPELINE_SOURCE == 'schedule'
-  script:
-    - make bundle
-  artifacts:
-    paths:
-      - drbd-test-bundle.tgz
-    expire_in: 1 week
-
 build-docker:
   stage: build
   tags:
@@ -117,17 +104,6 @@ push-docker:
     - docker tag $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA $LINBIT_DOCKER_REGISTRY/drbd9-tests:latest
     - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests:latest
 
-
-publish:
-  stage: publish
-  rules:
-    - if: $CI_COMMIT_BRANCH == 'master' && $CI_PIPELINE_SOURCE != 'schedule'
-  script:
-    - curl -isSf -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD --upload-file drbd-test-bundle.tgz $LINBIT_REGISTRY_URL/repository/test-suite/
-  dependencies:
-    - bundle
-
-
 test:
   extends: .cache-download
   stage: test
@@ -136,10 +112,7 @@ test:
   tags:
     - libvirt
   script:
-    - |
-      mkdir -p drbd-test-bundle
-      tar -C drbd-test-bundle -xvf drbd-test-bundle.tgz
-    - . drbd-test-bundle/virter/version.env
+    - . virter/version.env
     - curl -sSfL -u gitlab-ci-token:$CI_JOB_TOKEN $CI_SERVER_URL/linbit/build-helpers/-/archive/$BUILD_HELPERS_VERSION/ignored.tar.gz | tar -xvzf -
     - mv build-helpers-* build-helpers
     - . build-helpers/gitlab-utils.sh
@@ -151,9 +124,8 @@ test:
     - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
     - |
       export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
-      ./drbd-test-bundle/virter/run-test.sh
+      ./virter/run-test.sh
   dependencies:
-    - bundle
     - build-docker
   artifacts:
     # provide a convenient name so that the downloaded artifacts can be identified
@@ -175,10 +147,7 @@ stability-test:
     - libvirt
   timeout: 12h
   script:
-    - |
-      mkdir -p drbd-test-bundle
-      tar -C drbd-test-bundle -xvf drbd-test-bundle.tgz
-    - . drbd-test-bundle/virter/version.env
+    - . virter/version.env
     - curl -sSfL -u gitlab-ci-token:$CI_JOB_TOKEN $CI_SERVER_URL/linbit/build-helpers/-/archive/$BUILD_HELPERS_VERSION/ignored.tar.gz | tar -xvzf -
     - mv build-helpers-* build-helpers
     - . build-helpers/gitlab-utils.sh
@@ -191,10 +160,9 @@ stability-test:
     - |
       export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
       export DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
-      ./drbd-test-bundle/virter/run-test.sh --repeats="$STABILITY_TEST_COUNT" --tests=drbd-test-bundle/virter/tests.all.toml --error-details=false --quiet $STABILITY_TEST_VMSHED_ARGS || true
-      ./drbd-test-bundle/virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json drbd-test-bundle/virter/tests.toml
+      ./virter/run-test.sh --repeats="$STABILITY_TEST_COUNT" --tests=virter/tests.all.toml --error-details=false --quiet $STABILITY_TEST_VMSHED_ARGS || true
+      ./virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json virter/tests.toml
   dependencies:
-    - bundle
     - build-docker
   artifacts:
     # provide a convenient name so that the downloaded artifacts can be identified

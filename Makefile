@@ -1,4 +1,3 @@
-BUNDLE ?= drbd-test-bundle.tgz
 DOCKER_IMAGE_NAME ?= drbd9-tests
 NOCACHE ?= false
 
@@ -11,12 +10,8 @@ all install uninstall:
 target/%:
 	$(MAKE) -C target $*
 
-bundle: target/drbd-test-target.tgz virter/version.env virter/vms.toml virter/tests.toml virter/tests.all.toml virter/provision-base.toml virter/provision-test.toml virter/run.toml virter/run-test.sh virter/elasticsearch/elasticsearch-insert.sh
-	tar -czf $(BUNDLE) $^
-
 clean:
 	@$(MAKE) -C target clean
-	rm -f $(BUNDLE)
 
 .PHONY: docker
 docker:

@@ -2,13 +2,15 @@
 
 set -e
 
-if [ -z "$TEST_NAME" ]; then
+[ -n "$TEST_NAME" ] && TEST_PATH="tests/$TEST_NAME"
+
+if [ -z "$TEST_PATH" ]; then
     echo "No test specified"
     exit 1
 fi
 
-if [ ! -e tests/"$TEST_NAME" ]; then
-    echo "Unknown test '$TEST_NAME'"
+if [ ! -e /virter/workspace/"$TEST_PATH" ]; then
+    echo "Unknown test '$TEST_PATH'"
     exit 1
 fi
 
@@ -24,9 +26,9 @@ for t in "${targets[@]}"; do
     nodes+=( "$t_host" )
 done
 
-test_args=( "--logdir" "/log" )
+test_args=( "$@" "--logdir" "/log" )
 [ "$DRBD_TEST_RDMA" = "true" ] && test_args+=( "--rdma" )
 
-echo "===== Run test '$TEST_NAME' with args '${test_args[*]}' on nodes '${nodes[*]}'"
+echo "===== Run test '$TEST_PATH' with args '${test_args[*]}' on nodes '${nodes[*]}'"
 
-tests/"$TEST_NAME" "${test_args[@]}" "${nodes[@]}"
+/virter/workspace/"$TEST_PATH" "${test_args[@]}" "${nodes[@]}"

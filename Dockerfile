@@ -24,7 +24,6 @@ RUN wget https://github.com/LINBIT/logscan/archive/master.tar.gz && \
 RUN pip3 install lbpytest==${LBPYTEST_VERSION}
 
 RUN mkdir -p /drbd-tests
-COPY . /drbd-tests
 COPY docker/entry.sh /
 
 ENV TEST_NAME=

@@ -64,6 +64,7 @@ def test(write_in_between, crashed_primary):
     if write_in_between or crashed_primary:
         source_target_pd.event(r'peer-device .* replication:SyncSource')
     target_diskless_c.connect()
+    target_diskless_c.event(r'connection .* connection:Connected')
     ev = source_target_pd.event(r'peer-device .* replication:Established peer-disk:(UpToDate|Outdated)')
 
     log('* Verify that sync target becomes UpToDate')

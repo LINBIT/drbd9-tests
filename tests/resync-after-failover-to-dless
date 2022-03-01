@@ -65,10 +65,10 @@ def test(write_in_between, crashed_primary):
         source_target_pd.event(r'peer-device .* replication:SyncSource')
     target_diskless_c.connect()
     target_diskless_c.event(r'connection .* connection:Connected')
-    ev = source_target_pd.event(r'peer-device .* replication:Established peer-disk:(UpToDate|Outdated)')
+    ev = source_target_pd.event(r'peer-device .* replication:(Established|WFBitMapS) peer-disk:(UpToDate|Outdated|Consistent)')
 
     log('* Verify that sync target becomes UpToDate')
-    if ev[0][0] == 'Outdated':
+    if ev[0][1] == 'Outdated' or ev[0][1] == 'Consistent':
         target_v.event(r'device .* disk:UpToDate')
     diskless_n.secondary()
 

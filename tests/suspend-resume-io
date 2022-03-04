@@ -215,6 +215,9 @@ def test_connection_loss(allow_acks, detach_node=None,
         detach_node.attach()
         detach_node.volumes.event(r'device .* disk:UpToDate')
 
+# Initialize the data that we are going to verify
+node_a.write(direct=1, bs='1M', size='1M')
+
 connection_bc.disconnect(force=True)
 connection_cb.event(r'connection .* connection:Connecting')
 
@@ -226,12 +229,13 @@ test_connection_loss(AllowAcks.NONE, detach_node=node_c, block_other_connection=
 # d6a7bb6bda3a drbd: do not mark requests to diskless peers as RQ_NET_DONE
 test_connection_loss(AllowAcks.NONE, detach_node=node_c, disconnect_first=node_c, reconnect_first=node_c)
 
-# Fails on drbd-9.1.6 with "NULL pointer dereference" (when write completion checks are skipped)
+# Fixed in drbd-9.1.7 by this and related commits:
+# 92d8517c3990 drbd: simplify request suspend and resume
 test_connection_loss(AllowAcks.WRITE_ACK_C)
 
-# Fails on drbd-9.1.6 because required resync does not occur
-# Minimum redundancy is reached with node_c, but node_b never receives this data
-#test_connection_loss(AllowAcks.NONE, reconnect_first=node_c, down_type=DownType.DOWN_UP)
+# Fixed in drbd-9.1.7 by this and related commits:
+# d47f7456ab7a drbd: create new UUID before resuming IO upon regaining quorum
+test_connection_loss(AllowAcks.NONE, reconnect_first=node_c, down_type=DownType.DOWN_UP)
 
 test_connection_loss(AllowAcks.NONE)
 test_connection_loss(AllowAcks.BARRIER_ACK_C)

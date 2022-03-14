@@ -7,9 +7,8 @@
 # 2) That recent writes which where not peer-acked are getting marked as
 #    out of sync in the bitmap when the connection to the primary gets lost.
 
+import json
 import time
-import random
-import re
 from python import drbdtest
 from python.drbdtest import log
 
@@ -26,23 +25,28 @@ def do_test(mode):
         res_opt_str = '--peer-ack-delay=1000' # 1second
         sleep_time = 0 # do not wait, should cause peer_ack to not get through
         verb_str = "does not get through/resync"
-        reconnect_regex = r'peer-device .* replication:SyncTarget .* out-of-sync:8'
+        reconnect_regex = r'peer-device .* replication:SyncTarget .* out-of-sync:[1-9][0-9]*'
 
     log('* verify peer-ack %s' % (verb_str))
     other_target_c.disconnect()
     target_other_c.disconnect()
 
     diskless_n.resource_options([res_opt_str])
-    diskless_n.volumes.write(size='8K', direct=1)
+    diskless_n.fio_file('/mnt/1/file', rw='write', ioengine='sync', size='8K', direct=1)
     time.sleep(sleep_time)
 
     if mode == M_NOT_PEER_ACKED:
         diskless_target_c.disconnect()
         target_diskless_c.event(r'connection .* connection:Unconnected')
-        status_str = target_n.run(['drbdsetup', 'status', resource.name, '--statistics'], return_stdout=True)
-        if not re.search(r'out-of-sync:8', status_str):
+
+        result = target_n.run(['drbdsetup', 'status', resource.name, '--json'], return_stdout=True)
+        status = json.loads(result)[0]
+        connection_status = next(c for c in status['connections'] if c['peer-node-id'] == other_n.id)
+        # We actually expect more than 8 bits because we are writing to a filesystem.
+        if connection_status['peer_devices'][0]['out-of-sync'] < 8:
             raise Exception("bit(s) not set for the not peer-acked write-request(s)")
-        diskless_n.volumes.write(direct=1) # to create a new current UUID on the primary.
+        # Create a new current UUID on the primary.
+        diskless_n.fio_file('/mnt/1/file', rw='write', ioengine='sync', size='4K', direct=1)
 
     target_other_c.connect()
     other_target_c.connect()
@@ -55,13 +59,10 @@ def do_test(mode):
 
 # main
 
-random.seed()
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
-diskless_n = random.choice(resource.nodes)
-diskful_nodes = resource.nodes.difference([diskless_n])
+resource = drbdtest.setup(nodes=3)
+diskless_n, target_n, other_n = resource.nodes
+diskful_nodes = drbdtest.Nodes([target_n, other_n])
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
-target_n = random.choice(diskful_nodes)
-other_n = resource.nodes.difference([diskless_n, target_n])[0]
 resource.up_wait()
 
 log('* Make up-to-date data available.')
@@ -77,10 +78,16 @@ target_diskless_c = drbdtest.Connection(target_n, diskless_n)
 target_diskless_pd = drbdtest.PeerDevice(target_diskless_c, target_n.volumes[0])
 
 diskless_n.primary()
+dev_name = diskless_n.volumes[0].device()
+diskless_n.run(['mkfs.ext4', '-Elazy_itable_init=0', '-Elazy_journal_init=0',
+            '-Enodiscard', dev_name])
+diskless_n.run(['mkdir', '-p', '/mnt/1'])
+diskless_n.run(['mount', dev_name, '/mnt/1'])
 
 for mode in [M_PEER_ACKED, M_NOT_PEER_ACKED]:
     do_test(mode)
 
+diskless_n.run(['umount', '/mnt/1'])
 diskless_n.secondary()
 resource.connections.to_node(diskless_n).event(r'connection .* role:Secondary')
 

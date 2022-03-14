@@ -103,6 +103,9 @@ vms = [3]
 [tests.quorum-suspended-cancel]
 vms = [3]
 
+[tests.quorum-suspend-failover-reconnect]
+vms = [3]
+
 [tests.quorum-suspend-timeout]
 vms = [4]
 

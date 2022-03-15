@@ -93,4 +93,4 @@ resource.connections.to_node(diskless_n).event(r'connection .* role:Secondary')
 
 diskless_n.down()
 diskful_nodes.down()
-resource.teardown()
+resource.teardown(validate_dmesg=False)

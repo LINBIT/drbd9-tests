@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": [3] }
 
 # This test examines the resync direction decisions when nodes
 # reconnect that have the same current UUID.

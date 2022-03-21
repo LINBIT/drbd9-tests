@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null }
 
 # This test is run on a 3-node cluster.
 #   A = primary; B, C = secondary

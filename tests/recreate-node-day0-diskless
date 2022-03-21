@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": [3] }
 #
 # This tests mimics the actions that happen when LINSTOR re-creates
 # a node that had a thinly provisioned resource.

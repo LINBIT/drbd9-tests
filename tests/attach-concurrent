@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null }
 
 # Test concurrent attach on two secondaries. With resync and without resync
 # This test failed up to (including) 9.0.27

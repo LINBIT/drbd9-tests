@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": [3] }
 #
 # This test configures a 3 node system, with one node (A) diskless.
 # One node (C) is isolated, node A promotes and demotes 2 times. Then

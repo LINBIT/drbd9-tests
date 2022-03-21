@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": [3] }
 
 # This test demonstrates that online verify did not terminate when
 # the VerifyTarget becomes temporaritly Inconsistent.

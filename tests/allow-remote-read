@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": [2] }
 
 # This tests a feature in drbd where a node can be specified as "write-only".
 # When we lose our disk, we try to resume operations remotely, so we look

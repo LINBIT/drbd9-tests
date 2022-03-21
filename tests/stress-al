@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [2, 3], "vms_ci": [2, 3] }
 # Pass this script a list of host names to use as the test nodes.
 
 import time

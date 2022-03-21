@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null }
 
 # Test DRBD's behavior when a resync or verify operation is interrupted by
 # connection loss and reconnection. Includes variants with busy writing primary

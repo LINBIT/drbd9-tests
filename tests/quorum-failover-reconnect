@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": [3] }
 
 # With quorum enabled, simulate a failover due to network outage, followed by
 # reconnection to the node that remained Secondary.

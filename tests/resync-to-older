@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": [3] }
 #
 # Interesting that this issue survived for so long!!
 # Consider 3 nodes: A, B, C. (A = Primary, Quorum enabled)

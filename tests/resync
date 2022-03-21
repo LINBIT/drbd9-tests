@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": [3] }
 
 # Part I of the test:
 # This tests generates as many data-generations as you pass nodes, by

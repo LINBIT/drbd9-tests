@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null }
 
 # This test creates a 3 node setup with quorum enables and simulates a
 # crash of the primary. Then a other node gets promoted, but not a single

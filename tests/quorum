@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+### vmshed: { "vms_all": [3, 5], "vms_ci": [3] }
 #
 # 1st part: Isolation of a primary node, with making sure it sees
 #           one peer going away before the a write and the other

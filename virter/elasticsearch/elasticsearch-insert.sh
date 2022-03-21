@@ -7,11 +7,10 @@ die() {
 	exit 1
 }
 
-[ "$#" -ne 3 ] && die "Usage: $0 elasticsearch_url results_file ci_tests_file"
+[ "$#" -ne 2 ] && die "Usage: $0 elasticsearch_url results_file"
 
 url="$1"
 results_file="$2"
-ci_tests_file="$3"
 
 [ -z "$CI_JOB_ID" ] && die "Missing \$CI_JOB_ID"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
@@ -53,7 +52,8 @@ if [ "$index_exists" = false ]; then
 	'
 fi
 
-ci_tests="$(cat "$ci_tests_file" | rq -t | jq -c '.tests | to_entries | map(.key + "-" + (.value.vms[] | tostring))')"
+ci_tests_config="$(virter/vmshed_tests_generator.py --selection ci --drbd-version "$DRBD_VERSION")"
+ci_tests="$(printf '%s' "$ci_tests_config" | rq -t | jq -c '.tests | to_entries | map(.key + "-" + (.value.vms[] | tostring))')"
 
 echo "CI Tests: $ci_tests"
 

@@ -9,7 +9,6 @@ variables:
 
 stages:
   - base_image
-  - check
   - build
   - test
   - publish
@@ -58,20 +57,6 @@ base_image:
       - virter/base-image-build-log
     when: always
     expire_in: 1 week
-
-check-test-list:
-  extends: .cache-download
-  stage: check
-  rules:
-    - if: $CI_MERGE_REQUEST_ID
-  script:
-    - |
-      . /usr/local/bin/gitlab-utils.sh
-      ci_prepare_tools
-      ci_fetch_rq
-    - COMPARISON="$(comm <(ls tests | grep -v "^python$") <(cat virter/tests.all.toml | rq -t | jq -r '.tests | to_entries[] | .key') -3)"
-    - printf "Comparison of 'tests' directory with 'virter/tests.all.toml' listing:\n%s\n" "$COMPARISON"
-    - if [ -n "$COMPARISON" ]; then exit 1; fi
 
 build-docker:
   stage: build
@@ -160,8 +145,9 @@ stability-test:
     - |
       export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
       export DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
-      ./virter/run-test.sh --repeats="$STABILITY_TEST_COUNT" --tests=virter/tests.all.toml --error-details=false --quiet $STABILITY_TEST_VMSHED_ARGS || true
-      ./virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json virter/tests.toml
+      export VMSHED_TEST_SELECTION=all
+      ./virter/run-test.sh --repeats="$STABILITY_TEST_COUNT" --error-details=false --quiet $STABILITY_TEST_VMSHED_ARGS || true
+      ./virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json
   dependencies:
     - build-docker
   artifacts:

@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2], "vms_ci": null }
+### vmshed: { "vms_all": [2], "vms_ci": [2], "drbd_version_min": "9.1" }
 
 # Before DRBD-9.1.6 this caused a fully allocated
 # backing volume on the resync target node after

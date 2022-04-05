@@ -1215,7 +1215,7 @@ class Node():
         except:
             raise RuntimeError('Could not determine IP for host %s' % name)
 
-        self.ssh = SSH(self.addr)
+        self.ssh = SSH(self.addr, timeout=30)
 
         self.port = port
         self.disks = []  # by volume

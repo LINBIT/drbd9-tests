@@ -1,6 +1,6 @@
 FROM ubuntu:bionic
 
-ARG LBPYTEST_VERSION=0.1.1
+ARG LBPYTEST_VERSION=0.2.1
 
 RUN apt-get update && apt-get -y install \
     wget \

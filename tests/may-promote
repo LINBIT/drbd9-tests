@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": [3] }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.1" }
 
 # This test checks that may_promote is reported correctly for a number of
 # different scenarios with one diskless and two diskful nodes.
@@ -64,6 +64,16 @@ node_c.secondary(wait=False)
 node_c.event(may_promote_event)
 node_b.event(may_promote_event)
 node_a.event(may_promote_event)
+
+log('* Scenario: Mesh, Diskless - UpToDate - UpToDate; after promote, demote')
+node_a.primary(wait=False)
+node_a.event(may_promote_no_event)
+node_b.event(may_promote_no_event)
+node_c.event(may_promote_no_event)
+node_a.secondary(wait=False)
+node_a.event(may_promote_event)
+node_b.event(may_promote_event)
+node_c.event(may_promote_event)
 
 log('* Scenario: Disconnected, Diskless - UpToDate - UpToDate')
 resource.connections.disconnect(wait=False)

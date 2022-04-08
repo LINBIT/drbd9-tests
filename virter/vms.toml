@@ -137,3 +137,20 @@ BuildDistribution = "ubuntu-focal"
 BuildKernel = "5.4.0-100"
 KernelRelease = "5.4.0-100"
 SourceImage = "ubuntu-focal"
+
+
+[[vms]]
+base_image = "ubuntu-jammy-drbd-k25"
+vcpus = 1
+memory = "1G"
+# No RDMA support. rdma_rxe module not installed.
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-jammy/"
+RepositoryDistribution = "jammy"
+
+[vms.metadata]
+BuildDistribution = "ubuntu-jammy"
+BuildKernel = "5.15.0-25"
+KernelRelease = "5.15.0-25"
+SourceImage = "ubuntu-jammy"

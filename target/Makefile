@@ -21,7 +21,6 @@ DRBD_TEST_VAR := $(localstatedir)/lib/$(PACKAGE)
 data_scripts := \
 	disable-faults \
 	enable-faults \
-	install-config \
 	data_generator.py \
 	misaligned_bio.py \
 	stress-al.py \

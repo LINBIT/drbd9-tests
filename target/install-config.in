@@ -1,7 +1,0 @@
-#! /bin/bash
-
-set -e
-
-jobdir=@DRBD_TEST_VAR@/$DRBD_TEST_JOB
-mkdir -p "$jobdir"
-cat > "$jobdir/drbd.conf"

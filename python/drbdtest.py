@@ -1247,19 +1247,21 @@ class Node():
         self.addrs = [self.addr]
         if multi_paths:
             net_2 = self.run(['ip', '-oneline', 'a', 'show', 'label', '*:1'],
-                             return_stdout=True)
+                             return_stdout=True, update_config=False)
             log("got further path %s", net_2)
             m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', net_2)
             if not m:
                 raise RuntimeError("%s has no *:1", self)
             self.addrs.append(m.group(1))
 
-        self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'])
-        self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'])
-        self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"])
-        self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"])
+        self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'], update_config=False)
+        self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'], update_config=False)
+        self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"], update_config=False)
+        self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"], update_config=False)
 
         self.start_dmesg()
+
+        self.run(['mkdir', '-p', self.drbd_config_dir_path()], update_config=False)
 
         # Ensure that added nodes will be reflected in the DRBD configuration file.
         self.config_changed = True
@@ -1499,6 +1501,12 @@ class Node():
 
         return "".join(text)
 
+    def drbd_config_dir_path(self):
+        return '/var/lib/drbd-test/' + self.resource.job
+
+    def drbd_config_file_path(self):
+        return self.drbd_config_dir_path() + '/drbd.conf'
+
     def update_config(self):
         """ Create or update the configuration file on the node when needed. """
 
@@ -1509,9 +1517,8 @@ class Node():
                                      'drbd.conf-%s' % self.name), 'w')
             file.write(config)
             file.close
-            self.run([helper('install-config')], stdin=StringIO(config), update_config=False, env={
-                'DRBD_TEST_JOB': self.resource.job
-            })
+            self.run(['bash', '-c', 'cat > ' + self.drbd_config_file_path()],
+                    stdin=StringIO(config), update_config=False)
 
     def config_proxy(self):
         """ Update DRBD proxy options in the configuration file. """
@@ -1577,7 +1584,7 @@ class Node():
 
 
     def drbdadm(self, cmd, **kwargs):
-        self.run(['drbdadm', '-c', '/var/lib/drbd-test/{}/drbd.conf'.format(self.resource.job), '-v'] + cmd, **kwargs)
+        self.run(['drbdadm', '-c', self.drbd_config_file_path(), '-v'] + cmd, **kwargs)
 
     # dump the drbd metadata to a file on the target node
     def dump_md_to_file(self, filename):

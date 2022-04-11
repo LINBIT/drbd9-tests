@@ -16,7 +16,6 @@ localstatedir := /var
 INSTALL := install
 
 DRBD_TEST_DATA := $(datadir)/$(PACKAGE)
-DRBD_TEST_VAR := $(localstatedir)/lib/$(PACKAGE)
 
 data_scripts := \
 	disable-faults \
@@ -29,25 +28,14 @@ data_scripts := \
 
 tarball := $(PACKAGE)-target.tgz
 
-all: $(data_scripts)
-
-$(data_scripts): %: %.in
-	@echo "$< -> $@"
-	@sed \
-		-e 's:@''DRBD_TEST_DATA@:$(DRBD_TEST_DATA):g' \
-		-e 's:@''DRBD_TEST_VAR@:$(DRBD_TEST_VAR):g' \
-		< $< > $@.tmp
-	@test \! -x $< || chmod +x $@.tmp
-	@mv $@.tmp $@
+all: tar
 
 install:
-	$(INSTALL) -d $(DESTDIR)$(DRBD_TEST_VAR)
 	$(INSTALL) -d $(DESTDIR)$(DRBD_TEST_DATA)
 	$(INSTALL) -m 755 $(data_scripts) $(DESTDIR)$(DRBD_TEST_DATA)
 
 uninstall:
 	rm -f $(patsubst %,$(DESTDIR)$(DRBD_TEST_DATA)/%,$(data_scripts))
-	rmdir $(DESTDIR)$(DRBD_TEST_VAR) 2> /dev/null || :
 	rmdir $(DESTDIR)$(DRBD_TEST_DATA) 2> /dev/null || :
 
 $(tarball): $(data_scripts) Makefile

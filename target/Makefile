@@ -20,7 +20,6 @@ DRBD_TEST_VAR := $(localstatedir)/lib/$(PACKAGE)
 
 data_scripts := \
 	disable-faults \
-	drbd-version \
 	enable-faults \
 	install-config \
 	data_generator.py \

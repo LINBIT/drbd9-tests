@@ -1237,9 +1237,7 @@ class Node():
 
         self.hostname = self.run(['hostname', '-f'], return_stdout=True,
                                  update_config=False)
-        drbd_version = self.run([helper('drbd-version')], return_stdout=True, update_config=False)
-        m = re.match(r'([0-9]+)\.([0-9]+)\.([0-9]+)(.*)', drbd_version);
-        self.drbd_version_tuple = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        self.drbd_version_tuple = self.get_drbd_version()
 
         self.os_id, self.os_version_id = self.run(
                 ['bash', '-c', '. /etc/os-release ; echo $ID ; echo $VERSION_ID'],
@@ -1265,6 +1263,12 @@ class Node():
 
         # Ensure that added nodes will be reflected in the DRBD configuration file.
         self.config_changed = True
+
+    def get_drbd_version(self):
+        self.run(['bash', '-c', '[ -e /proc/drbd ] || modprobe drbd'], update_config=False)
+        version_line = self.run(['head', '-n1', '/proc/drbd'], return_stdout=True, update_config=False)
+        m = re.match(r'version: ([0-9]+)\.([0-9]+)\.([0-9]+).*', version_line)
+        return int(m.group(1)), int(m.group(2)), int(m.group(3))
 
     def addr_port(self, net_num=0):
         return '%s:%s' % (self.addrs[net_num], self.port)

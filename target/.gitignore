@@ -3,7 +3,6 @@
 /data_generator.py
 /disable-faults
 /drbd-test.sh
-/drbd-version
 /enable-faults
 /install-config
 /misaligned_bio.py

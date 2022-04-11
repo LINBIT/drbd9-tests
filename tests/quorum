@@ -18,12 +18,10 @@
 #  * quorum handling on diskless nodes
 #
 import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
 
-random.seed()
 
 def write_on_node(node):
     node.volumes.write(direct=1)
@@ -44,7 +42,7 @@ resource.skip_initial_sync()
 
 partition_a = drbdtest.Nodes(resource.nodes)
 partition_b = drbdtest.Nodes()
-primary_a = random.choice(partition_a)
+primary_a = partition_a[0]
 secondaries_a = drbdtest.Nodes(partition_a)
 secondaries_a.remove(primary_a)
 my_log('* %s is the primary' % primary_a.name)
@@ -52,7 +50,7 @@ primary_a.primary()
 write_on_node(primary_a)
 
 my_log('* Isolating the primary, while writing at the same time')
-tmp_pri = random.choice(secondaries_a)
+tmp_pri = secondaries_a[0]
 remaining_a = drbdtest.Nodes(secondaries_a)
 remaining_a.remove(tmp_pri)
 tmp_old_pri = drbdtest.Connection(tmp_pri, primary_a)
@@ -112,7 +110,7 @@ write_on_node(primary_a)
 my_log('* Remove secondaries one by one until the partition lost quorum')
 
 while len(partition_b) < len(partition_a):
-    moving = random.choice(secondaries_a)
+    moving = secondaries_a[0]
     my_log('* %s breaks away' % moving.name)
 
     partition_a.remove(moving)
@@ -156,7 +154,7 @@ primary_a.volumes[0].event(r'quorum:no')
 
 moving = primary_a
 moving.secondary()
-primary_b = random.choice(partition_b)
+primary_b = partition_b[0]
 
 if len(partition_b) == len(partition_a):
     # The test was run with an even number of nodes...

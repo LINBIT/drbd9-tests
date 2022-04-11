@@ -3,7 +3,6 @@
 # Pass this script a list of host names to use as the test nodes.
 
 import time
-import random
 import signal
 from python import drbdtest
 from python.drbdtest import log
@@ -13,11 +12,10 @@ def alarm_handler(signum, frame):
 
 # main
 
-random.seed()
 resource = drbdtest.setup(min_nodes=2, max_nodes=5)
 resource.disk_options = 'al-extents 67;'
 
-diskless_n = random.choice(resource.nodes)
+diskless_n = resource.nodes[0]
 diskful_nodes = resource.nodes.difference([diskless_n])
 
 resource.add_disk('512M', diskful_nodes=diskful_nodes)

@@ -5,20 +5,15 @@
 # (Quorum enabled) Then it adds one more diskless and removes the
 # previous diskless.
 
-import random
 import time
 from python import drbdtest
 from python.drbdtest import log
 
-random.seed()
 resource = drbdtest.setup(min_nodes=4, max_nodes=4)
-diskless_nodes = drbdtest.Nodes(random.sample(list(resource.nodes), 2))
-diskful_nodes = resource.nodes.difference(diskless_nodes)
+primary_n, other_n, late_diskless_n, early_diskless_n = resource.nodes
+diskful_nodes = drbdtest.Nodes([primary_n, other_n])
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
-
-late_diskless_n = random.choice(diskless_nodes)
-[early_diskless_n] = drbdtest.Nodes(diskless_nodes).remove(late_diskless_n)
 
 resource.remove_node(late_diskless_n)
 resource.up_wait()
@@ -26,7 +21,6 @@ resource.up_wait()
 log('* Make up-to-date data available (%s is not part)' % (late_diskless_n.name))
 resource.skip_initial_sync()
 
-primary_n = random.choice(diskful_nodes)
 primary_n.primary()
 resource.connections.to_node(primary_n).event(r'connection .* role:Primary')
 
@@ -60,4 +54,3 @@ l_connections.event(r'connection .* connection:Connecting')
 log('* Shut down and clean up.')
 diskful_nodes.down()
 resource.teardown()
-

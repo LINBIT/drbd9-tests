@@ -9,7 +9,6 @@
 
 import json
 import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
@@ -21,7 +20,6 @@ DURING_RESYNC = 3
 
 data_amount = 128
 
-random.seed()
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=3)
 resource.add_disk('10M')
@@ -33,7 +31,7 @@ resource.up_wait()
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
-[primary_n, secondary_slow, secondary_quick] = random.sample(list(resource.nodes), 3)
+primary_n, secondary_slow, secondary_quick = resource.nodes
 conn_slow = drbdtest.Connections()
 conn_slow.bidir_add(primary_n, secondary_slow)
 conn_quick = drbdtest.Connections()

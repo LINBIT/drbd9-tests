@@ -3,7 +3,6 @@
 # Pass this script a list of host names to use as the test nodes.
 
 import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
@@ -91,7 +90,6 @@ def test_tracking_writes(mode):
 
 # main
 
-random.seed()
 resource = drbdtest.setup(min_nodes=2, max_nodes=2)
 resource.add_disk('10M')
 resource.up_wait()
@@ -99,8 +97,7 @@ resource.up_wait()
 log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
-primary_n = random.choice(resource.nodes)
-secondary_n = resource.nodes.difference([primary_n])[0]
+primary_n, secondary_n = resource.nodes
 vol = resource.volumes[0]
 
 resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Failed'])

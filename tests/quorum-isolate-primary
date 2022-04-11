@@ -21,21 +21,19 @@
 # Check that the promotion does not fail with strange exit codes.
 #
 import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
 
-random.seed()
 
 def test_write_between_disconnects(resource):
-    primary_n = random.choice(resource.nodes)
+    primary_n = resource.nodes[0]
     secondaries_n = drbdtest.Nodes(resource.nodes)
     secondaries_n.remove(primary_n)
     log('* %s is the primary' % primary_n.name)
     primary_n.primary()
 
-    cut1_sec = random.choice(secondaries_n)
+    cut1_sec = secondaries_n[0]
     rem_sec = secondaries_n
     rem_sec.remove(cut1_sec)
     cut2_sec = rem_sec[0]
@@ -97,7 +95,7 @@ def test_write_between_disconnects(resource):
 
 
 def test_quick_promote(resource):
-    primary_n = random.choice(resource.nodes)
+    primary_n = resource.nodes[0]
     secondaries_n = drbdtest.Nodes(resource.nodes)
     secondaries_n.remove(primary_n)
     log('* %s is the primary' % primary_n.name)
@@ -105,7 +103,7 @@ def test_quick_promote(resource):
     primary_n.volumes.write(direct=1)
 
     log('* Isolating the primary, while writing at the same time')
-    tmp_pri = random.choice(secondaries_n)
+    tmp_pri = secondaries_n[0]
     connections_to_cut = resource.connections.to_node(primary_n)
     connections_witness = resource.connections.from_node(primary_n)
 

@@ -4,7 +4,6 @@
 # Tests the quorum feature with multiple volumes instead of just one.
 
 import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError

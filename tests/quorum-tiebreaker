@@ -2,13 +2,11 @@
 ### vmshed: { "vms_all": [3], "vms_ci": [3] }
 
 import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
 import os
 
-random.seed()
 
 def assert_resync_dir(forward_c, backward_c, oos_str):
     v = resource.volumes[0]
@@ -249,13 +247,10 @@ resource.skip_initial_sync()
 A.primary()
 my_log('* All nodes connected')
 
-cases = [test_case1, test_case2, test_case3, test_case3_promote]
-random.shuffle(cases)
-
-log('Execution order: ' + str([c.__name__ for c in cases]))
-
-for case in cases:
-    case()
+test_case1()
+test_case2()
+test_case3()
+test_case3_promote()
 
 # clean up
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')

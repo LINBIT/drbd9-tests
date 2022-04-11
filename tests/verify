@@ -3,7 +3,6 @@
 
 # Pass this script a list of host names to use as the test nodes.
 
-import random
 import re
 import time
 
@@ -39,7 +38,6 @@ with first.asPrimary():
 BLOCK_SIZE = 4096
 BLOCK_SIZE_2COMPARE = BLOCK_SIZE - 10
 
-make_difference_counter = 0
 make_difference_blob = (("-" * 63) + "\n") * (BLOCK_SIZE//64)
 
 def MakeDifference(node, do_changes):
@@ -47,22 +45,16 @@ def MakeDifference(node, do_changes):
     if do_changes == 0:
         return blocks
 
-    for i in (1, 2, 3, 4):
-        while True:
-            byte = random.randrange(start=0,
-                    stop=16 * 1024 * 1024,
-                    step = BLOCK_SIZE)
-
-            # unique values, no duplicates
-            if byte not in set( [ l[0] for l in blocks ] ):
-                break
-
-        blk_nr = byte // BLOCK_SIZE
+    # DRBD metadata requires (much) less than 1M.
+    # So the device size is at least 16M.
+    # Arbitrarily choose block numbers in this range, but include an adjacent pair.
+    # That is, less than 16M/BLOCK_SIZE == 4096
+    for blk_nr in [99, 1340, 1341, 3980]:
+        byte = blk_nr * BLOCK_SIZE
 
         # No ' in string, so that "mark a string" in logfile works ;)
-        text = ("Writing on {%s} at {%s}; iteration #%d/%s, to offset %d = 0x%x.\n" %
+        text = ("Writing on {%s} at {%s}; to offset %d = 0x%x.\n" %
                 (node.name, time.ctime(),
-                 make_difference_counter, i,
                  byte, byte))
         log(text)
 

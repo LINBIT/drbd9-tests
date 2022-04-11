@@ -11,12 +11,11 @@
 # We did not send a P_BARRIER for 195358ms > ko-count (7) * timeout (60 * 0.1s); drbd kernel thread blocked?
 
 import time
-import random
 from python import drbdtest
 from python.drbdtest import log
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=5)
-diskless_n = random.choice(resource.nodes)
+diskless_n = resource.nodes[0]
 diskful_nodes = resource.nodes.difference([diskless_n])
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.net_options = 'timeout 20; ko-count 1;' # 2 seconds
@@ -51,7 +50,7 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 log('* Preparing data for READ test.')
-failing_n = random.choice(diskful_nodes)
+failing_n = diskful_nodes[0]
 failing_n.write(size='80K', direct=1)
 md5sums = []
 for i in range(0, 20):

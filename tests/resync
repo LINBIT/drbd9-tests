@@ -16,7 +16,6 @@
 # Finally the chain is formed to a ring and it is verified that
 # no resync happens at that stage.
 
-import random
 from python import drbdtest
 from python.drbdtest import log
 
@@ -152,10 +151,10 @@ def part_iii(nodes):
 # main
 write_offset = 0
 
-random.seed()
 resource = drbdtest.setup(min_nodes=3, max_nodes=5)
-writing_n = random.choice(resource.nodes)
+writing_n = resource.nodes[0]
 other_nodes = resource.nodes.difference([writing_n])
+
 resource.add_disk('10M')
 resource.up_wait()
 
@@ -172,9 +171,8 @@ form_a_ring(writing_n, other_nodes)
 # Part II, verify that resynch propagation through a chain of nodes
 # works repeatedly (that used to be the resync-never-connected test)
 # That checks if clearing the bitmap base at the head node works
-chain = drbdtest.Nodes([writing_n]).extend(other_nodes)
-form_a_chain(chain)
-write_on_head(chain)
+form_a_chain(resource.nodes)
+write_on_head(resource.nodes)
 
 # Part III
 resource.connections.disconnect()

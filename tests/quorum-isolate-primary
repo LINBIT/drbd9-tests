@@ -131,7 +131,7 @@ def test_quick_promote(resource):
 
 
 #main
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 resource.add_disk('10M')
 resource.resource_options = 'quorum majority; on-no-quorum io-error; twopc-timeout 100;'
 resource.net_options = 'ping-int 2;'

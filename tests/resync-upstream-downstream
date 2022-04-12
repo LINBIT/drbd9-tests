@@ -29,7 +29,7 @@ def wait_sync(node_source, node_target):
 
 
 # main
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 resource.add_disk('10M')
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.up_wait()

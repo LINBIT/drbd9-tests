@@ -50,7 +50,7 @@ def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
 
     return
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 node_a, node_b, node_c = resource.nodes
 diskful_nodes = resource.nodes.difference([node_a])
 resource.add_disk('10M', diskful_nodes=diskful_nodes)

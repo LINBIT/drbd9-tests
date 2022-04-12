@@ -8,7 +8,7 @@ import time
 from python import drbdtest
 from python.drbdtest import log
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource = drbdtest.setup(nodes=2)
 resource.add_disk('4M')
 
 # need the second node only to get a network config etc.

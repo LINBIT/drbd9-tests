@@ -11,7 +11,7 @@ from python.drbdtest import log
 from subprocess import CalledProcessError
 from io import StringIO
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource = drbdtest.setup(nodes=2)
 
 resource.add_disk('17M')
 resource.net_options = 'verify-alg md5;'

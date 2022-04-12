@@ -67,7 +67,7 @@ def do_test(primary_n, other_nodes, wait_before_write):
     primary_conn.event(r'connection .* connection:Connected')
     primary_n.run(['drbdsetup', 'resource-options', resource.name, '--on-no-quorum=suspend-io'])
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 resource.resource_options = 'quorum majority; on-no-quorum suspend-io;'
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
 

@@ -10,7 +10,7 @@ from python.drbdtest import log
 from python.drbdtest import AsPrimary
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource = drbdtest.setup(nodes=2)
 resource.add_disk('96M')
 
 

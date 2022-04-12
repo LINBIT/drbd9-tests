@@ -9,7 +9,7 @@ import time
 from python import drbdtest
 from python.drbdtest import log
 
-resource = drbdtest.setup(min_nodes=4, max_nodes=4)
+resource = drbdtest.setup(nodes=4)
 primary_n, other_n, late_diskless_n, early_diskless_n = resource.nodes
 diskful_nodes = drbdtest.Nodes([primary_n, other_n])
 resource.add_disk('10M', diskful_nodes=diskful_nodes)

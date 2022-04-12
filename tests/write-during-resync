@@ -27,7 +27,7 @@ from python import trafficcontrol
 def write_on_node(node):
     node.volumes.write(size='100M', offset='10M', end_fsync=1)
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 resource.net_options = 'connect-int 1;'
 
 a = resource.nodes[0]

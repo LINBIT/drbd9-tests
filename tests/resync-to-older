@@ -14,7 +14,7 @@ from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.disk_options = 'c-max-rate 250k;'
 resource.add_disk('10M')

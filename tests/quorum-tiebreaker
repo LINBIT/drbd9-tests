@@ -228,7 +228,7 @@ def test_case3_promote():
     resource.forbidden_patterns.add(r'connection:NetworkFailure')
     resource.forbidden_patterns.add(r'connection:Timeout')
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'

@@ -90,7 +90,7 @@ def test_tracking_writes(mode):
 
 # main
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=2)
+resource = drbdtest.setup(nodes=2)
 resource.add_disk('10M')
 resource.up_wait()
 

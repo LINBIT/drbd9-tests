@@ -24,7 +24,7 @@ from python import drbdtest
 from python.drbdtest import log
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=3)
+resource = drbdtest.setup(nodes=3)
 
 diskful_nodes = resource.nodes[:2]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)

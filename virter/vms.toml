@@ -106,7 +106,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 
 
 [[vms]]
-base_image = "ubuntu-bionic-drbd-k167"
+base_image = "ubuntu-bionic-drbd-k176"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
@@ -117,13 +117,13 @@ RepositoryDistribution = "bionic"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-bionic"
-BuildKernel = "4.15.0-167"
-KernelRelease = "4.15.0-167"
+BuildKernel = "4.15.0-176"
+KernelRelease = "4.15.0-176"
 SourceImage = "ubuntu-bionic"
 
 
 [[vms]]
-base_image = "ubuntu-focal-drbd-k100"
+base_image = "ubuntu-focal-drbd-k109"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
@@ -134,8 +134,8 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
-BuildKernel = "5.4.0-100"
-KernelRelease = "5.4.0-100"
+BuildKernel = "5.4.0-109"
+KernelRelease = "5.4.0-109"
 SourceImage = "ubuntu-focal"
 
 

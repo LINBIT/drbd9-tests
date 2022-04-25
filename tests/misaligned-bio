@@ -17,12 +17,12 @@ resource.up_wait()
 resource.skip_initial_sync()
 
 dev_name = '/dev/drbd%d' % first_node.disks[0].minor
-first_node.run([drbdtest.helper('misaligned_bio.py'), dev_name, 'write'])
-first_node.run([drbdtest.helper('misaligned_bio.py'), dev_name, 'verify'])
-other_node.run([drbdtest.helper('misaligned_bio.py'), dev_name, 'verify'])
+first_node.run_helper('misaligned_bio.py', [dev_name, 'write'])
+first_node.run_helper('misaligned_bio.py', [dev_name, 'verify'])
+other_node.run_helper('misaligned_bio.py', [dev_name, 'verify'])
 
 # That is BLKZEROOUT, BLKDISCARD and BLKSECDISCARD
-first_node.run([drbdtest.helper('unusual_bios.py'), dev_name])
+first_node.run_helper('unusual_bios.py', [dev_name])
 
 log('* Shut down and clean up.')
 resource.down()

@@ -19,8 +19,10 @@ log('* Pre-fill backing disks with the same data on each node')
 # This helps with debugging
 for n in resource.nodes:
     byte_count = n.run(['blockdev', '--getsize64', n.volumes[0].disk], return_stdout=True)
-    n.run(['/bin/bash', '-c', 'set -o pipefail ; {} --label "initial " --bytes {} | dd iflag=fullblock of={} bs=1M oflag=direct'
-        .format(drbdtest.helper('data_generator.py'), byte_count, n.volumes[0].disk)])
+    n.install_helper('data_generator.py', '/tmp/data_generator.py')
+    n.run(['/bin/bash', '-c',
+        'set -o pipefail ; /tmp/data_generator.py --label "initial " --bytes {} | dd iflag=fullblock of={} bs=1M oflag=direct'
+        .format(byte_count, n.volumes[0].disk)])
     n.drbdadm(['create-md', '--force', resource.name])
 
 resource.up_wait()

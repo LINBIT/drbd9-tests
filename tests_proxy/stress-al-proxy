@@ -37,7 +37,7 @@ for i in range(1, 5):
     try:
         old_sig = signal.signal(signal.SIGALRM, alarm_handler)
         signal.alarm(2) # seconds
-        diskless_n.run([drbdtest.helper('stress-al.py'), resource.volumes[0].device(), '127'])
+        diskless_n.run_helper('stress-al.py', [resource.volumes[0].device(), '127'])
         signal.alarm(0) #disarm
         signal.signal(signal.SIGALRM, old_sig)
     except Exception as e:

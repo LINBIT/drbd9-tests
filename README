@@ -42,10 +42,8 @@ Running the test suite requires the following components:
 
  * For some tests, fio, the "Flexible I/O Tester" (https://github.com/axboe/fio).
 
- * The target components of the test suite (directory target/) must be built
-   once, and then installed on all test nodes (for example: "make" on the test
-   coordinator, then mount the test suite directory on all test nodes and "make
-   install" on each of them).
+ * The target components of the test suite must be available in the directory
+   "target/" in the working directory when running the test.
 
  * On each test node, all test volumes are currently created inside an LVM
    volume group called "scratch".  (The volume group name can be overridden

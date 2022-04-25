@@ -31,4 +31,5 @@ test_args=( "$@" "--logdir" "/log" )
 
 echo "===== Run test '$TEST_PATH' with args '${test_args[*]}' on nodes '${nodes[*]}'"
 
-/virter/workspace/"$TEST_PATH" "${test_args[@]}" "${nodes[@]}"
+cd /virter/workspace/
+./"$TEST_PATH" "${test_args[@]}" "${nodes[@]}"

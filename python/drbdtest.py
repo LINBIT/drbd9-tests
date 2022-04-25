@@ -1367,6 +1367,20 @@ class Node():
         # return '%s:%s' % (self.resource, self.name)
         return self.name
 
+    def install_helper(self, helper_name, target_path):
+        """ Install a helper script to this node. """
+        with open('target/{}'.format(helper_name)) as f:
+            helper = f.read()
+            self.run(['bash', '-c',
+                'cat > {0} && chmod +x {0}'.format(target_path)],
+                stdin=StringIO(helper), update_config=False)
+
+    def run_helper(self, helper_name, args=[]):
+        """ Run a target helper script. """
+        target_path = '/tmp/' + helper_name
+        self.install_helper(helper_name, target_path)
+        self.run([target_path, *args], update_config=False)
+
     def next_minor(self):
         self.minors += 1
         return self.minors
@@ -1861,13 +1875,13 @@ class Node():
         return values
 
     def set_fault_injection(self, volume, faults):
-        self.run([helper('enable-faults'),
-	      '--faults=%d' % (faults),
-              '--rate=100',
-              '--devs=%d' % (1 << volume.minor)])
+        self.run_helper('enable-faults',
+                ['--faults=%d' % (faults),
+                    '--rate=100',
+                    '--devs=%d' % (1 << volume.minor)])
 
     def disable_fault_injection(self, volume):
-        self.run([helper('disable-faults'), '--devs=%d' % (1 << volume.minor)])
+        self.run_helper('disable-faults', ['--devs=%d' % (1 << volume.minor)])
 
 
 def skip_test(text):
@@ -2037,7 +2051,7 @@ def setup(parser=argparse.ArgumentParser(),
 
     for node in resource.nodes:
         node.listen_to_events()
-        node.run([helper('disable-faults')], update_config=False)
+        node.run_helper('disable-faults')
     return resource
 
 

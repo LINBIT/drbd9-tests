@@ -21,9 +21,9 @@ make base_image_ubuntu-focal-drbd-k40
 
 From the base image a test image can be built containing the packages to be tested.
 
-Packages from the local `packages` directory will be installed. This directory
-should contain `drbd-test-target.tgz`. The following components can be provided
-as `rpm` or `deb` packages in this directory or via a repository.
+Packages from the local `packages` directory will be installed. The following
+components can be provided as `rpm` or `deb` packages in this directory or via
+a repository.
 * `drbd`
 * `drbd-utils`
 

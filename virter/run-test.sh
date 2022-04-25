@@ -39,10 +39,6 @@ for BASE_IMAGE in $(rq -t < virter/vms.toml | jq -r '.vms[] | .base_image'); do
 	virter image pull $BASE_IMAGE $LINBIT_DOCKER_REGISTRY/vm/drbd9-tests/$BASE_IMAGE:latest
 done
 
-mkdir -p packages
-make target/drbd-test-target.tgz
-cp target/drbd-test-target.tgz packages/
-
 echo "=== Run vmshed with extra args '${extra_args[*]}'" >&2
 
 vmshed										\

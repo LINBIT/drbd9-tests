@@ -106,8 +106,6 @@ P_TWOPC_RETRY         = 0x48
 P_CONFIRM_STABLE      = 0x49
 P_RS_CANCEL_AHEAD     = 0x4a
 
-DRBD_TEST_DATA = os.getenv('DRBD_TEST_DATA', '/usr/share/drbd-test')
-
 fio_write_args = {
         'bs': '4K',
         'ioengine': 'sync',
@@ -176,10 +174,6 @@ def debug(*args, **kwargs):
         pass
     if level <= debug_level:
         print(*args, file=logstream)
-
-def helper(name):
-    """ Get the path of a helper (from the target/ directory) on the test node """
-    return os.path.join(DRBD_TEST_DATA, name)
 
 
 class Cleanup(object):
@@ -1227,13 +1221,6 @@ class Node():
         self.config_changed = True
         self.volume_group = volume_group
         self.connections = Connections()
-
-        # FIXME: Move some of these calls into setup() to run them in parallel?
-        try:
-            self.run(['test', '-d', DRBD_TEST_DATA], update_config=False)
-        except:
-            raise RuntimeError('%s: Directory %s does not exist' %
-                               (self.name, DRBD_TEST_DATA))
 
         self.hostname = self.run(['hostname', '-f'], return_stdout=True,
                                  update_config=False)

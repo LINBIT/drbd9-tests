@@ -20,7 +20,8 @@ def check_size(node, size_bytes_before):
 
 def check_readable(node):
     # check that the primary still has access to UpToDate data
-    node.run(['dd', 'if={}'.format(node.volumes[0].device()), 'bs=4K', 'count=1', 'iflag=direct'])
+    node.run(['dd', 'if={}'.format(node.volumes[0].device()),
+        'of=/dev/null', 'bs=4K', 'count=1', 'iflag=direct'])
 
 resource = drbdtest.setup(nodes=3)
 diskful_nodes = resource.nodes[:2]

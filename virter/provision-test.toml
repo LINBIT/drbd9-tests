@@ -102,6 +102,10 @@ drbdadm --version || die "drbd-utils not installed"
 modinfo drbd > /dev/null || die "DRBD not installed"
 
 sed -i 's/usage-count yes/usage-count no/' /etc/drbd.d/global_common.conf
+
+# Include the test resource configs from the standard path for convenience when
+# developing tests.
+echo 'include "/var/lib/drbd-test/*.res";' > /etc/drbd.d/drbd-test.res
 '''
 
 [steps.shell.env]

@@ -125,6 +125,8 @@ fio_write_small_args = {
         'size': '4K',
         'randrepeat': 0}
 
+drbd_config_dir_path = '/var/lib/drbd-test/'
+
 silent = False
 debug_level = 0
 skip_cleanup = False
@@ -1248,7 +1250,11 @@ class Node():
 
         self.start_dmesg()
 
-        self.run(['mkdir', '-p', self.drbd_config_dir_path()], update_config=False)
+        self.run(['mkdir', '-p', drbd_config_dir_path], update_config=False)
+        global_config = 'global { usage-count no; }\n' + 'include "{}";\n'.format(
+                self.drbd_config_file_path())
+        self.run(['bash', '-c', "cat > " + self.drbd_global_config_file_path()],
+                stdin=StringIO(global_config), update_config=False)
 
         # Ensure that added nodes will be reflected in the DRBD configuration file.
         self.config_changed = True
@@ -1448,7 +1454,7 @@ class Node():
                         V.write("meta-disk %s;" % (disk.meta or "internal"))
 
     def config(self):
-        text = ["global { usage-count no; }\n\n"]
+        text = []
 
         resource = self.resource
         with ConfigBlock(dest_fn=lambda x: text.append(x),
@@ -1502,11 +1508,11 @@ class Node():
 
         return "".join(text)
 
-    def drbd_config_dir_path(self):
-        return '/var/lib/drbd-test/' + self.resource.job
-
     def drbd_config_file_path(self):
-        return self.drbd_config_dir_path() + '/drbd.conf'
+        return drbd_config_dir_path + self.resource.job + '.res'
+
+    def drbd_global_config_file_path(self):
+        return drbd_config_dir_path + self.resource.job + '.conf'
 
     def update_config(self):
         """ Create or update the configuration file on the node when needed. """
@@ -1585,13 +1591,13 @@ class Node():
 
 
     def drbdadm(self, cmd, **kwargs):
-        self.run(['drbdadm', '-c', self.drbd_config_file_path(), '-v'] + cmd, **kwargs)
+        self.run(['drbdadm', '-c', self.drbd_global_config_file_path(), '-v'] + cmd, **kwargs)
 
     # dump the drbd metadata to a file on the target node
     def dump_md_to_file(self, filename):
         self.run(['/bin/bash', '-c',
-            'drbdadm -c /var/lib/drbd-test/{}/drbd.conf dump-md {} > {}'.format(
-                self.resource.job, self.resource.name, filename
+            'drbdadm -c {} dump-md {} > {}'.format(
+                self.drbd_global_config_file_path(), self.resource.name, filename
             )])
 
     def get_volumes(self):

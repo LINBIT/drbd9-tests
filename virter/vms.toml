@@ -13,7 +13,7 @@ RepositoryURL = "https://nexus.at.linbit.com/repository/rhel9/"
 
 [vms.metadata]
 BuildDistribution = "rhel9.0"
-BuildKernel = "5.14.0-1.7.1.el9" # kernel from RHEL9-rc1 for now, change when final is released
+BuildKernel = "5.14.0-70.13.1.el9_0" # kernel from RHEL9-rc1 for now, change when final is released
 KernelRelease = "5.14.0-70.13.1.el9_0"
 SourceImage = "alma-9"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel9/"

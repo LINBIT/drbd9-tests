@@ -11,19 +11,26 @@ source = "packages/*"
 dest = "/opt/packages/"
 
 [[steps]]
+[steps.rsync]
+source = "virter/scripts/*"
+dest = "/usr/local/bin/"
+
+[[steps]]
 [steps.shell]
 script = '''
 set -e
 
 die() { >&2 printf "\nError: %s\n" "$*"; exit 1; }
 
-PACKAGES=$(printf %s "$REPOSITORY_PACKAGES" | tr , " ")
+download_dir="/opt/package-download"
+
+packages=$(printf %s "$REPOSITORY_PACKAGES" | tr , " ")
 
 [ -z "$DRBD_REPOSITORY_URL" ] && DRBD_REPOSITORY_URL="$REPOSITORY_URL"
 
 if command -v yum > /dev/null; then
 	# Cheap hack to allow versions to be specified the same for apt and yum
-	PACKAGES=$(printf %s "$PACKAGES" | tr = -)
+	packages=$(printf %s "$packages" | tr = -)
 
 	if [ -n "$REPOSITORY_URL" ] && [ -n "$DRBD_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/drbd.repo
@@ -43,49 +50,35 @@ if command -v yum > /dev/null; then
 			enabled=1
 			EOF
 		fi
-
-		if [ -n "$DRBD_VERSION" ]; then
-			AVAILABLE=$(yum list available --quiet --showduplicates \
-				--disablerepo="*" --enablerepo="drbd" \
-				"kmod-drbd-${DRBD_VERSION}_*" \
-					| grep '^kmod-drbd' \
-					| awk '{print "kmod-drbd-" $2}')
-
-			echo "Available drbd packages for version $DRBD_VERSION:"
-			echo "$AVAILABLE" | tr ' ' '\n'
-
-			BEST=$(lbdisttool.py --kmods $AVAILABLE)
-			echo "Best kmod: $BEST"
-			PACKAGES="$PACKAGES $BEST"
-		fi
 	fi
 
-	[ -d /opt/packages ] && PACKAGES="$PACKAGES $(find /opt/packages -maxdepth 1 -name "*.rpm")"
-
-	no_initramfs=1 yum install -y $PACKAGES
-
+	[ -d /opt/packages ] && packages="$packages $(find /opt/packages -maxdepth 1 -name "*.rpm")"
 elif command -v apt-get > /dev/null; then
 	if [ -n "$REPOSITORY_URL" ]; then
 		echo deb [trusted=yes] $REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/drbd.list
 		apt-get update
-
-		if [ -n "$DRBD_VERSION" ]; then
-			PACKAGES="$PACKAGES drbd-module-$(uname -r)=${DRBD_VERSION}-*"
-		fi
 	fi
 
-	[ -d /opt/packages ] && PACKAGES="$PACKAGES $(find /opt/packages -maxdepth 1 -name "*.deb")"
-
-	DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends $PACKAGES
-
+	[ -d /opt/packages ] && packages="$packages $(find /opt/packages -maxdepth 1 -name "*.deb")"
 else
 	die "Unknown package manager"
 fi
+
+if [ -n "$DRBD_VERSION" ]; then
+	download-drbd-package.sh "$DRBD_VERSION"
+	drbd_package="$download_dir/$DRBD_VERSION"*
+	packages="$packages $drbd_package"
+fi
+
+install-packages.sh $packages
 
 # For convenience, DRBD can be provided as a module rather than a package
 if [ -n "$(find /opt/packages -maxdepth 1 -name '*.ko' -print -quit)" ]; then
 	mkdir -p /lib/modules/`uname -r`/updates
 	cp -v /opt/packages/*.ko /lib/modules/`uname -r`/updates/
+
+	# Make it possible to load drbd with modprobe.
+	depmod -a
 fi
 
 # For convenience, binaries can be provided instead of packages
@@ -93,8 +86,8 @@ if [ -n "$(find /opt/packages/bin -maxdepth 1 -type f -print -quit)" ]; then
 	cp -v /opt/packages/bin/* /usr/local/bin/
 fi
 
-# Just to be sure that drbd can be modprobed
-depmod -a
+# depmod makes DRBD package changes slow for compatibility tests. Disable it.
+ln -sfT ../bin/true /usr/sbin/depmod
 
 echo "Output of 'drbdadm --version':"
 drbdadm --version || die "drbd-utils not installed"

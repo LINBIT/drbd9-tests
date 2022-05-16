@@ -26,6 +26,7 @@ source_target_c.disconnect()
 # Offset the new data so that it is in a different "resync extent". Otherwise
 # DRBD before 9.2 would fail to complete the resync due to the locking with the
 # application activity.
+source_n.primary()
 source_n.write(size='20M', offset='128M', bs='1M', direct=1)
 
 log('* Start writing')
@@ -56,6 +57,7 @@ if resync_duration > 16.0:
     raise RuntimeError('Resync too slow')
 
 writer.stop()
+source_n.secondary()
 
 log('* Shut down and clean up.')
 resource.down()

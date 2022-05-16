@@ -7,8 +7,7 @@ from python import drbdtest
 from python.drbdtest import log
 
 resource = drbdtest.setup(max_nodes=2)
-first_node = resource.nodes[0]
-other_node = resource.nodes.difference([first_node])
+first_node, other_node = resource.nodes
 
 resource.add_disk('10M')
 
@@ -17,12 +16,15 @@ resource.up_wait()
 resource.skip_initial_sync()
 
 dev_name = '/dev/drbd%d' % first_node.disks[0].minor
-first_node.run_helper('misaligned_bio.py', [dev_name, 'write'])
-first_node.run_helper('misaligned_bio.py', [dev_name, 'verify'])
-other_node.run_helper('misaligned_bio.py', [dev_name, 'verify'])
+with first_node.asPrimary():
+    first_node.run_helper('misaligned_bio.py', [dev_name, 'write'])
+    first_node.run_helper('misaligned_bio.py', [dev_name, 'verify'])
+with other_node.asPrimary():
+    other_node.run_helper('misaligned_bio.py', [dev_name, 'verify'])
 
 # That is BLKZEROOUT, BLKDISCARD and BLKSECDISCARD
-first_node.run_helper('unusual_bios.py', [dev_name])
+with first_node.asPrimary():
+    first_node.run_helper('unusual_bios.py', [dev_name])
 
 log('* Shut down and clean up.')
 resource.down()

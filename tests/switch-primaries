@@ -36,11 +36,12 @@ for i in range(5):
     node.primary()
     node.secondary()
 
-# and once more, with implicit transitions via open()
-for i in range(5):
-    node = resource.nodes[i % len(resource.nodes)]
-    log('open loop #%d: node %s' % (i, node))
-    node.fio(drbdtest.fio_write_args)
+if resource.nodes.min_drbd_version_tuple() >= (9, 0, 0):
+    # and once more, with implicit transitions via open()
+    for i in range(5):
+        node = resource.nodes[i % len(resource.nodes)]
+        log('open loop #%d: node %s' % (i, node))
+        node.fio(drbdtest.fio_write_args)
 
 
 first = resource.nodes[0]

@@ -18,6 +18,8 @@ class DiskTools(object):
 
     @staticmethod
     def create_md(node, volume_number, *, max_peers):
-        node.drbdadm(['create-md', '--force',
-            '--max-peers={}'.format(max_peers),
-            '{}/{}'.format(node.resource.name, volume_number)])
+        args = ['create-md', '--force',
+            '{}/{}'.format(node.resource.name, volume_number)]
+        if node.drbd_version_tuple >= (9, 0, 0):
+            args.append('--max-peers={}'.format(max_peers))
+        node.drbdadm(args)

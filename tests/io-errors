@@ -13,23 +13,28 @@ M_RECREATE_MD=2
 def test_writes(fault_type):
     log('* Writing on primary (autopromote) secondary should detach')
     secondary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
+    primary_n.primary()
     primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=1'])
 
     secondary_n.volumes.event(r'device .* disk:Failed')
     secondary_n.volumes.event(r'device .* disk:Diskless')
     primary_n.peer_devices.event(r'peer-device .* peer-disk:Failed')
     primary_n.peer_devices.event(r'peer-device .* peer-disk:Diskless')
+    primary_n.secondary()
 
     log('* down/up secondary, check resync')
     secondary_n.disable_fault_injection(vol)
     secondary_n.down()
+
+    # Expect 4K resync on 8.4. Expect 4M resync on 9+. One AL-extent.
+    # Most importantly, it should be a bitmap-based resync and not a full resync.
+    sync_kib = 4096 if primary_n.drbd_version_tuple >= (9, 0, 0) else 4
     secondary_n.up()
     secondary_n.volumes.event(r'device .* disk:Inconsistent')
-    secondary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:4096')
+    secondary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:{}'.format(sync_kib))
     secondary_n.volumes.event(r'device .* disk:UpToDate')
-    primary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:4096')
+    primary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:{}'.format(sync_kib))
     primary_n.peer_devices.event(r'peer-device .* replication:Established')
-    # Expect 4k resync. That ensure it is a bitmap-based resync and not a full resync
 
     primary_n.primary()
     primary_n.secondary()
@@ -38,12 +43,14 @@ def test_writes(fault_type):
 
     log('* Testing IO error on primary (autopromote), should detach')
     primary_n.set_fault_injection(vol, drbdtest.DF_DATA_WRITE)
+    primary_n.primary()
     primary_n.run(['dd', 'if=/dev/zero', 'of=%s' % (vol.device()) , 'bs=4096', 'oflag=direct', 'count=1'])
 
     primary_n.volumes.event(r'device .* disk:Failed')
     primary_n.volumes.event(r'device .* disk:Diskless')
     secondary_n.volumes.event(r'peer-device .* peer-disk:Failed')
     secondary_n.volumes.event(r'peer-device .* peer-disk:Diskless')
+    primary_n.secondary()
 
     log('* down/up primary, check resync')
     primary_n.disable_fault_injection(vol)
@@ -105,8 +112,10 @@ resource.forbidden_patterns.difference_update([r'disk:Failed', r'peer-disk:Faile
 for fault_type in [drbdtest.DF_DATA_WRITE, drbdtest.DF_META_WRITE]:
     test_writes(fault_type)
 
-test_tracking_writes(M_REATTACH)
-test_tracking_writes(M_RECREATE_MD)
+# For some reason DRBD 8.4 gets stuck in Negotiating
+if primary_n.drbd_version_tuple >= (9, 0, 0):
+    test_tracking_writes(M_REATTACH)
+    test_tracking_writes(M_RECREATE_MD)
 
 # TODOs: read errors, IO errors during resync, allocation errors
 

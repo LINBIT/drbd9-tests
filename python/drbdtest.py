@@ -316,6 +316,9 @@ class Nodes(Collection):
     def resource(self):
         return first(self.members).resource
 
+    def min_drbd_version_tuple(self):
+        return min([node.drbd_version_tuple for node in self.members])
+
     def event(self, *args, **kwargs):
         """ Wait for an event. """
 
@@ -361,13 +364,17 @@ class Nodes(Collection):
         if proxy_enable:
             self.drbdadm(['proxy-down', 'all'])
 
-        self.resource().forbidden_patterns.difference_update([
-            r'connection:BrokenPipe',
-            r'connection:NetworkFailure'
-        ])
+        remove_patterns = []
+        for pattern in [r'connection:BrokenPipe', r'connection:NetworkFailure']:
+            if pattern in self.resource().forbidden_patterns:
+                remove_patterns.append(pattern)
+        if r'disk:Failed' in self.resource().forbidden_patterns and self.min_drbd_version_tuple() < (9, 0, 0):
+            remove_patterns.append(r'disk:Failed')
+        self.resource().forbidden_patterns.difference_update(remove_patterns)
         self.drbdadm(['down', 'all'])
         self.after_down()
         self.event(r'destroy resource')
+        self.resource().forbidden_patterns.update(remove_patterns)
 
     def attach(self):
         self.drbdadm(['attach', 'all'])
@@ -375,7 +382,11 @@ class Nodes(Collection):
 
     def detach(self):
         self.drbdadm(['detach', 'all'])
-        self.volumes.diskful.event(r'device .* disk:Detaching')
+        for node in self.members:
+            if node.drbd_version_tuple < (9, 0, 0):
+                node.volumes.diskful.event(r'device .* disk:Failed')
+            else:
+                node.volumes.diskful.event(r'device .* disk:Detaching')
         self.volumes.diskful.event(r'device .* disk:Diskless')
 
     def new_resource(self):
@@ -504,14 +515,13 @@ class Connections(Collection):
 
         results = []
         if self.members:
-            where = \
-                [__ for n0, n1 in
-                 [(_[0], _[1]) for _ in self.members]
-                 for __ in ['events-%s' % n0.name,
-                            '--label', '%s:%s' % (n0.name, n1.name),
-                            '-p', '.events-connection-%s.pos' % n1.name,
-                            '-f', 'peer-node-id:%d' % n1.id]
-                 ]
+            where = []
+            for n0, n1 in self.members:
+                where.extend(['events-%s' % n0.name,
+                    '--label', '%s:%s' % (n0.name, n1.name),
+                    '-p', '.events-connection-%s.pos' % n1.name])
+                if n0.drbd_version_tuple >= (9, 0, 0):
+                    where.extend(['-f', 'peer-node-id:%d' % n1.id])
             resource = first(self.members).resource
             results = resource.logscan(self, where, *args, **kwargs)
         return results
@@ -531,8 +541,11 @@ class Connections(Collection):
     def run_drbdadm(self, cmd, state_str, wait=True, options=[]):
         for connection in self:
             node0, node1 = connection.nodes
-            node0.drbdadm([cmd] + options +
-                      ['%s:%s' % (connection.resource.name, node1.hostname)])
+            if node0.drbd_version_tuple >= (9, 0, 0):
+                context = '{}:{}'.format(connection.resource.name, node1.hostname)
+            else:
+                context = connection.resource.name
+            node0.drbdadm([cmd] + options + [context])
         if wait:
             self.event(r'connection .* connection:%s' % (state_str))
 
@@ -585,16 +598,16 @@ class PeerDevices(Collection):
         """ Wait for an event. """
 
         if self.members:
-            where = \
-                [__ for n0, n1, volume in
-                 [(_.connection[0], _.connection[1], _.volume.volume)
-                  for _ in self.members]
-                 for __ in ['events-%s' % n0.name,
-                            '--label', '%s:%s:%s' % (n0.name, n1.name, volume),
-                            '-p', '.events-peer-device-%s:%s.pos' % (n1.name, volume),
-                            '-f', 'peer-node-id:%d' % n1.id,
-                            '-f', 'volume:%s' % volume]
-                 ]
+            where = []
+            for peer_device in self.members:
+                n0, n1 = peer_device.connection
+                volume = peer_device.volume.volume
+                where.extend(['events-%s' % n0.name,
+                    '--label', '%s:%s:%s' % (n0.name, n1.name, volume),
+                    '-p', '.events-peer-device-%s:%s.pos' % (n1.name, volume),
+                    '-f', 'volume:%s' % volume])
+                if n0.drbd_version_tuple >= (9, 0, 0):
+                    where.extend(['-f', 'peer-node-id:%d' % n1.id])
             resource = first(self.members).resource
             return resource.logscan(self, where, *args, **kwargs)
 

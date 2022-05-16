@@ -14,7 +14,8 @@ resource.add_disk('8M')
 # Cause a new UUID to be created and allow the peer to sync the new data.
 def write_disconnected():
     connection_primary_secondary.disconnect()
-    node_primary.write(direct=1)
+    with node_primary.asPrimary():
+        node_primary.write(direct=1)
     connection_primary_secondary.connect()
     connection_primary_secondary.event(r'peer-device .* replication:SyncSource')
     connection_primary_secondary.event(r'peer-device .* replication:Established')
@@ -23,7 +24,11 @@ for initial_sync in False, True:
     for initial_write in False, True:
         log('*** Test initial_sync:{} initial_write:{}'.format(initial_sync, initial_write))
 
-        resource.nodes.drbdadm(['create-md', '--force', '--max-peers=2', resource.name])
+        for node in resource.nodes:
+            if node.drbd_version_tuple < (9, 0, 0):
+                node.drbdadm(['create-md', '--force', resource.name])
+            else:
+                node.drbdadm(['create-md', '--force', '--max-peers=2', resource.name])
         resource.up_wait()
         if initial_sync:
             node_primary.primary(force=True)
@@ -47,7 +52,9 @@ for initial_sync in False, True:
 
         log('* Start new data generations')
         write_disconnected()
-        write_disconnected()
+        # DRBD 8.4 only keeps 2 history UUIDs, so we cannot generate too many generations
+        if resource.nodes.min_drbd_version_tuple() >= (9, 0, 0):
+            write_disconnected()
 
         log('* Restore snapshot including metadata')
         node_secondary.down()

@@ -91,8 +91,11 @@ def CheckContent(node, blocks):
 
 
 def GetDifferenceFromDmesg(node, dmesg_text):
+    # DRBD 8.4:
+    #   [   30.661351] block drbd1: Out of sync: start=792, size=8 (sectors)
+    # DRBD 9:
     #   [4508806.959591] drbd ramdisk/0 drbd28 much: Out of sync: start=40, size=16 (sectors)
-    pattern = re.compile(r'drbd .* Out of sync:.*start=(\d+), size=(\d+)')
+    pattern = re.compile(r'drbd{}[ :].* Out of sync:.*start=(\d+), size=(\d+)'.format(node.volumes[0].minor))
 
     blks = []
     for line in dmesg_text.split('\n'):
@@ -131,7 +134,7 @@ def DoVerify(src_node, dst_node, expected):
     src_node.add_dmesg_capture(src_dmesg)
     dst_node.add_dmesg_capture(dst_dmesg)
 
-    src_node.drbdadm(['verify', '--start=0', '%s:%s/0' % (resource.name, dst_node.name)])
+    src_node.drbdadm(['verify', resource.name])
 
     src_node.peer_devices.event(r'peer-device .* replication:VerifyS')
     dst_node.peer_devices.event(r'peer-device .* replication:VerifyT')

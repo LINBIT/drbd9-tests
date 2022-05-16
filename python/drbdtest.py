@@ -126,6 +126,7 @@ fio_write_small_args = {
         'randrepeat': 0}
 
 drbd_config_dir_path = '/var/lib/drbd-test/'
+package_download_dir = '/opt/package-download'
 
 silent = False
 debug_level = 0
@@ -753,20 +754,8 @@ class Resource(object):
             sys.exit(3)
 
     def rmmod(self):
-        if no_rmmod:
-            return
         for n in self.nodes:
-            if n.drbd_version_tuple >= (9, 0, 0):
-                # might not even be loaded
-                try:
-                    n.run(['rmmod', 'drbd_transport_tcp'])
-                except:
-                    pass
-
-        try:
-            self.nodes.run(['rmmod', 'drbd'])
-        except:
-            pass
+            n.rmmod()
 
     def logscan(self, collection, where, *args, **kwargs):
         """ Run logscan to scan / wait for events to occur. """
@@ -1374,6 +1363,25 @@ class Node():
         self.install_helper(helper_name, target_path)
         self.run([target_path, *args], update_config=False)
 
+    def rmmod(self):
+        if no_rmmod:
+            return
+        if self.drbd_version_tuple >= (9, 0, 0):
+            # might not even be loaded
+            try:
+                self.run(['rmmod', 'drbd_transport_tcp'], update_config=False)
+            except:
+                pass
+        try:
+            self.run(['rmmod', 'drbd'], update_config=False)
+        except:
+            pass
+
+    def install_drbd(self, version):
+        self.rmmod()
+        self.run_helper('install-drbd', ['{}/{}*'.format(package_download_dir, version)])
+        self.drbd_version_tuple = self.get_drbd_version()
+
     def next_minor(self):
         self.minors += 1
         return self.minors
@@ -1916,6 +1924,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--lz4', action="store_true")
     parser.add_argument('--zstd', type=int)
     parser.add_argument('--memlimit', type=int)
+    parser.add_argument('--drbd-version-other')
     args = parser.parse_args()
 
     if nodes is not None:
@@ -2041,6 +2050,10 @@ def setup(parser=argparse.ArgumentParser(),
                                            '-p', '0', '-X', 'stuff', '\035'])
                 return func
             atexit.register(close_logfile(logfile))
+
+    if args.drbd_version_other:
+        # Automatically install other version on the first node
+        resource.nodes[0].install_drbd(args.drbd_version_other)
 
     for node in resource.nodes:
         node.listen_to_events()

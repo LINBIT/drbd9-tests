@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Install the DRBD package files provided as arguments.
+
+die() { >&2 printf "\nError: %s\n" "$*"; exit 1; }
+
+if command -v rpm > /dev/null; then
+	no_initramfs=1 rpm --erase "kmod-drbd-*"
+	no_initramfs=1 rpm --install "$@" || die "Failed to install"
+elif command -v dpkg > /dev/null; then
+	dpkg --purge "$(dpkg-query --show --showformat='${Package}\n' | grep -E 'drbd.?-module')"
+	dpkg --install "$(compgen -G "$@")" || die "Failed to install"
+else
+	die "Unknown package manager"
+fi

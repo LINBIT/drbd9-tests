@@ -16,9 +16,19 @@ def main():
     parser.add_argument('--selection', choices=['all', 'ci'], default='all',
             help='which selection of tests to generate (default "all")')
     parser.add_argument('--drbd-version', help='only output tests for this DRBD version')
+    parser.add_argument('--drbd-version-other', help='only output tests also supported by this DRBD version')
     args = parser.parse_args()
 
     drbd_version = parse_version(args.drbd_version) if args.drbd_version else None
+    drbd_version_other = parse_version(args.drbd_version_other) if args.drbd_version_other else None
+
+    if drbd_version_other is None:
+        drbd_version_lower = drbd_version
+    elif drbd_version is None:
+        drbd_version_lower = drbd_version_other
+    else:
+        # Naive element by element comparison is good enough here
+        drbd_version_lower = min(drbd_version, drbd_version_other)
 
     # Read test files
     test_configs = []
@@ -46,14 +56,20 @@ def main():
     for name, vmshed_config in sorted(test_configs, key=lambda a: a[0]):
         vms_key = 'vms_all' if args.selection == 'all' else 'vms_ci'
         vms = vmshed_config[vms_key]
-        if vms is None or len(vms) == 0:
+        if vms is None:
+            continue
+
+        if drbd_version_lower is not None and drbd_version_lower < [9]:
+            vms = [x for x in vms if x <= 2]
+
+        if len(vms) == 0:
             continue
 
         drbd_version_min_str = vmshed_config.get('drbd_version_min')
-        if drbd_version is not None and drbd_version_min_str is not None:
+        if drbd_version_lower is not None and drbd_version_min_str is not None:
             drbd_version_min = parse_version(drbd_version_min_str)
             # Naive element by element comparison is good enough here
-            if drbd_version < drbd_version_min:
+            if drbd_version_lower < drbd_version_min:
                 continue
 
         print('[tests.{}]'.format(name))

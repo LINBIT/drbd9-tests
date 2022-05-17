@@ -5,6 +5,7 @@ variables:
   SCHEDULED_TEST_COUNT: 50
   SCHEDULED_TEST_VMSHED_ARGS: ""
   DRBD_VERSION: 9.1.0.latest
+  DRBD_VERSION_OTHER: "" # For compatibility testing. For example: 8.4.12
   DRBD_UTILS_VERSION: 9.0.0.latest-*
 
 stages:

@@ -22,10 +22,13 @@ for arg in "${@}"; do
 done
 [ "$variant_set" = "true" ] || extra_args+=( "--variant" "tcp" )
 
+[ -n "$DRBD_VERSION_OTHER" ] && extra_args+=( "--set" "values.DrbdVersionOther=$DRBD_VERSION_OTHER" )
+
 echo "=== generate vmshed test configuration" >&2
 make virter/tests.toml \
 	VMSHED_TEST_SELECTION="${VMSHED_TEST_SELECTION:-ci}" \
-	DRBD_VERSION="$DRBD_VERSION"
+	DRBD_VERSION="$DRBD_VERSION" \
+	DRBD_VERSION_OTHER="$DRBD_VERSION_OTHER"
 
 echo "=== virter version:" >&2
 virter version >&2

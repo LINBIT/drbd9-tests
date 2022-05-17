@@ -3,6 +3,7 @@ ScratchDisk = "/dev/sda"
 TestSuiteImage = "drbd9-tests"
 RDMA = "" # set to "true" to enable
 OutDir = ""
+DrbdVersionOther = ""
 
 [[steps]]
 [steps.shell]
@@ -57,6 +58,7 @@ DRBD_TEST_RDMA = "{{.RDMA}}"
 image = "{{.TestSuiteImage}}"
 [steps.docker.env]
 DRBD_TEST_RDMA = "{{.RDMA}}"
+DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
 [steps.docker.copy]
 source = "/log"
 dest = "{{.OutDir}}"

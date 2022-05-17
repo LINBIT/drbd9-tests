@@ -28,6 +28,7 @@ done
 
 test_args=( "$@" "--logdir" "/log" )
 [ "$DRBD_TEST_RDMA" = "true" ] && test_args+=( "--rdma" )
+[ -n "$DRBD_VERSION_OTHER" ] && test_args+=( "--drbd-version-other=$DRBD_VERSION_OTHER" )
 
 echo "===== Run test '$TEST_PATH' with args '${test_args[*]}' on nodes '${nodes[*]}'"
 

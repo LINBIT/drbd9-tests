@@ -2,8 +2,8 @@ image: $LINBIT_DOCKER_REGISTRY/build-helpers:$BUILD_HELPERS_VERSION
 
 variables:
   BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
-  STABILITY_TEST_COUNT: 50
-  STABILITY_TEST_VMSHED_ARGS: ""
+  SCHEDULED_TEST_COUNT: 50
+  SCHEDULED_TEST_VMSHED_ARGS: ""
   DRBD_VERSION: 9.1.0.latest
   DRBD_UTILS_VERSION: 9.0.0.latest-*
 
@@ -89,71 +89,57 @@ push-docker:
     - docker tag $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA $LINBIT_DOCKER_REGISTRY/drbd9-tests:latest
     - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests:latest
 
+.test:
+  tags:
+    - libvirt
+  before_script:
+    - |
+      set -e
+      run_test() {
+        . virter/version.env
+
+        curl -sSfL -u gitlab-ci-token:$CI_JOB_TOKEN $CI_SERVER_URL/linbit/build-helpers/-/archive/$BUILD_HELPERS_VERSION/ignored.tar.gz | tar -xvzf -
+        mv build-helpers-* build-helpers
+        . build-helpers/gitlab-utils.sh
+
+        ci_prepare_tools
+        ci_fetch_rq
+        ci_fetch_binary virter virter-$VIRTER_VERSION https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64
+        ci_fetch_binary vmshed vmshed-$VMSHED_VERSION https://github.com/LINBIT/vmshed/releases/download/$VMSHED_VERSION/vmshed-linux-amd64
+
+        docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
+
+        export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
+        ./virter/run-test.sh "$@"
+      }
+  dependencies:
+    - build-docker
+  artifacts:
+    # provide a convenient name so that the downloaded artifacts can be identified
+    name: $CI_PROJECT_NAME-$CI_JOB_ID
+    paths:
+      - tests-out/
+    when: always
+    expire_in: 1 week
+
 test:
-  extends: .cache-download
   stage: test
+  extends: [ .cache-download, .test ]
   rules:
     - if: $CI_MERGE_REQUEST_ID
-  tags:
-    - libvirt
-  script:
-    - . virter/version.env
-    - curl -sSfL -u gitlab-ci-token:$CI_JOB_TOKEN $CI_SERVER_URL/linbit/build-helpers/-/archive/$BUILD_HELPERS_VERSION/ignored.tar.gz | tar -xvzf -
-    - mv build-helpers-* build-helpers
-    - . build-helpers/gitlab-utils.sh
-    - |
-      ci_prepare_tools
-      ci_fetch_rq
-      ci_fetch_binary virter virter-$VIRTER_VERSION https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64
-      ci_fetch_binary vmshed vmshed-$VMSHED_VERSION https://github.com/LINBIT/vmshed/releases/download/$VMSHED_VERSION/vmshed-linux-amd64
-    - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
-    - |
-      export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
-      ./virter/run-test.sh
-  dependencies:
-    - build-docker
+  script: run_test
   artifacts:
-    # provide a convenient name so that the downloaded artifacts can be identified
-    name: $CI_PROJECT_NAME-$CI_JOB_ID
-    paths:
-      - tests-out/
-    when: always
     reports:
       junit: tests-out/test-results/*.xml
-    expire_in: 1 week
 
-
-stability-test:
-  extends: .cache-download
+scheduled-test:
   stage: test
+  extends: [ .cache-download, .test ]
   rules:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
-  tags:
-    - libvirt
   timeout: 12h
   script:
-    - . virter/version.env
-    - curl -sSfL -u gitlab-ci-token:$CI_JOB_TOKEN $CI_SERVER_URL/linbit/build-helpers/-/archive/$BUILD_HELPERS_VERSION/ignored.tar.gz | tar -xvzf -
-    - mv build-helpers-* build-helpers
-    - . build-helpers/gitlab-utils.sh
-    - |
-      ci_prepare_tools
-      ci_fetch_rq
-      ci_fetch_binary virter virter-$VIRTER_VERSION https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64
-      ci_fetch_binary vmshed vmshed-$VMSHED_VERSION https://github.com/LINBIT/vmshed/releases/download/$VMSHED_VERSION/vmshed-linux-amd64
-    - docker image pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
-    - |
-      export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
-      export DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
-      export VMSHED_TEST_SELECTION=all
-      ./virter/run-test.sh --repeats="$STABILITY_TEST_COUNT" --error-details=false --quiet $STABILITY_TEST_VMSHED_ARGS || true
-      ./virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json
-  dependencies:
-    - build-docker
-  artifacts:
-    # provide a convenient name so that the downloaded artifacts can be identified
-    name: $CI_PROJECT_NAME-$CI_JOB_ID
-    paths:
-      - tests-out/
-    when: always
-    expire_in: 1 week
+    - export DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
+    - export VMSHED_TEST_SELECTION=all
+    - run_test --repeats="$SCHEDULED_TEST_COUNT" --error-details=false --quiet $SCHEDULED_TEST_VMSHED_ARGS || true
+    - ./virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json

@@ -4,6 +4,7 @@ DrbdRepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
 RepositoryPackages = "" # comma separated
 DrbdVersion = ""
+DrbdVersionOther = ""
 
 [[steps]]
 [steps.rsync]
@@ -64,6 +65,12 @@ else
 	die "Unknown package manager"
 fi
 
+# Download the "other" version first so that the package manager does not
+# refuse because the package is already installed.
+if [ -n "$DRBD_VERSION_OTHER" ]; then
+	download-drbd-package.sh "$DRBD_VERSION_OTHER"
+fi
+
 if [ -n "$DRBD_VERSION" ]; then
 	download-drbd-package.sh "$DRBD_VERSION"
 	drbd_package="$download_dir/$DRBD_VERSION"*
@@ -107,3 +114,4 @@ DRBD_REPOSITORY_URL = "{{.DrbdRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
 REPOSITORY_PACKAGES = "{{.RepositoryPackages}}"
 DRBD_VERSION = "{{.DrbdVersion}}"
+DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"

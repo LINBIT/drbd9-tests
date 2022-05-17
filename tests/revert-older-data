@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2], "vms_ci": [2] }
+### vmshed: { "vms_all": [2], "vms_ci": [2], "drbd_version_min": "8.4" }
 
 # Tests that we sync after reverting to a snapshot.
 

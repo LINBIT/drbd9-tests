@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2], "vms_ci": [2] }
+### vmshed: { "vms_all": [2], "vms_ci": [2], "drbd_version_min": "8.4" }
 #
 # Promote while we hole the uuid_sem . There was a locking bug
 # in the code that caused this to deadlock. Keep such a test

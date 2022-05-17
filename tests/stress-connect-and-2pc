@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2, 5], "vms_ci": [2] }
+### vmshed: { "vms_all": [2, 5], "vms_ci": [2], "drbd_version_min": "9.0" }
 
 # This test stresses the ability to resolve conflicting two-phase-commits
 

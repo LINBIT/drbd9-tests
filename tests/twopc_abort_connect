@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": [3] }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0" }
 #
 # This test examines how DRBD behaves when the loss of a connection leads
 # to a two-phase-commit can not complete. It does that by blocking the

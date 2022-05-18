@@ -22,6 +22,7 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')
 resource.forbidden_patterns.remove(r'connection:ProtocolError')
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
 
 [source_n, primary_n, secondary_n] = resource.nodes
 

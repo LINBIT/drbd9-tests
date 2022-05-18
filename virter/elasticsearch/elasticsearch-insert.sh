@@ -13,6 +13,7 @@ url="$1"
 results_file="$2"
 
 [ -z "$CI_JOB_ID" ] && die "Missing \$CI_JOB_ID"
+[ -z "$DRBD_TEST_SERIES" ] && die "Missing \$DRBD_TEST_SERIES"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
@@ -31,6 +32,7 @@ if [ "$index_exists" = false ]; then
 		"mappings": {
 			"properties": {
 				"job_id": { "type": "keyword" },
+				"series": { "type": "keyword" },
 				"test_run_id": { "type": "keyword" },
 				"drbd_version": { "type": "keyword" },
 				"drbd_utils_version": { "type": "keyword" },
@@ -63,6 +65,7 @@ cat "$results_file" | jq -c '
 	(.name + "-" + (.vm_count | tostring)) as $nc |
 	del(.id) + {
 		job_id: "'"$CI_JOB_ID"'",
+		series: "'"$DRBD_TEST_SERIES"'",
 		test_run_id: .id,
 		drbd_version: "'"$DRBD_VERSION"'",
 		drbd_utils_version: "'"$DRBD_UTILS_VERSION"'",

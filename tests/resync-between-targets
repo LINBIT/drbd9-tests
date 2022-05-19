@@ -145,6 +145,8 @@ connection_b_a.event(r'connection .* connection:Connecting')
 # bug in DRBD. Work around it for now because testing that is not the purpose
 # here.
 resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+# DRBD 9.2 generates NetworkFailure instead of BrokenPipe.
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
 
 log('* Revert to older data on C.')
 node_c.primary(force=True)

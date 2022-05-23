@@ -1,0 +1,50 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+
+# This test tries to establish the connection from A to B. C is already
+# connected to both.
+#
+#    A   B
+#     \ /
+#      C
+#
+# After the TCP connections are established, the network breaks while exchanging
+# the P_SYNC_PARAM89 packet.
+#
+# In case the connect transaction lingers on node B, it will break the
+# promote on A.
+#
+# This test fails up to drbd-9.1.7
+
+from python import drbdtest
+from python.drbdtest import log
+
+import time
+
+resource = drbdtest.setup(nodes=3)
+resource.add_disk('10M')
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+node_a, node_b, node_c = resource.nodes
+connection_ab = resource.connections.from_node(node_a).to_node(node_b)
+connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+
+connection_ab.disconnect()
+node_a.block_packet_type(drbdtest.P_SYNC_PARAM89, from_node=node_b, volume=0)
+connection_ab.connect()
+time.sleep(1)
+connection_ab.block(jump_to="REJECT")
+connection_ba.block(jump_to="REJECT")
+node_a.unblock_packet_type(drbdtest.P_SYNC_PARAM89, from_node=node_b, volume=0)
+node_a.primary()
+connection_ab.unblock(jump_to="REJECT")
+connection_ba.unblock(jump_to="REJECT")
+
+resource.down()
+resource.teardown()

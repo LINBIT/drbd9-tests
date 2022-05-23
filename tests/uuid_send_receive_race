@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": null }
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
 #
 # When DRBD exchanges UUIDs after establishing a conneciton. It sends its
 # current UUID and expects to learn about the current UUID of the peer

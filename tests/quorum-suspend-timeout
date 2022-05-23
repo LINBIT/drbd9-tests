@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [4], "vms_ci": null }
+### vmshed: { "vms_all": [4], "vms_ci": null, "drbd_version_min": "9.0" }
 #
 # This test verifies that when a primary loses quorum due to a
 # frozen disk on one of its secondaris (and a configured timeout

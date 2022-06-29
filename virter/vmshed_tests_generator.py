@@ -79,6 +79,12 @@ def main():
         if samevms:
             print('samevms = true')
 
+        for network in vmshed_config.get('networks', []):
+            print('[[tests.{}.networks]]'.format(name))
+            print('forward = "{}"'.format(network.get('forward', '')))
+            print('domain = "{}"'.format(network.get('domain', '')))
+            print('dhcp = {}'.format('true' if network.get('dhcp') else 'false'))
+
         print()
 
 # Naive version parsing handling dot separated elements which are either integers or strings

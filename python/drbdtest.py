@@ -1237,13 +1237,20 @@ class Node():
 
         self.addrs = [self.addr]
         if multi_paths:
-            net_2 = self.run(['ip', '-oneline', 'a', 'show', 'label', '*:1'],
-                             return_stdout=True, update_config=False)
-            log("got further path %s", net_2)
-            m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', net_2)
-            if not m:
-                raise RuntimeError("%s has no *:1", self)
-            self.addrs.append(m.group(1))
+            addresses = self.run(['ip', '-oneline', 'a', 'show'], return_stdout=True, update_config=False)
+            log("got all addresses %s", addresses)
+            for line in addresses.splitlines():
+                m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', line)
+                if not m:
+                    continue
+                addr = m.group(1)
+                if addr == "127.0.0.1" or addr in self.addrs:
+                    continue
+
+                self.addrs.append(addr)
+
+            if len(self.addrs) <= 1:
+                raise RuntimeError("%s has no additional address", self)
 
         self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'], update_config=False)
         self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'], update_config=False)

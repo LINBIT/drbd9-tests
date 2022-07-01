@@ -30,6 +30,10 @@ if [ "$DRBD_TEST_RDMA" = "true" ] ; then
 	fi
 fi
 
+# cloud-init configuration with multiple interfaces is tricky, and sometimes they fail.
+# Just ignore those services.
+systemctl reset-failed "network*.service" || true
+
 while true; do
 	running=$(systemctl is-system-running || true)
 	[ "$running" = initializing -o "$running" = starting ] && { sleep 1; continue; }

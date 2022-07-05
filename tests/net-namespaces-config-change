@@ -1,0 +1,38 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2", "networks": [{"dhcp": true}] }
+# Tests DRBD when called from different network namespace, or when namespaces are deleted.
+import subprocess
+
+from python import drbdtest
+
+resource = drbdtest.setup(nodes=2, netns='drbdtest')
+resource.net_options = 'ping-int 1;'
+resource.nodes.up_wait()
+resource.connections.event(r'connection .* connection:Connected')
+
+drbdtest.log('Adding paths from a different namespace as established paths should fail')
+node_a, node_b = resource.nodes  # type: drbdtest.Node, drbdtest.Node
+try:
+    # for netns tests: .addr is the init_net (ssh access) address, .addrs are the addresses in the namespace
+    assert node_a.addr not in node_a.addrs
+    # The path obviously makes no sense, but it should fail to add the path from the wrong namespace in any case
+    node_a.run(['drbdsetup', 'new-path', resource.name, node_b.id, node_a.addr, node_b.addrs[0]], ignore_netns=True)
+except subprocess.CalledProcessError:
+    drbdtest.log('Adding paths from a different namespace as established paths should fail: got expected error')
+else:
+    raise RuntimeError('"drbdsetup new-path" should have failed from wrong namespace')
+
+drbdtest.log('Deleting a namespace disconnects and destroys all connections assigned to that namespace')
+node_a.netns = None
+node_a.run(['ip', 'netns', 'del', 'drbdtest'])
+node_a.connections.event('connection .* connection:StandAlone')
+node_a.event('destroy path')
+
+drbdtest.log('Running adjust again should re-establish the connection, now from another namespace')
+# Note: The network device assigned to the namespace got re-homed to the init_net, including ip address/routes, so
+#       no extra set up necessary.
+node_a.adjust()
+resource.connections.event(r'connection .* connection:Connected')
+
+resource.down()
+resource.teardown()

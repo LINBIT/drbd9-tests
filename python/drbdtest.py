@@ -1205,9 +1205,10 @@ class ConfigBlock(object):
 
 class Node():
     def __init__(self, resource, name, volume_group,
-                 addr=None, port=7789, multi_paths=None):
+                 addr=None, port=7789, multi_paths=None, netns=None):
         self.resource = resource
         self.name = name
+        self.netns = None
         try:
             self.addr = addr if addr else socket.gethostbyname(name)
         except:
@@ -1237,7 +1238,7 @@ class Node():
 
         self.addrs = [self.addr]
         if multi_paths:
-            addresses = self.run(['ip', '-oneline', 'a', 'show'], return_stdout=True, update_config=False)
+            addresses = self.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True, update_config=False)
             log("got all addresses %s", addresses)
             for line in addresses.splitlines():
                 m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', line)
@@ -1251,6 +1252,39 @@ class Node():
 
             if len(self.addrs) <= 1:
                 raise RuntimeError("%s has no additional address", self)
+
+        if netns:
+            self.addrs = []
+            self.run(['ip', 'netns', 'add', netns], update_config=False)
+            addresses = self.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True, update_config=False)
+            log("got all addresses %s", addresses)
+            for line in addresses.splitlines():
+                m = re.search(r'^\s*\d+:\s+(\w+)\s+inet\s+([\d\.]+)/(\d+)', line)
+                if not m:
+                    continue
+                devname = m.group(1)
+                addr = m.group(2)
+                prefix = m.group(3)
+                if addr == "127.0.0.1" or addr == self.addr:
+                    continue
+
+                self.run(['ip', 'link', 'set', 'dev', devname, 'netns', netns], update_config=False)
+                self.run(['ip', '-netns', netns, 'addr', 'add', '{}/{}'.format(addr, prefix), 'dev', devname], update_config=False)
+                self.run(['ip', '-netns', netns, 'link', 'set', 'dev', devname, 'up'], update_config=False)
+                self.addrs.append(addr)
+
+            if len(self.addrs) < 1:
+                raise RuntimeError("%s has namespaced address", self)
+
+            # Also configure IPTABLES in the init_net namespace, some tests might use both
+            self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'], update_config=False)
+            self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'],
+                     update_config=False)
+            self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"], update_config=False)
+            self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"], update_config=False)
+
+            # From now on, all run() commands run in <netns> namespace, unless explicitly excluded
+            self.netns = netns
 
         self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'], update_config=False)
         self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'], update_config=False)
@@ -1575,7 +1609,7 @@ class Node():
             stdout=f, stderr=subprocess.STDOUT, stdin=devnull, close_fds=True)
         self.event(r'exists -', word_boundary=False)
 
-    def run(self, cmd, update_config=True, quote=True, catch=False, return_stdout=False, stdin=None, stdout=None, stderr=None, env={}):
+    def run(self, cmd, update_config=True, quote=True, catch=False, return_stdout=False, stdin=None, stdout=None, stderr=None, env={}, ignore_netns=False):
         """
         Run a command via SSH on the target node.
 
@@ -1588,6 +1622,7 @@ class Node():
         :param stdout: standard output from command (file-like object)
         :param sterr: standard error from command (file-like object)
         :param env: a dictionary of extra environment variables which will be exported to the command
+        :param ignore_netns: optionally, ignore a node's configured network namespace
         :returns: nothing, or a string if return_stdout is True
         :raise CalledProcessError: when the command fails (unless catch is True)
         """
@@ -1605,6 +1640,9 @@ class Node():
             cmd_string = ' '.join(pipes.quote(str(x)) for x in cmd)
         else:
             cmd_string = ' '.join(cmd)
+
+        if not ignore_netns and self.netns:
+            cmd_string = "ip netns exec {} {}".format(self.netns, cmd_string)
 
         log(self.name + ': ' + cmd_string)
         result = self.ssh.run(cmd_string, env=env, stdin=stdin, stdout=stdout, stderr=stderr)
@@ -1912,7 +1950,7 @@ def skip_test(text):
 
 def setup(parser=argparse.ArgumentParser(),
           _node_class=Node, _res_class=Resource,
-          nodes=None, max_nodes=None, min_nodes=2, multi_paths=False):
+          nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None):
     """
     Test setup.  Returns a resource object.
 
@@ -2034,7 +2072,7 @@ def setup(parser=argparse.ArgumentParser(),
 
     for node in args.node:
         _node_class(resource, node, args.volume_group,
-                    multi_paths=multi_paths)
+                    multi_paths=multi_paths, netns=netns)
 
     if args.vconsole:
         for node in args.node:

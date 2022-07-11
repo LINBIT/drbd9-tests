@@ -67,7 +67,7 @@ def validate_status_inactive(nodes=None, busy=True):
             continue
 
         status = fetch_status(node)
-        connection_status = next(c for c in status['connections'] if c['name'] == peer.name)
+        connection_status = next(c for c in status['connections'] if c['peer-node-id'] == peer.id)
         pd_status = connection_status['peer_devices'][0]
 
         context = '{} -> {}'.format(node.name, peer.name)

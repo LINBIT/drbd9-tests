@@ -1,0 +1,67 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+
+# Consider a cluster with a primary diskless node, that has connections
+# with two diskfull nodes. One of the diskful nodes leaves the cluster
+# for some time. When it comes back it connects to the diskless node first.
+# This connection should be accepted by the primary diskless, and the
+# joining node's disk needs to be downgraded below UpToDate at this
+# moment.
+# As the connect logic depends on node ids, this test-program does the
+# test twice (with both variations of node-ids)
+#
+# Up to drbd-9.1.7 the primary diskless simply rejected the connect attempt.
+
+
+from python import drbdtest
+from python.drbdtest import log
+
+resource = drbdtest.setup(nodes=3)
+resource.add_disk('10M')
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+
+node_a, node_b, node_c = resource.nodes
+
+def test(diskless, diskfull, third):
+    to_diskless_pd = resource.peer_devices.to_node(diskless)
+    to_diskless_c = resource.connections.to_node(diskless)
+    from_diskfull_c = resource.connections.from_node(diskfull)
+    to_diskfull_c = resource.connections.to_node(diskfull)
+    diskfull_to_diskless_c = resource.connections.from_node(diskfull).to_node(diskless)[0]
+    diskless_to_diskfull_pd = resource.peer_devices.from_node(diskless).to_node(diskfull)[0]
+    diskfull_to_third_c = resource.connections.from_node(diskfull).to_node(third)[0]
+
+    diskless.detach()
+    to_diskless_pd.event(r'peer-device .* peer-disk:Diskless')
+
+    from_diskfull_c.disconnect(force=True)
+    to_diskfull_c.event(r'connection .* connection:Connecting')
+
+    diskless.primary()
+    diskless.volumes.write(size='4K', direct=1)
+
+    diskfull_to_diskless_c.connect()
+    ev = diskfull_to_diskless_c.event(r'connection .* connection:(StandAlone|Connected)')
+    if ev[0][0] == 'StandAlone':
+        raise Exception('The diskless node rejected the connect!')
+    diskless_to_diskfull_pd.event(r'peer-device .* peer-disk:(Consistent|Outdated)', timeout=5)
+
+    diskfull_to_third_c.connect()
+    diskfull.volumes.event(r'device .* disk:UpToDate')
+
+    diskless.attach()
+    diskless.volumes.event(r'device .* disk:UpToDate')
+    diskless.secondary()
+
+test(node_a, node_b, node_c)
+test(node_c, node_b, node_a)
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

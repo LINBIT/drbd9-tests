@@ -28,12 +28,11 @@ def test_writes(fault_type):
 
     # Expect 4K resync on 8.4. Expect 4M resync on 9+. One AL-extent.
     # Most importantly, it should be a bitmap-based resync and not a full resync.
-    sync_kib = 4096 if primary_n.drbd_version_tuple >= (9, 0, 0) else 4
     secondary_n.up()
     secondary_n.volumes.event(r'device .* disk:Inconsistent')
-    secondary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:{}'.format(sync_kib))
+    secondary_n.peer_devices.event(r'peer-device .* replication:SyncTarget .* out-of-sync:(4|4096)')
     secondary_n.volumes.event(r'device .* disk:UpToDate')
-    primary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:{}'.format(sync_kib))
+    primary_n.peer_devices.event(r'peer-device .* replication:SyncSource .* out-of-sync:(4|4096)')
     primary_n.peer_devices.event(r'peer-device .* replication:Established')
 
     primary_n.primary()

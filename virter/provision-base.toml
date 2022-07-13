@@ -144,7 +144,7 @@ kernel::deb() {
 
 	for k in $(comm -12 /tmp/had /tmp/have); do
 		[ "$k" = "$install_package" ] && continue
-		apt-get autoremove -y $k
+		apt-get autoremove -y $k linux-image-unsigned-*-generic
 	done
 }
 

@@ -60,6 +60,23 @@ base_image:
     when: always
     expire_in: 1 week
 
+rebuild_drbd:
+  stage: base_image
+  image: registry.gitlab.com/finestructure/pipeline-trigger
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+      when: manual
+    - if: $CI_COMMIT_BRANCH == 'master'
+      when: manual
+  # avoid blocking the pipeline with a manual job
+  allow_failure: true
+  script:
+    - apk add parallel
+    - |
+      parallel --will-cite --line-buffer --tag \
+        trigger -h https://gitlab.at.linbit.com -a $LINBOT_API_TOKEN -p $CI_JOB_TOKEN -t {} -e DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME drbd/drbd \
+        ::: drbd-9.0 drbd-9.1 master
+
 build-docker:
   stage: build
   tags:

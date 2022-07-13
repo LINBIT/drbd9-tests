@@ -20,6 +20,12 @@
 # 12 discard merges  requests      number of discard I/Os merged with in-queue I/O
 # 13 discard sectors sectors       number of sectors discarded
 # 14 discard ticks   milliseconds  total wait time for discard requests
+#
+# It turns out that the discard fields (11 and up) were added with Linux-4.19.
+# It was also added to RHEL8 at some point.
+#
+# Use it on a distro with a kernel new enough.
+
 
 import os
 from python import drbdtest
@@ -36,7 +42,6 @@ resource.disk_options = 'discard-zeroes-if-aligned yes; rs-discard-granularity 6
 resource.add_disk('1G', thin=True)
 
 node_a, node_b = resource.nodes
-dev_name = node_a.volumes[0].device()
 
 node_a.up_wait()
 node_a.primary(force=True)
@@ -50,7 +55,6 @@ peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
 peer_devices_ba.event(r'peer-device .* replication:Established')
 
 nr_discards = number_of_discards(node_b, node_b.volumes[0])
-
 # 1GiB backend / 128MiB per discard -> 8 discard requests.
 if nr_discards > 8:
     raise Exception('More discards than expected nr_discards = {}'

@@ -75,6 +75,11 @@ def main():
         print('[tests.{}]'.format(name))
         print('vms = {}'.format(vms))
 
+        vm_tags = vmshed_config.get('vm_tags')
+        if vm_tags:
+            # Python string formatting is compatible with toml
+            print('vm_tags = {}'.format(vm_tags))
+
         samevms = vmshed_config.get('samevms')
         if samevms:
             print('samevms = true')

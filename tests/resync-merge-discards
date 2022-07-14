@@ -30,6 +30,7 @@
 import os
 from python import drbdtest
 from python.drbdtest import log
+from python import datatools
 
 def number_of_discards(node, vol):
     bd_path = node.run(['readlink', vol.disk], return_stdout=True)
@@ -59,6 +60,41 @@ nr_discards = number_of_discards(node_b, node_b.volumes[0])
 if nr_discards > 8:
     raise Exception('More discards than expected nr_discards = {}'
                     .format(nr_discards))
+
+log('* Write different combinations of adjacent intervals')
+connection_ba.disconnect()
+
+# Write this pattern, where '0' is zeros, 'x' is data, and ' ' is in sync:
+# '0  x 0x0 x0 x 00  x 00  x0 x0 0  x 0x  x0 0  0  x00x  x00x  0  0 0x  x0 x  0 0x 0x  00 x  00 x 0x 0x0 x  '
+#
+# "randwrite" and "norandommap" are required for "blockalign" to work
+# correctly. As a result, the pattern may not be exactly as above. We still
+# have good chances of covering all relevant cases.
+
+node_a.fio({},
+        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='960M', bs='1M',
+        blockalign='3M', # scatter blocks
+        norandommap=1, # required for blockalign
+        buffer_pattern='"x"')
+
+node_a.fio({},
+        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='960M', bs='1M',
+        blockalign='5M', # scatter blocks differently
+        norandommap=1, # required for blockalign
+        zero_buffers=1)
+
+node_a.fio({},
+        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='960M', bs='1M',
+        blockalign='7M', # scatter blocks differently again
+        norandommap=1, # required for blockalign
+        zero_buffers=1)
+
+log('* Ensure that a resync is still successful')
+connection_ba.connect()
+peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
+peer_devices_ba.event(r'peer-device .* replication:Established')
+
+datatools.verify_data(resource.nodes)
 
 log('* Shut down and clean up.')
 resource.down()

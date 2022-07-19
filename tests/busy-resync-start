@@ -1,0 +1,61 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.2" }
+
+# This tests that DRBD resyncs correctly when there are pending writes while
+# starting the resync. It also tests a busy resync with protocol A.
+
+import time
+
+from python import drbdtest
+from python.drbdtest import log
+from python import busywrite
+from python import datatools
+from python import trafficcontrol
+
+
+resource = drbdtest.setup(nodes=3)
+writing_n, target_n, other_n = resource.nodes
+writing_target_c = drbdtest.Connection(writing_n, target_n)
+target_writing_c = drbdtest.Connection(target_n, writing_n)
+writing_tc = trafficcontrol.TrafficControl(writing_n, resource.nodes)
+resource.disk_options = 'c-min-rate 0;'
+resource.net_options = 'protocol A;'
+resource.add_disk('40M')
+resource.up_wait()
+
+log('* Allow nodes to sync up')
+writing_n.primary(force=True)
+target_writing_c.event(r'peer-device .* replication:SyncTarget')
+target_writing_c.event(r'peer-device .* replication:Established')
+
+log('* Disconnect one peer')
+writing_target_c.disconnect()
+target_writing_c.event(r'connection .* connection:TearDown')
+target_writing_c.event(r'connection .* connection:Connecting')
+
+log('* Start writing with slower peer')
+# Including a delayed peer ensures that there are pending writes while starting
+# the resync.
+writing_tc.slow_down(other_n, delay='50ms')
+writer = busywrite.BusyWrite(writing_n.volumes[0])
+# Avoid writing too fast so that we do not overwrite the blocks that were
+# written while starting the resync.
+writer.start('--size=30M --rate=10M')
+# Let writing start in the background
+time.sleep(1)
+
+log('* Reconnect and expect resync')
+writing_target_c.connect()
+target_writing_c.event(r'peer-device .* replication:SyncTarget')
+target_writing_c.event(r'peer-device .* replication:Established')
+
+log('* Stop writing and verify data')
+writer.stop()
+writing_n.secondary()
+
+datatools.verify_data(resource.nodes, size_mb=30, backing_disk=True)
+
+log('* Shut down and clean up.')
+resource.down()
+writing_tc.reset()
+resource.teardown()

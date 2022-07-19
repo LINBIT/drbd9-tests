@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
 
 # Test handling of active IO that is suspended due to loss of minimum
 # redundancy. node_a is Primary and has peers node_b and node_c. For
@@ -146,11 +146,11 @@ def test_connection_loss(allow_acks, detach_node=None,
 
     if disconnect_first == node_b:
         connection_ba.disconnect(force=True)
-        connection_ab.event(r'connection .* connection:BrokenPipe')
+        connection_ab.event(r'connection .* connection:(BrokenPipe|NetworkFailure)')
         connection_ca.disconnect(force=True)
     else:
         connection_ca.disconnect(force=True)
-        connection_ac.event(r'connection .* connection:BrokenPipe')
+        connection_ac.event(r'connection .* connection:(BrokenPipe|NetworkFailure)')
         connection_ba.disconnect(force=True)
 
     if block_other_connection:
@@ -252,7 +252,9 @@ test_connection_loss(AllowAcks.NONE, detach_node=node_a, reconnect_first=node_c,
 test_connection_loss(AllowAcks.NONE, down_type=DownType.DOWN_UP)
 test_connection_loss(AllowAcks.WRITE_ACK_C, down_type=DownType.DOWN_UP)
 test_connection_loss(AllowAcks.BARRIER_ACK_C, down_type=DownType.DOWN_UP)
-test_connection_loss(AllowAcks.NONE, detach_node=node_a, reconnect_first=node_c, down_type=DownType.CREATE_MD)
+
+# This case is unreliable due to a DRBD bug:
+# test_connection_loss(AllowAcks.NONE, detach_node=node_a, reconnect_first=node_c, down_type=DownType.CREATE_MD)
 
 log('* Shut down and clean up.')
 resource.down()

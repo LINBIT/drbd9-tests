@@ -36,11 +36,13 @@ virter version >&2
 echo "=== vmshed version:" >&2
 vmshed --version >&2
 
-echo "=== Pull images" >&2
+if [ -z "$SKIP_PULL" ]; then
+	echo "=== Pull images" >&2
 
-for BASE_IMAGE in $(rq -t < virter/vms.toml | jq -r '.vms[] | .base_image'); do
-	virter image pull $BASE_IMAGE $LINBIT_DOCKER_REGISTRY/vm/drbd9-tests/$BASE_IMAGE:latest
-done
+	for BASE_IMAGE in $(rq -t < virter/vms.toml | jq -r '.vms[] | .base_image'); do
+		virter image pull $BASE_IMAGE $LINBIT_DOCKER_REGISTRY/vm/drbd9-tests/$BASE_IMAGE:latest
+	done
+fi
 
 echo "=== Run vmshed with extra args '${extra_args[*]}'" >&2
 

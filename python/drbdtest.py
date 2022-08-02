@@ -1183,10 +1183,14 @@ class Node():
         self.storage_backend = storage_backend
         self.backing_device = backing_device
         self.connections = Connections()
-
-        self.hostname = self.run(['hostname', '-f'], return_stdout=True,
-                                 update_config=False)
         self.read_drbd_version()
+
+        if self.drbd_version_tuple < (9, 0, 0):
+            hostname_cmd = ['hostname']
+        else:
+            hostname_cmd = ['hostname', '-f']
+        self.hostname = self.run(hostname_cmd, return_stdout=True,
+                                 update_config=False)
 
         self.os_id, self.os_version_id = self.run(
                 ['bash', '-c', '. /etc/os-release ; echo $ID ; echo $VERSION_ID'],

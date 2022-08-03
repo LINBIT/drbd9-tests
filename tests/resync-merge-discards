@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2], "vms_ci": null, "vm_tags": ["discard-stat"], "drbd_version_min": "9.2" }
+### vmshed: { "vms_all": [2], "vms_ci": [2], "vm_tags": ["discard-stat"], "drbd_version_min": "9.2" }
 
 # Before DRBD-9.1.8 drbd issued a discard request for every rs-discard-granularity
 # sized block. Ensure it issues only one for every 128MiByte of storage.

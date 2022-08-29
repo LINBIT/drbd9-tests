@@ -355,7 +355,6 @@ class Nodes(Collection):
         #self.run(['bash', '-c', 'drbdadm up all -v | grep -v " connect " | PATH=/lib/drbd:$PATH bash -x'])
         #self.volumes.diskful.event(r'device .* disk:Inconsistent')
         #self.run(['bash', '-c', 'drbdadm up all -v | grep    " connect " | PATH=/lib/drbd:$PATH bash -x'])
-        self.after_up()
 
         if proxy_enable:
             self.drbdadm(['proxy-up', 'all'] + extra_options)
@@ -372,7 +371,6 @@ class Nodes(Collection):
             remove_patterns.append(r'disk:Failed')
         self.resource().forbidden_patterns.difference_update(remove_patterns)
         self.drbdadm(['down', 'all'])
-        self.after_down()
         self.event(r'destroy resource')
         self.resource().forbidden_patterns.update(remove_patterns)
 
@@ -551,15 +549,9 @@ class Connections(Collection):
 
     def connect(self, wait=True, options=[]):
         self.run_drbdadm('connect', 'Connecting', wait, options)
-        for connection in self:
-            node0 = connection.nodes[0]
-            node0.connections.add(connection)
 
     def disconnect(self, wait=True, force=False):
         self.run_drbdadm('disconnect', 'StandAlone', wait, ['--force'] if force else [])
-        for connection in self:
-            node0, node1 = connection.nodes
-            node0.connections.remove(connection)
 
     def run_cmd(self, *args):
         for connection in self:
@@ -1682,14 +1674,6 @@ class Node():
         return peer_devices
     peer_devices = property(get_peer_devices)
 
-    def after_up(self):
-        """ When a node is brought up, it normally connects to all
-        the other nodes. """
-
-        for node in self.resource.nodes:
-            if self is not node:
-                self.connections.add(Connection(self, node))
-
     def adjust(self):
         self.update_config()
         self.drbdadm(['adjust', 'all'])
@@ -1700,11 +1684,6 @@ class Node():
     def up_wait(self, extra_options=[]):
         # A single node doesn't know who to wait for...
         return self.up(extra_options)
-
-    def after_down(self):
-        for node in self.resource.nodes:
-            if self is not node:
-                self.connections.remove(Connection(self, node))
 
     def down(self):
         Nodes([self]).down()
@@ -2079,6 +2058,11 @@ def setup(parser=argparse.ArgumentParser(),
     for node in args.node:
         _node_class(resource, node, args.volume_group, args.storage_backend, args.backing_device,
                     multi_paths=multi_paths, netns=netns)
+
+    for node0 in resource.nodes:
+        for node1 in resource.nodes:
+            if node0 != node1:
+                node0.connections.add(Connection(node0, node1))
 
     if args.vconsole:
         for node in args.node:

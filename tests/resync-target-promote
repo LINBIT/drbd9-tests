@@ -31,7 +31,6 @@ source_n.volumes.write(size='100%', bs='64K')
 source_n.secondary()
 
 resource.nodes.adjust()
-resource.nodes.after_up()
 
 source_pds = resource.peer_devices.from_node(source_n)
 target_pds = resource.peer_devices.to_node(source_n)

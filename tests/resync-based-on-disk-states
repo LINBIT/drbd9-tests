@@ -11,7 +11,7 @@
 # This was broken up until (including) drbd-9.0.27
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 resource = drbdtest.setup(nodes=3)
 resource.add_disk('10M')
@@ -25,32 +25,25 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 node_a, node_b, node_c = resource.nodes
-connection_ab = resource.connections.from_node(node_a).to_node(node_b)[0]
-connection_ca = resource.connections.from_node(node_c).to_node(node_a)[0]
-connection_bc = resource.connections.from_node(node_b).to_node(node_c)[0]
-connection_cb = resource.connections.from_node(node_c).to_node(node_b)[0]
-peer_device_ac = resource.peer_devices.from_node(node_a).to_node(node_c)[0]
-connections_b = resource.connections.from_node(node_b)
 
 def test(method=None, promote=None, src_method=None):
     log('* test variant: method=%s, promote=%s, src_method=%s' %
         (str(method), str(promote), str(src_method)))
 
     node_a.primary()
-    resource.connections.from_node(node_c).disconnect(wait=False)
+    connections(node_c).disconnect(wait=False)
     node_c.disks[0].event('device .* disk:Outdated')
 
-    connections_b.disconnect(force=True)
-    connection_ab.event(r'connection .* connection:Connecting')
+    connections(node_b).disconnect(force=True)
+    connections(node_a, node_b).event(r'connection .* connection:Connecting')
     node_a.down()
     # At this point node_a has UUID_FLAG_PRIMARY_LOST_QUORUM set.
 
-    connections_bc = drbdtest.Connections([connection_bc, connection_cb])
-    connections_bc.connect()
-    connections_bc.event(r'connection .* connection:Connected')
+    connections(node_b, node_c, bidir=True).connect()
+    connections(node_b, node_c, bidir=True).event(r'connection .* connection:Connected')
     node_c.primary()
 
-    connection_bc.disconnect(force=True)
+    connections(node_b, node_c).disconnect(force=True)
     node_c.event(r'quorum:no')
     node_c.secondary()
     # Now node_c has UUID_FLAG_PRIMARY_LOST_QUORUM set as well.
@@ -72,9 +65,9 @@ def test(method=None, promote=None, src_method=None):
     log('* Check resync direction. (method=%s, promote=%s, src_method=%s)' %
         (str(method), str(promote), str(src_method)))
 
-    connection_ca.connect()
-    connection_ca.event(r'connection .* connection:Connected')
-    peer_device_ac.event(r'peer-device .* replication:SyncSource')
+    connections(node_c, node_a).connect()
+    connections(node_c, node_a).event(r'connection .* connection:Connected')
+    peer_devices(node_a, node_c).event(r'peer-device .* replication:SyncSource')
     node_c.disks[0].event('device .* disk:%s' % (dstate_after_resync))
 
     if promote:
@@ -82,8 +75,8 @@ def test(method=None, promote=None, src_method=None):
         node_a.resource_options(['--quorum=2'])
 
     log('* Restore node_b connections.')
-    connections_b.connect()
-    resource.connections.to_node(node_b).event(r'connection .* connection:Connected')
+    connections(node_b).connect()
+    connections(to_node=node_b).event(r'connection .* connection:Connected')
 
 test(method='outdate')
 test(method='invalidate')

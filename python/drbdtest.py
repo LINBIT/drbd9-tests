@@ -2120,6 +2120,61 @@ def setup(parser=argparse.ArgumentParser(),
     return resource
 
 
+def connections(from_node=None, to_node=None, *, from_nodes=None, to_nodes=None, bidir=False):
+    """
+    Construct a Connections object using all combinations of the given from and
+    to nodes. The from nodes can be specified as a single node with from_node,
+    as multiple nodes with from_nodes, or as all nodes by omitting both
+    parameters. Similarly, the to nodes can be specified using to_node or
+    to_nodes. At least one from or to node parameter must be set.
+
+    :param from_node: Node object from which the connections originate.
+    :param to_node: Node object to which the connections terminate.
+    :param from_nodes: Iterable of Node objects from which the connections originate.
+    :param to_nodes: Iterable of Node objects to which the connections terminate.
+    :param bidir: If True, also include the reversed connections.
+    """
+    if from_node and from_nodes:
+        raise RuntimeError('both from_node and from_nodes specified')
+
+    if from_node:
+        from_nodes = [from_node]
+
+    if to_node and to_nodes:
+        raise RuntimeError('both to_node and to_nodes specified')
+
+    if to_node:
+        to_nodes = [to_node]
+
+    # Compare with None rather than checking "truthy" status. The parameters
+    # from_nodes and to_nodes may be empty collections.
+    if from_nodes is None and to_nodes is None:
+        raise RuntimeError('neither from nor to specified')
+
+    if from_nodes is None:
+        from_nodes = to_nodes[0].resource.nodes if to_nodes else []
+
+    if to_nodes is None:
+        to_nodes = from_nodes[0].resource.nodes if from_nodes else []
+
+    cs = Connections()
+
+    for from_n in from_nodes:
+        for to_n in to_nodes:
+            if from_n != to_n:
+                cs.add(Connection(from_n, to_n))
+
+    if bidir:
+        cs.extend([Connection(c.nodes[1], c.nodes[0]) for c in cs])
+
+    return cs
+
+
+def peer_devices(*args, **kwargs):
+    cs = connections(*args, **kwargs)
+    return PeerDevices.from_connections(cs)
+
+
 # is assert(), but with non-conflicting name
 def ensure(want, have, explanation=None):
     if want != have:

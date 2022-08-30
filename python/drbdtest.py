@@ -989,10 +989,10 @@ class Volume(object):
 
     def create_disks(self, size, meta_size=None, *, thin=False):
         self.disk_lv = '{}-disk{}'.format(self.node.resource.name, self.volume)
-        self.disk = DiskTools.create_disk(self.node, self.disk_lv, size, thin=thin)
+        self.disk = self.node.disk_tools.create_disk(self.disk_lv, size, thin=thin)
         if meta_size:
             self.meta_lv = '{}-meta{}'.format(self.node.resource.name, self.volume)
-            self.meta = DiskTools.create_disk(self.node, self.meta_lv, meta_size, thin=thin)
+            self.meta = self.node.disk_tools.create_disk(self.meta_lv, meta_size, thin=thin)
 
     def create_md(self, max_peers):
         if max_peers is None:
@@ -1006,8 +1006,7 @@ class Volume(object):
 
     def resize(self, size):
         # TODO: metadata-resize?
-        self.node.run(['lvresize', '-L', size,
-                       "%s/%s" % (self.node.volume_group, self.disk_lv)])
+        self.node.disk_tools.resize(self.disk, size)
 
     def device(self):
         return '/dev/drbd%d' % self.minor
@@ -1204,10 +1203,11 @@ class ConfigBlock(object):
 
 
 class Node():
-    def __init__(self, resource, name, volume_group,
+    def __init__(self, resource, name, volume_group, storage_backend, backing_device,
                  addr=None, port=7789, multi_paths=None, netns=None):
         self.resource = resource
         self.name = name
+        self.disk_tools = DiskTools(self, storage_backend, backing_device)
         self.netns = None
         try:
             self.addr = addr if addr else socket.gethostbyname(name)
@@ -1321,9 +1321,9 @@ class Node():
             update_config=False)
         for volume in self.volumes:
             if volume.disk is not None:
-                DiskTools.remove_disk(self, volume.disk)
+                self.disk_tools.remove_disk(volume.disk)
             if volume.meta is not None:
-                DiskTools.remove_disk(self, volume.meta)
+                self.disk_tools.remove_disk(volume.meta)
 
     def cleanup_framework(self):
         """
@@ -1982,6 +1982,8 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--lz4', action="store_true")
     parser.add_argument('--zstd', type=int)
     parser.add_argument('--memlimit', type=int)
+    parser.add_argument('--storage-backend', default='lvm', choices=('lvm', 'raw', 'zfs'))
+    parser.add_argument('--backing-device', type=str)
     parser.add_argument('--drbd-version-other')
     args = parser.parse_args()
 
@@ -2071,7 +2073,7 @@ def setup(parser=argparse.ArgumentParser(),
     resource.job = args.job
 
     for node in args.node:
-        _node_class(resource, node, args.volume_group,
+        _node_class(resource, node, args.volume_group, args.storage_backend, args.backing_device,
                     multi_paths=multi_paths, netns=netns)
 
     if args.vconsole:

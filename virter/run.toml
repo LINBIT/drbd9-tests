@@ -2,6 +2,7 @@
 ScratchDisk = "/dev/sda"
 TestSuiteImage = "drbd9-tests"
 RDMA = "" # set to "true" to enable
+Storage = "lvm" # Also possible: raw and zfs
 OutDir = ""
 DrbdVersionOther = ""
 
@@ -10,10 +11,23 @@ DrbdVersionOther = ""
 script = '''
 set -e
 
-if ! vgs scratch; then
-	vgcreate scratch "$SCRATCH_DISK"
-	lvcreate --thin --size 1G scratch/drbdthinpool
-fi
+case "$DRBD_TEST_STORAGE" in
+lvm)
+    if ! vgs scratch; then
+	    vgcreate scratch "$SCRATCH_DISK"
+	    lvcreate --thin --size 1G scratch/drbdthinpool
+    fi
+    ;;
+raw)
+    ;;
+zfs)
+    zpool create scratch $SCRATCH_DISK
+    ;;
+*)
+    echo "Unknown storage backend" 1>&2
+    exit 1
+    ;;
+esac
 
 # Find the default route which must have a /24 address range.
 default_gateway=$(ip route show to 0.0.0.0/0 | awk {'print $3'})
@@ -45,12 +59,15 @@ done
 '''
 [steps.shell.env]
 SCRATCH_DISK = "{{.ScratchDisk}}"
+DRBD_TEST_STORAGE = "{{.Storage}}"
 DRBD_TEST_RDMA = "{{.RDMA}}"
 
 [[steps]]
 [steps.docker]
 image = "{{.TestSuiteImage}}"
 [steps.docker.env]
+SCRATCH_DISK = "{{.ScratchDisk}}"
+DRBD_TEST_STORAGE = "{{.Storage}}"
 DRBD_TEST_RDMA = "{{.RDMA}}"
 DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
 [steps.docker.copy]

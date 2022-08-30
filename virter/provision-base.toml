@@ -173,7 +173,7 @@ DEBIAN_FRONTEND = "noninteractive"
 script = """
 set -e
 if command -v yum > /dev/null; then
-	packages="iptables fio lvm2 make python3"
+	packages="iptables fio lvm2 make python3 gdisk"
 	if ! command -v tc > /dev/null; then
 		packages="$packages iproute-tc"
 	fi
@@ -182,7 +182,7 @@ if command -v yum > /dev/null; then
 elif command -v apt-get > /dev/null; then
 	apt-get update
 	apt-get -y upgrade
-	apt-get -y install fio thin-provisioning-tools make
+	apt-get -y install fio thin-provisioning-tools make zfsutils-linux gdisk
 else
 	echo "Unknown package manager"
 	exit 1

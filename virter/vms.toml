@@ -113,6 +113,7 @@ base_image = "ubuntu-bionic-drbd-k188"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
+vm_tags = [ "zfs" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-bionic/"
@@ -130,7 +131,7 @@ base_image = "ubuntu-focal-drbd-k121"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat" ]
+vm_tags = [ "discard-stat", "zfs" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-focal/"
@@ -148,7 +149,7 @@ base_image = "ubuntu-jammy-drbd-k25"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat" ]
+vm_tags = [ "discard-stat", "zfs" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-jammy/"

@@ -8,4 +8,13 @@ name = "rdma"
 vm_tags = [ "rdma" ]
 variables = { RDMA = "true" }
 
+[[variants]]
+name = "raw"
+variables = { Storage = "raw" }
+
+[[variants]]
+name = "zfs"
+vm_tags = [ "zfs" ]
+variables = { Storage = "zfs" }
+
 [tests]

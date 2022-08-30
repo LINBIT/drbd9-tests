@@ -43,10 +43,12 @@ def connect_and_check_resync(newer_n, older_n):
 
 def disconnect_reverse(writing_n, nodes):
     log('* Disconnect nodes, writing in between')
+    remaining = [writing_n, *nodes]
     for n in reversed(nodes):
         write_on_node(writing_n)
         resource.connections.from_node(n).disconnect()
-        to = resource.connections.to_node(n)
+        remaining.remove(n)
+        to = resource.connections.from_nodes(remaining).to_node(n)
         to.event(r'connection .* connection:TearDown')
         to.event(r'connection .* connection:Connecting')
 
@@ -102,6 +104,13 @@ def write_on_head(nodes):
             backward_c = drbdtest.Connection(nodes[i+1], nodes[i])
             log('* from %s to %s' % (nodes[i], nodes[i+1]))
             assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
+
+def disconnect_chain(nodes):
+    cs = drbdtest.Connections()
+    for node0, node1 in zip(nodes, nodes[1:]):
+        cs.add(drbdtest.Connection(node0, node1))
+        cs.add(drbdtest.Connection(node1, node0))
+    cs.disconnect()
 
 def part_iii(nodes):
     (a,b,c) = nodes
@@ -175,7 +184,7 @@ form_a_chain(resource.nodes)
 write_on_head(resource.nodes)
 
 # Part III
-resource.connections.disconnect()
+disconnect_chain(resource.nodes)
 part_iii(resource.nodes[0:3])
 
 log('* Shut down and clean up.')

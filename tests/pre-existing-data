@@ -83,7 +83,7 @@ def pre_existing_test(write_between_actions = False):
         resource.forbidden_patterns.difference_update([r'out-of-sync:[1-9][0-9]*'])
 
     diskless_node.secondary()
-    cs = resource.connections.to_node(diskless_node);
+    cs = resource.connections.from_node(resource.nodes.diskful[1]).to_node(diskless_node)
     cs.event(r'connection .* role:Secondary')
 
     log('* Shut down and clean up.')

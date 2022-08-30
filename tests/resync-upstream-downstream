@@ -50,7 +50,7 @@ node_a.write(size='1M', bs='1M', offset='1M', end_fsync=1)
 drbdtest.Connection(node_c, node_a).connect()
 wait_sync(node_a, node_c)
 
-resource.connections.from_node(node_c).disconnect()
+drbdtest.Connection(node_c, node_a).disconnect()
 node_a.write(size='1M', bs='1M', end_fsync=1)
 
 resource.connections.from_node(node_b).disconnect()

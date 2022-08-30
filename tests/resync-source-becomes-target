@@ -22,9 +22,9 @@ def write_on_node(node, file_nr, megs):
     node.fio_file('/mnt/1/file%d' % (file_nr) , drbdtest.fio_write_args, size='%dM' % (megs), bs='1M')
     node.run(['umount', '/mnt/1'])
 
-def disconnect_and_write(n, file_nr):
+def disconnect_and_write(n, remaining, file_nr):
     resource.connections.from_node(n).disconnect()
-    to = resource.connections.to_node(n)
+    to = resource.connections.from_nodes(remaining).to_node(n)
     to.event(r'connection .* connection:TearDown')
     to.event(r'connection .* connection:Connecting')
     write_on_node(node_primary, file_nr, megs_per_file)
@@ -38,12 +38,10 @@ def connect_and_check(n1, n2):
 
 def do_test(variant):
     log('* Variant %d of test' % (variant))
-    file_nr = 0
     # Iterate in reverse order so that the data generations are:
     # node_primary > node_s0 > node_s1
-    for n in [node_s1, node_s0]:
-        disconnect_and_write(n, file_nr)
-        file_nr += 1
+    disconnect_and_write(node_s1, [node_primary, node_s0], 0)
+    disconnect_and_write(node_s0, [node_primary], 1)
 
     resource.connections.from_node(node_primary).disconnect()
 

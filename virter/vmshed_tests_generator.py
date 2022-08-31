@@ -80,6 +80,10 @@ def main():
             # Python string formatting is compatible with toml
             print('vm_tags = {}'.format(vm_tags))
 
+        variants = vmshed_config.get('variants')
+        if variants:
+            print('variants = {}'.format(variants))
+
         samevms = vmshed_config.get('samevms')
         if samevms:
             print('samevms = true')

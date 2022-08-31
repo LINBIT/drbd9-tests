@@ -6,18 +6,31 @@
 # the resync
 
 import json
+import os
+
 from python import drbdtest
 from python.drbdtest import log
 
 def data_percent(n):
-    json_str = n.run(['lvs', '--reportformat', 'json'], return_stdout=True)
-    lvs_rep = json.loads(json_str)
+    backend = os.environ.get('DRBD_TEST_STORAGE', 'lvm')
+    if backend == 'lvm':
+        json_str = n.run(['lvs', '--reportformat', 'json'], return_stdout=True, update_config=False)
+        lvs_rep = json.loads(json_str)
 
-    for lvsl in lvs_rep['report'][0]['lv']:
-        if lvsl['lv_name'] == n.volumes[0].disk_lv:
-            return lvsl['data_percent']
+        for lvsl in lvs_rep['report'][0]['lv']:
+            if lvsl['lv_name'] == n.volumes[0].disk_lv:
+                return lvsl['data_percent']
 
-    raise Exception("My volume was not in the lvs output. Kaboom!")
+        raise Exception("My volume was not in the lvs output. Kaboom!")
+    elif backend == 'zfs':
+        dataset = n.volumes[0].disk[len("/dev/zvol/"):]
+        lines = n.run(['zfs', 'get', '-Hp', 'used,volsize', dataset],
+                        return_stdout=True, update_config=False).splitlines()
+        used = int(lines[0].split()[2])
+        volsize = int(lines[1].split()[2])
+        return used / volsize
+    else:
+        raise NotImplementedError('Used percentage not implemented for backend "{}"'.format(backend))
 
 
 resource = drbdtest.setup(nodes=2)

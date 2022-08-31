@@ -1,0 +1,112 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+
+# This is an extended version of the test quorum-suspend-failover-reconnect.
+# Due to a DRBD bug it is not yet stable enough to be included in the set of CI
+# tests, so it cannot replace that test yet.
+#
+# Consider a configuration of
+#
+# on-no-quorum suspend-io;
+# on-no-data-accessible suspend-io;
+# on-suspended-primary-outdated force-secondary;
+# rr-conflict retry-connect;
+#
+# When a primary looses quorum, IO freezes there. Now, in the other
+# partition a node gets promoted to a new primary, and the other
+# partition creates a new data generation.
+#
+# When the IO-frozen primary tries to reconnect to the larger partition, it
+# learns that it no longer has the latest up-to-date data. Therefore it enters
+# the role:Secondary force-io-errors:true state and completes the frozen IO
+# requests with errors. Ideally that causes the application on top to
+# terminate. Once all openers are gone, the resource enters the normal
+# secondary state. (Containerized application terminates, causing the
+# "persistent volume" to be unmounted -> drbd continues as secondary.) After
+# completing the frozen IO requests with errors, it becomes sync target.
+# Everyone is happy about a complete automatic recovery after a primary got
+# isolated.
+
+import time
+
+from python import drbdtest
+from python.drbdtest import log
+from python import busywrite
+from python import datatools
+from python import trafficcontrol
+
+resource = drbdtest.setup(nodes=3)
+resource.resource_options = 'quorum majority; on-no-quorum suspend-io; on-no-data-accessible suspend-io; on-suspended-primary-outdated force-secondary;'
+resource.net_options = 'rr-conflict retry-connect;'
+resource.add_disk('40M')
+resource.up_wait()
+
+node_a, node_b, node_c = resource.nodes
+
+connection_ab = resource.connections.from_node(node_a).to_node(node_b)
+connection_ac = resource.connections.from_node(node_a).to_node(node_c)
+connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+connection_ca = resource.connections.from_node(node_c).to_node(node_a)
+peer_devices_ab = resource.peer_devices.from_node(node_a).to_node(node_b)
+peer_devices_ac = resource.peer_devices.from_node(node_a).to_node(node_c)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+node_a.write(direct=1, size='36M', bs='1M')
+
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+
+a_tc = trafficcontrol.TrafficControl(node_a, resource.nodes)
+# Ensure there are writes pending when connection is lost.
+# This also prevents any full sync within the 30s timeout.
+a_tc.slow_down(node_b, speed='10mbit')
+a_tc.slow_down(node_c, speed='10mbit')
+
+def disconnect_write_after(node_a_writer):
+    connection_ba.disconnect(force=True)
+    connection_ca.disconnect(force=True)
+    node_a.event(r'device .* quorum:no')
+    node_a_writer.start('--size=36M')
+
+def disconnect_write_busy(node_a_writer):
+    node_a_writer.start('--size=36M')
+    # Allow time for writing to start
+    time.sleep(0.5)
+
+    node_b.block_path(node_a, 0)
+    connection_ca.disconnect(force=True, wait=False)
+    node_a.event(r'device .* quorum:no')
+    connection_ba.disconnect(force=True)
+    node_b.unblock_path(node_a, 0)
+
+def test_failover(disconnect_fn):
+    node_a.primary()
+    node_a_writer = busywrite.BusyWrite(node_a.volumes[0])
+
+    disconnect_fn(node_a_writer)
+
+    node_b.primary()
+    node_b.write(direct=1)
+
+    connection_ba.connect()
+
+    node_a_writer.stop()
+    node_a.secondary()
+
+    peer_devices_ab.event(r'peer-device .* replication:SyncTarget')
+    peer_devices_ab.event(r'peer-device .* replication:Established')
+    connection_ca.connect()
+    peer_devices_ac.event(r'peer-device .* replication:Established')
+
+    node_b.secondary()
+
+    datatools.verify_data(resource.nodes, size_mb=36, backing_disk=True)
+
+test_failover(disconnect_write_after)
+test_failover(disconnect_write_busy)
+
+log('* Shut down and clean up.')
+resource.down()
+a_tc.reset()
+resource.teardown()

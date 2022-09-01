@@ -97,7 +97,7 @@ def test_tracking_writes(mode):
 # main
 
 resource = drbdtest.setup(nodes=2)
-resource.add_disk('10M')
+resource.add_disk('12M')
 resource.up_wait()
 
 log('* Make up-to-date data available.')

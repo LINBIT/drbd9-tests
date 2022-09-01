@@ -55,7 +55,7 @@ if len(resource.nodes) > 2:
 first_node = diskful_nodes[0]
 
 # Initialization
-resource.add_disk('%dM' % size, diskful_nodes=diskful_nodes)
+resource.add_disk('%dM' % size, diskful_nodes=diskful_nodes, max_size='%dM' % (size + step * len(diskful_nodes)))
 resource.up_wait()
 
 log('* Make up-to-date data available.')

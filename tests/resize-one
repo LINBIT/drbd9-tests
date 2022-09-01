@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0", "variants": ["tcp", "rdma", "zfs"] }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0", "variants": ["tcp", "rdma", "raw", "zfs"] }
 
 # Test that a diskless DRBD primary node survives if one of the peers is
 # resized and reset. This was broken up to DRBD 9.0.30/9.1.3 inclusive.
@@ -26,7 +26,7 @@ def check_readable(node):
 resource = drbdtest.setup(nodes=3)
 diskful_nodes = resource.nodes[:2]
 # Use external metadata so that some test makes use of this feature
-resource.add_disk('10M', meta_size='4M', diskful_nodes=diskful_nodes)
+resource.add_disk('10M', meta_size='4M', diskful_nodes=diskful_nodes, max_size='20M')
 
 resource.up_wait()
 

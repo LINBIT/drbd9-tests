@@ -670,7 +670,7 @@ class Resource(object):
         self.num_volumes += 1
         return volume
 
-    def add_disk(self, size, meta_size=None, diskful_nodes=None, thin=False,
+    def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, thin=False,
                  max_peers=None):
         """
         Create and add a new disk on some or all nodes.
@@ -681,6 +681,9 @@ class Resource(object):
                            or "None" for internal meta-data
         diskful_nodes   -- nodes which shall have a local lower-level device
                            (defaults to all nodes)
+        max_size        -- maximum we expect this disk to be resized to
+        thin            -- wheter to create a thin provisioned disk
+        max_peers       -- maximum number of peers to reserve metadata for
         """
 
         volume_number = self.next_volume()
@@ -689,7 +692,7 @@ class Resource(object):
         for node in self.nodes:
             if diskful_nodes is None or node in diskful_nodes:
                 diskful_volumes.append(node.add_disk(
-                    volume_number, size, meta_size, thin=thin))
+                    volume_number, size, meta_size=meta_size, max_size=max_size, thin=thin))
             else:
                 node.add_disk(volume_number)
 
@@ -987,9 +990,9 @@ class Volume(object):
     def __repr__(self):
         return '%s:%s' % (self.node, self.volume)
 
-    def create_disks(self, size, meta_size=None, *, thin=False):
+    def create_disks(self, size, meta_size=None, *, max_size=None, thin=False):
         self.disk_lv = '{}-disk{}'.format(self.node.resource.name, self.volume)
-        self.disk = self.node.disk_tools.create_disk(self.disk_lv, size, thin=thin)
+        self.disk = self.node.disk_tools.create_disk(self.disk_lv, size, max_size=max_size, thin=thin)
         if meta_size:
             self.meta_lv = '{}-meta{}'.format(self.node.resource.name, self.volume)
             self.meta = self.node.disk_tools.create_disk(self.meta_lv, meta_size, thin=thin)
@@ -1440,19 +1443,20 @@ class Node():
         self.minors += 1
         return self.minors
 
-    def add_disk(self, volume_number, size=None, meta_size=None, thin=False):
+    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None, thin=False):
         """
         Keyword arguments:
         volume_number -- volume number of the new disk
         size -- size of the data device or None for a diskless node
         meta_size -- size of the meta-data device
-        thin -- whether to create a thin LV
+        max_size -- maximum we expect this disk to be resized to
+        thin -- whether to create a thin provisioned disk
         """
         # FIXME: Volume is not added at the right index (by volume number)
         # here.  Does that matter?
         volume = Volume(self, volume_number)
         if size is not None:
-            volume.create_disks(size, meta_size, thin=thin)
+            volume.create_disks(size, meta_size, max_size=max_size, thin=thin)
         self.disks.append(volume)
         self.config_changed = True
         return volume

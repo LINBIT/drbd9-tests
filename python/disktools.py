@@ -11,7 +11,7 @@ class DiskTools(object):
         self._backend = backend
         self._backing_device = backing_device
 
-    def create_disk(self, name, size, *, thin=False):
+    def create_disk(self, name, size, *, max_size=None, thin=False):
         """ Create a volume. """
         if self._backend == 'lvm':
             if thin:
@@ -27,8 +27,18 @@ class DiskTools(object):
                 raise ValueError('backend "raw" does not support thin provisioning')
 
             guid = uuid.uuid5(uuid.NAMESPACE_URL, name)
+            start = "0"
+            if max_size:
+                # If we expect to grow the volume, ensure we have enough space left over after it by starting at the end
+                # and using the maximum size as negative offset from the end.
+                start = "-" + max_size
             self.node.run(
-                ['sgdisk', '--new=0:0:+{}'.format(size), '--partition-guid=0:{}'.format(guid), self._backing_device],
+                [
+                    'sgdisk',
+                    '--new=0:{}:+{}'.format(start, size),
+                    '--partition-guid=0:{}'.format(guid),
+                    self._backing_device
+                ],
                 update_config=False)
             return '/dev/disk/by-partuuid/{}'.format(guid)
         elif self._backend == 'zfs':

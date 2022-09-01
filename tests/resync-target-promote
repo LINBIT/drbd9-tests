@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0" }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0", "variants": ["tcp", "rdma", "raw", "zfs"] }
 
 # This test simultes the initial full sync from a node that is forced to
 # consider itself as up-to-date.

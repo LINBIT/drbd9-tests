@@ -1,3 +1,4 @@
+import json
 import uuid
 
 
@@ -73,6 +74,22 @@ class DiskTools(object):
         elif self._backend == 'zfs':
             dataset_name = name[len("/dev/zvol/"):]
             self.node.run(['zfs', 'set', 'volsize={}'.format(size), dataset_name], update_config=False)
+        else:
+            raise NotImplementedError('backend "{}" not implemented'.format(self._backend))
+
+    def fill_percentage(self, name):
+        if self._backend == 'lvm':
+            json_str = self.node.run(['lvs', '--reportformat', 'json', name], return_stdout=True, update_config=False)
+            lvs_rep = json.loads(json_str)
+
+            return lvs_rep['report'][0]['lv'][0]['data_percent']
+        elif self._backend == 'zfs':
+            dataset = name[len("/dev/zvol/"):]
+            lines = self.node.run(['zfs', 'get', '-Hp', 'used,volsize', dataset],
+                                  return_stdout=True, update_config=False).splitlines()
+            used = int(lines[0].split()[2])
+            volsize = int(lines[1].split()[2])
+            return used / volsize
         else:
             raise NotImplementedError('backend "{}" not implemented'.format(self._backend))
 

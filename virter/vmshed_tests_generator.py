@@ -1,10 +1,8 @@
 #!/usr/bin/python3
 
 import os
-import subprocess
 import json
 import argparse
-import sys
 
 
 tests_dir = 'tests'
@@ -17,6 +15,8 @@ def main():
             help='which selection of tests to generate (default "all")')
     parser.add_argument('--drbd-version', help='only output tests for this DRBD version')
     parser.add_argument('--drbd-version-other', help='only output tests also supported by this DRBD version')
+    parser.add_argument('--default-variants', default=['tcp', 'rdma'], type=str, nargs='+',
+                        help='which variants to add to tests that do not specify their own')
     args = parser.parse_args()
 
     drbd_version = parse_version(args.drbd_version) if args.drbd_version else None
@@ -80,9 +80,8 @@ def main():
             # Python string formatting is compatible with toml
             print('vm_tags = {}'.format(vm_tags))
 
-        variants = vmshed_config.get('variants')
-        if variants:
-            print('variants = {}'.format(variants))
+        variants = vmshed_config.get('variants', args.default_variants)
+        print('variants = {}'.format(variants))
 
         samevms = vmshed_config.get('samevms')
         if samevms:

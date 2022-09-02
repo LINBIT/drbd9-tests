@@ -80,7 +80,7 @@ class DiskTools(object):
                 self._backing_device,
             ], return_stdout=True, update_config=False)
             self.node.run(['partx', '--update', self._backing_device], update_config=False)
-            self.node.run(['udevadm', 'trigger'], update_config=False)
+            self.node.run(['udevadm', 'trigger', '--settle'], update_config=False)
         elif self._backend == 'zfs':
             dataset_name = name[len("/dev/zvol/"):]
             self.node.run(['zfs', 'set', 'volsize={}'.format(size), dataset_name], update_config=False)

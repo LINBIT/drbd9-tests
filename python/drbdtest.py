@@ -1805,10 +1805,10 @@ class Node():
         return dev
 
     @staticmethod
-    def _iptables_cmd_1(chain, sa, sp, da, dp, jump, add_remove, additional_filter=[]):
+    def _iptables_cmd_1(chain, sa, sp, da, dp, jump, add_remove, udp_tcp, additional_filter=[]):
         r = ['iptables',
              add_remove, chain,
-             "-p", "tcp",
+             '-p', udp_tcp,
              "--source", sa,
              "--destination", da]
         if sp:
@@ -1821,10 +1821,16 @@ class Node():
     def _iptables_cmd(self, node2, jump, path_nr, add_remove, additional_filter=[]):
         """Returns an array of arrays (for .run) to filter the given path."""
         r = []
-        r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],  self.port, node2.addrs[path_nr],       None, jump, add_remove))
-        r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],       None, node2.addrs[path_nr], node2.port, jump, add_remove))
-        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr],       None,  self.addrs[path_nr],  self.port, jump, add_remove))
-        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr], node2.port,  self.addrs[path_nr],       None, jump, add_remove))
+        rdma = self.resource.rdma
+        if rdma:
+            r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr], None, node2.addrs[path_nr], 4791, jump, add_remove, 'udp'))
+            r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr], None,  self.addrs[path_nr], 4791, jump, add_remove, 'udp'))
+            return r
+
+        r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],  self.port, node2.addrs[path_nr],       None, jump, add_remove, 'tcp'))
+        r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],       None, node2.addrs[path_nr], node2.port, jump, add_remove, 'tcp'))
+        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr],       None,  self.addrs[path_nr],  self.port, jump, add_remove, 'tcp'))
+        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr], node2.port,  self.addrs[path_nr],       None, jump, add_remove, 'tcp'))
         return r
 
     def block_path(self, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
@@ -1850,7 +1856,8 @@ class Node():
             self.unblock_path(n, net_number=net_number, jump_to=jump_to)
 
     def _block_packet_type(self, packet, op, from_node, volume):
-        cmdline = ['iptables', op, 'drbd-test-input', '-p', 'tcp']
+        cmdline = ['iptables', op, 'drbd-test-input', '-p']
+        cmdline.append('udp' if self.resource.rdma else 'tcp')
         if from_node is not None:
             cmdline += ['-s', from_node.addrs[0]]
         cmdline += [ '-m', 'string', '--algo', 'bm', '--from', '0',

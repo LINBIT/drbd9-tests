@@ -19,6 +19,7 @@ class DiskTools(object):
             else:
                 lvcreate_args = ['--size', str(size), self.node.volume_group]
 
+            lvcreate_args += ['--wipesignatures', 'y', '--yes']
             self.node.run(['lvcreate', '--name', name] + lvcreate_args, update_config=False)
 
             return '/dev/{}/{}'.format(self.node.volume_group, name)

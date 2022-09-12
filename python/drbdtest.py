@@ -1421,6 +1421,10 @@ class Node():
                 self.run(['rmmod', 'drbd_transport_tcp'], update_config=False)
             except:
                 pass
+            try:
+                self.run(['rmmod', 'drbd_transport_rdma'], update_config=False)
+            except:
+                pass
         try:
             self.run(['rmmod', 'drbd'], update_config=False)
         except:

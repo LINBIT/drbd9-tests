@@ -25,8 +25,7 @@ else:
 drbdtest.log('Deleting a namespace disconnects and destroys all connections assigned to that namespace')
 node_a.netns = None
 node_a.run(['ip', 'netns', 'del', 'drbdtest'])
-node_a.connections.event('connection .* connection:StandAlone')
-node_a.event('destroy path')
+node_a.event('connection .* connection:StandAlone', 'destroy path')
 
 drbdtest.log('Running adjust again should re-establish the connection, now from another namespace')
 # Note: The network device assigned to the namespace got re-homed to the init_net, including ip address/routes, so

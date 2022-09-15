@@ -7,7 +7,7 @@ base_image = "alma-9-drbd-k70"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not available
-vm_tags = [ "discard-stat" ]
+vm_tags = [ "discard-stat", "net-ns" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel9/"
@@ -26,7 +26,7 @@ vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module prints:
 # Warning: Soft-RoCE Transport Driver - This driver has not undergone sufficient testing by Red Hat for this release and therefore cannot be used in production systems.
-vm_tags = [ "discard-stat" ]
+vm_tags = [ "discard-stat", "net-ns" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
@@ -44,7 +44,7 @@ base_image = "alma-8-drbd-k305"
 vcpus = 1
 memory = "1G"
 # No RDMA support. Connection frequently fails with "repost of tx_desc failed! -104".
-vm_tags = [ "discard-stat" ]
+vm_tags = [ "discard-stat", "net-ns" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
@@ -61,7 +61,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 base_image = "alma-8-drbd-k147"
 vcpus = 1
 memory = "1G"
-vm_tags = [ "discard-stat", "rdma" ]
+vm_tags = [ "discard-stat", "rdma", "net-ns" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
@@ -131,7 +131,7 @@ base_image = "ubuntu-focal-drbd-k121"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat", "zfs" ]
+vm_tags = [ "discard-stat", "zfs", "net-ns" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-focal/"
@@ -149,7 +149,7 @@ base_image = "ubuntu-jammy-drbd-k25"
 vcpus = 1
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat", "zfs" ]
+vm_tags = [ "discard-stat", "zfs", "net-ns" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-jammy/"

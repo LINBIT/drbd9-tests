@@ -1,0 +1,44 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.0" }
+
+# Test busy IO with protocol A. This caused crashes with DRBD 9.1.9.
+# In order to reproduce the crashes, the first node must have at least 2 CPUs.
+
+import time
+
+from python import drbdtest
+from python.drbdtest import log
+from python import busywrite
+from python import datatools
+
+
+resource = drbdtest.setup(nodes=2)
+writing_n, target_n = resource.nodes
+target_writing_c = drbdtest.Connection(target_n, writing_n)
+resource.disk_options = 'c-min-rate 0;'
+resource.net_options = 'protocol A;'
+resource.add_disk('40M')
+resource.up_wait()
+
+log('* Allow nodes to sync up')
+writing_n.primary(force=True)
+target_writing_c.event(r'peer-device .* replication:SyncTarget')
+target_writing_c.event(r'peer-device .* replication:Established')
+writing_n.secondary()
+
+for i in range(5):
+    log('* Start writing, iteration {}'.format(i))
+    writing_n.primary()
+    writer = busywrite.BusyWrite(writing_n.volumes[0])
+    writer.start('--size=30M --numjobs=2')
+
+    log('* Let writing run')
+    time.sleep(10.0)
+
+    writer.stop()
+    writing_n.secondary()
+    datatools.verify_data(resource.nodes, size_mb=30, backing_disk=True)
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

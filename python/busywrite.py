@@ -29,7 +29,7 @@ class BusyWrite(object):
 
         # run fio in background
         fio_cmd = ['setsid', 'bash', '-c',
-                'fio --output-format=json --max-jobs=1 --name=test ' +
+                'fio --output-format=json --max-jobs=16 --name=test ' +
                 '--filename={} '.format(self._volume.device()) +
                 '--ioengine=libaio --rw=randwrite --direct=1 --iodepth=32 ' +
                 '--time_based --runtime=600 ' +

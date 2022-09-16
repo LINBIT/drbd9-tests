@@ -1,0 +1,242 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [4], "vms_ci": null, "drbd_version_min": "9.1" }
+# Tests that adding a node to a degraded cluster with quorum correctly
+# causes loss and preservation of quorum.
+import subprocess
+
+from python import drbdtest
+from python.drbdtest import log, connections
+
+
+def log_everywhere(nodes, str):
+    log(str)
+    for node in nodes:
+        node.run(["echo", str])
+
+
+def expect_no_quorum(node):
+    try:
+        node.volumes.write(direct=1)
+    except subprocess.CalledProcessError:
+        pass
+    else:
+        raise RuntimeError('Quorum not lost')
+
+
+resource = drbdtest.setup(nodes=4)
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
+A, B, C, D = resource.nodes
+resource.add_disk('10M', diskful_nodes=[A, B, D])
+resource.remove_node(D)
+resource.up_wait()
+
+log_everywhere(resource.nodes, '* Make up-to-date data available.')
+resource.skip_initial_sync()
+log_everywhere(resource.nodes, '* All nodes connected')
+
+
+def degrade_cluster():
+    """
+    Degrades cluster by having node B be isolated
+    """
+    log_everywhere(resource.nodes, 'Checking current cluster state')
+    # All have quorum
+    A.volumes.write(direct=1)
+    B.volumes.write(direct=1)
+    C.volumes.write(direct=1)
+
+    log_everywhere(resource.nodes, 'Isolating node B')
+    resource.forbidden_patterns.difference_update([
+        r'connection:NetworkFailure',
+        r'connection:BrokenPipe',
+        r'connection:Timeout'
+    ])
+
+    connections_to_cut = connections(to_node=B)
+    connections_to_cut.block()
+
+    connections_witness = connections(from_node=B)
+    connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|Timeout)')
+
+    A.volumes.write(direct=1)
+    C.volumes.write(direct=1)
+    log_everywhere([A, C], '* Nodes A & C still have quorum')
+
+    expect_no_quorum(B)
+    log_everywhere([B], '* Isolated node B lost quorum')
+
+
+def reset(to_unblock):
+    """
+    Resets the cluster to it's 3 node, all connected state
+    """
+    log_everywhere(resource.nodes, 'Resetting cluster state')
+    always_blocked = connections(to_node=B, from_nodes=[A, B, C])
+    all_blocked = always_blocked.extend(to_unblock)
+    all_blocked.unblock()
+    all_blocked.event(r'connection .* connection:Connected')
+
+    resource.down()
+    resource.nodes.remove(D)
+    resource.nodes.get_diskful().drbdadm(['forget-peer', '{}:{}'.format(resource.name, D.name)])
+
+    if D.volumes[0].disk:
+        D.volumes[0].create_md(max_peers=3)
+
+    resource.touch_config()
+    resource.nodes.adjust()
+    resource.nodes.event(r'quorum:yes')
+
+def test_1():
+    r"""
+    Adding a new diskful should lead to temporary quorum loss, until A can establish a connection to the new node D.
+    This is because B and D could have already formed a partition, which would gain quorum based on the fact that
+    they have the majority of disks.
+    A - X - B
+    | \   / |
+    |  -X-  X
+    | /   \ |
+    C - X - D
+    """
+    log_everywhere(resource.nodes, 'Test 1')
+    degrade_cluster()
+
+    resource.add_node(D)
+    log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
+
+    blocked = connections(to_node=B, from_node=D)
+    blocked.block()
+    resource.nodes.adjust()
+
+    A.event(r'quorum:no')
+    C.event(r'quorum:no')
+    log_everywhere([A, C], '* Nodes A & C temporarily lose quorum')
+    A.event(r'quorum:yes')
+    C.event(r'quorum:yes')
+    D.event(r'quorum:yes')
+    A.volumes.write(direct=1)
+    C.volumes.write(direct=1)
+    D.volumes.write(direct=1)
+    log_everywhere([A, C], '* Nodes A, C & D gain quorum')
+
+    expect_no_quorum(B)
+    log_everywhere([B], '* Node B is still isolated')
+
+    reset(blocked)
+
+
+def test_2():
+    r"""
+    Adding a new diskful should lead to quorum loss, until A can establish a connection to the new node D, which we
+    block. Instead, D will connect to B, after which both should gain quorum.
+    A - X - B
+    | \   / |
+    |  -X-  |
+    | /   \ |
+    C - X - D
+    """
+    log_everywhere(resource.nodes, 'Test 2')
+    degrade_cluster()
+
+    resource.add_node(D)
+    log_everywhere(resource.nodes, '* Adding new node D, isolated from A & C, connecting to B')
+
+    blocked = connections(to_node=D, from_nodes=[A, C])
+    blocked.block()
+    resource.nodes.adjust()
+
+    A.event(r'quorum:no')
+    C.event(r'quorum:no')
+    log_everywhere([A, C], '* Nodes A & C lose quorum')
+    B.event(r'quorum:yes')
+    D.event(r'quorum:yes')
+    B.volumes.write(direct=1)
+    D.volumes.write(direct=1)
+    log_everywhere([B, D], '* Nodes B & D gain quorum')
+
+    expect_no_quorum(A)
+    expect_no_quorum(C)
+    log_everywhere([A, C], '* Nodes A & C still lost quorum')
+
+    reset(blocked)
+
+
+def test_3():
+    r"""
+    Adding a new diskless should lead to no quorum loss, as A and C can be sure that D can't be used
+    to form another quorate partition without their participation.
+    A - X - B
+    | \   X |
+    |  ---  X
+    | /   \ |
+    C - - - D
+    """
+    log_everywhere(resource.nodes, 'Test 3')
+    degrade_cluster()
+
+    resource.add_node(D)
+    log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
+
+    blocked = connections(to_node=B, from_node=D)
+    blocked.block()
+    resource.nodes.adjust()
+
+    log_everywhere([D], '* Node D should gain quorum')
+    D.event(r'quorum:yes')
+
+    A.volumes.write(direct=1)
+    C.volumes.write(direct=1)
+    D.volumes.write(direct=1)
+    log_everywhere([A, C], '* Nodes A, C & D have quorum')
+
+    expect_no_quorum(B)
+    log_everywhere([B], '* Node B is still isolated')
+
+    reset(blocked)
+
+
+def test_4():
+    r"""
+    Adding a new diskless should lead to no quorum loss, as A and C can be sure that D can't be used
+    to form another quorate partition without their participation.
+    A - X - B
+    | \   / |
+    |  -X-  |
+    | /   \ |
+    C - X - D
+    """
+    log_everywhere(resource.nodes, 'Test 4')
+    degrade_cluster()
+
+    resource.add_node(D)
+    log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
+
+    blocked = connections(to_node=D, from_nodes=[A, C])
+    blocked.block()
+    resource.nodes.adjust()
+
+    A.volumes.write(direct=1)
+    C.volumes.write(direct=1)
+    log_everywhere([A, C], '* Nodes A, C have quorum')
+
+    log_everywhere([D], '* Node D should not gain quorum')
+
+    expect_no_quorum(B)
+    expect_no_quorum(D)
+    log_everywhere([B], '* Node B, D are isolated')
+
+    reset(blocked)
+
+
+test_1()
+test_2()
+
+D.disk_tools.remove_disk(D.volumes[0].disk)
+D.volumes[0].disk = None
+
+test_3()
+test_4()
+
+resource.down()
+resource.teardown()

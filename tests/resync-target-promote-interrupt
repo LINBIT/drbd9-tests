@@ -2,7 +2,7 @@
 ### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 
 resource = drbdtest.setup(nodes=3)

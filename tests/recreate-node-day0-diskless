@@ -8,7 +8,7 @@
 # Only 2 of the 3 nodes have a disk.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(nodes=3)

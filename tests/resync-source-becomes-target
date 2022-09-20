@@ -12,7 +12,7 @@
 # completed
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 def write_on_node(node, file_nr, megs):
     dev_name = node.volumes[0].device()

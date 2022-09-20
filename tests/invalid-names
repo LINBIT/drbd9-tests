@@ -10,7 +10,7 @@
 #    "drbdsetup events2" or similar.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
 def up_expect_fail(resource):

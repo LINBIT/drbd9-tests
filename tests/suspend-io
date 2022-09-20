@@ -8,7 +8,7 @@
 # This was broken since drbd-9.0.15 until 9.0.32 and 9.1.5
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 import time
 
 resource = drbdtest.setup(nodes=2)

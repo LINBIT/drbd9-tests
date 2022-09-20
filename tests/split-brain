@@ -6,7 +6,7 @@
 # Up to (including) 9.0.25 it often detecteds split-brain only on one node
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 RUNS=10
 resource = drbdtest.setup(nodes=2)

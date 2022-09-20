@@ -27,7 +27,7 @@
 # the outdated data on node C.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 resource = drbdtest.setup(nodes=3)
 resource.disk_options = 'c-max-rate 512K;'

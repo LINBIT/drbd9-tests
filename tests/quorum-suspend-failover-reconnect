@@ -24,7 +24,7 @@
 # automatic recovery after a primary got isolated.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 def write_on_node(node):
     v = node.volumes[0]

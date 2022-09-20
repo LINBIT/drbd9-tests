@@ -8,7 +8,7 @@ import time
 import random
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 # Randomized testing. This test performs randomly chosen state changes and
 # checks whether anything breaks.

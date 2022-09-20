@@ -6,7 +6,7 @@
 # noticed the absence of the peer).
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 READ_ONLY = '<'
 READ_WRITE = '>'

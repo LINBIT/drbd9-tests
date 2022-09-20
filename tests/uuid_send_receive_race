@@ -12,7 +12,7 @@
 # replication:WFBitMapS and the other end in eplication:Established
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 import os
 
 def my_log(str):

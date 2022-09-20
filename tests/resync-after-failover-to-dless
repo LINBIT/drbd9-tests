@@ -11,7 +11,7 @@
 # storage node.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 import time
 
 resource = drbdtest.setup(nodes=3)

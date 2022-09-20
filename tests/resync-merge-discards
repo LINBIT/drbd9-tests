@@ -29,7 +29,7 @@
 
 import os
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 from python import datatools
 
 def number_of_discards(node, vol):

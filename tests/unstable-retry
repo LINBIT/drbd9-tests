@@ -7,7 +7,7 @@
 # 9.0.30/9.1.3 inclusive.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 resource = drbdtest.setup(nodes=4)
 resource.disk_options = 'c-max-rate 4M;'

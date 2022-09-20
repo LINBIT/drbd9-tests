@@ -11,7 +11,7 @@ import re
 import time
 from operator import attrgetter
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 def do_test(resource):
     [node_a, node_b, node_c] = list(resource.nodes)

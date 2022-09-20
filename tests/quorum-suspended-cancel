@@ -23,7 +23,7 @@
 # transfer lock and cancel it with an io error.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 import time
 
 def write_on_node(node):

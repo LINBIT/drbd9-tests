@@ -21,7 +21,7 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 def do_verify(node_source, node_target):
     node_source.drbdadm(['verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])

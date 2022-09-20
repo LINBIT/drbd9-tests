@@ -4,7 +4,7 @@
 # Pass this script a host name to use as the test node.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 import re
 import time
 

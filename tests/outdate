@@ -4,7 +4,7 @@
 # Pass this script a list of host names to use as the test nodes.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(min_nodes=3, max_nodes=5)

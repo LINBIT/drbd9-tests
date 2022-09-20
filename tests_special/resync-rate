@@ -3,7 +3,7 @@
 import time
 import json
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 from python import trafficcontrol
 
 MEGS = 512

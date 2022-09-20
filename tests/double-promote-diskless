@@ -7,7 +7,7 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
     def connect_ca():

@@ -16,7 +16,7 @@
 # 4) Slowly but surely, the resync should finish in finite time.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 from python import busywrite
 import time
 

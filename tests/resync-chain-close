@@ -8,7 +8,7 @@
 # was used, resulting in skipped sectors.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 from python import datatools
 
 resource = drbdtest.setup(nodes=3)

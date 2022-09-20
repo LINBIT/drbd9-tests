@@ -9,7 +9,7 @@
 # after such an event. Up to version (including) 9.0.24.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 MB = 1024*1024
 

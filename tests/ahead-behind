@@ -2,7 +2,7 @@
 ### vmshed: { "vms_all": [2], "vms_ci": [2], "drbd_version_min": "8.4" }
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 from python import trafficcontrol
 
 resource = drbdtest.setup(nodes=2)

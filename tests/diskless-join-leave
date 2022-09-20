@@ -7,7 +7,7 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 resource = drbdtest.setup(nodes=4)
 primary_n, other_n, late_diskless_n, early_diskless_n = resource.nodes

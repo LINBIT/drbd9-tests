@@ -7,7 +7,7 @@
 # This should result in an another downstream resync.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 def connect_and_check(n1, n2):
     cs = drbdtest.Connections()

@@ -4,7 +4,7 @@
 # Tests that we sync after reverting to a snapshot.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log, peer_devices
 
 resource = drbdtest.setup(nodes=2)
 node_primary, node_secondary = resource.nodes

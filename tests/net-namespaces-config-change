@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2], "vms_ci": null, "vm_tags": ["net-ns"], "drbd_version_min": "9.2", "networks": [{"dhcp": true}] }
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2", "networks": [{"dhcp": true}] }
 # Tests DRBD when called from different network namespace, or when namespaces are deleted.
 import subprocess
 
@@ -28,8 +28,9 @@ node_a.run(['ip', 'netns', 'del', 'drbdtest'])
 node_a.event('connection .* connection:StandAlone', 'destroy path')
 
 drbdtest.log('Running adjust again should re-establish the connection, now from another namespace')
-# Note: The network device assigned to the namespace got re-homed to the init_net, including ip address/routes, so
-#       no extra set up necessary.
+# Ensure the netdev + addresses where all moved to the initial namespace as expected
+node_a.ensure_netdev()
+
 node_a.adjust()
 resource.connections.event(r'connection .* connection:Connected')
 

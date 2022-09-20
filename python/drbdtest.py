@@ -1208,41 +1208,41 @@ class Node():
         log("node {} is running '{}' version '{}'".format(name, self.os_id, self.os_version_id))
 
         self.addrs = [self.addr]
+        self.netdevs = {}
+
+        addresses = self.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True, update_config=False)
+        log("got all addresses %s", addresses)
+        for line in addresses.splitlines():
+            m = re.search(r'^\s*\d+:\s+(\w+)\s+inet\s+([\d\.]+)/(\d+)', line)
+            if not m:
+                continue
+            devname = m.group(1)
+            addr = m.group(2)
+            prefix = m.group(3)
+            if addr == "127.0.0.1" or addr == self.addr:
+                continue
+
+            self.netdevs[devname] = {
+                'address': addr,
+                'prefix': prefix,
+            }
+
         if multi_paths:
-            addresses = self.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True, update_config=False)
-            log("got all addresses %s", addresses)
-            for line in addresses.splitlines():
-                m = re.search(r'^\s*\d+:\s+\w+\s+inet\s+([\d\.]+)/\d+', line)
-                if not m:
-                    continue
-                addr = m.group(1)
-                if addr == "127.0.0.1" or addr in self.addrs:
-                    continue
-
-                self.addrs.append(addr)
-
-            if len(self.addrs) <= 1:
+            if not self.netdevs:
                 raise RuntimeError("%s has no additional address", self)
 
+            log("got all addresses %s", addresses)
+            for address_info in self.netdevs.values():
+                self.addrs.append(address_info['address'])
+
         if netns:
+            if not self.netdevs:
+                raise RuntimeError("%s is missing additional netdevs to namespace", self)
+
             self.addrs = []
             self.run(['ip', 'netns', 'add', netns], update_config=False)
-            addresses = self.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True, update_config=False)
-            log("got all addresses %s", addresses)
-            for line in addresses.splitlines():
-                m = re.search(r'^\s*\d+:\s+(\w+)\s+inet\s+([\d\.]+)/(\d+)', line)
-                if not m:
-                    continue
-                devname = m.group(1)
-                addr = m.group(2)
-                prefix = m.group(3)
-                if addr == "127.0.0.1" or addr == self.addr:
-                    continue
-
-                self.run(['ip', 'link', 'set', 'dev', devname, 'netns', netns], update_config=False)
-                self.run(['ip', '-netns', netns, 'addr', 'add', '{}/{}'.format(addr, prefix), 'dev', devname], update_config=False)
-                self.run(['ip', '-netns', netns, 'link', 'set', 'dev', devname, 'up'], update_config=False)
-                self.addrs.append(addr)
+            for address_info in self.netdevs.values():
+                self.addrs.append(address_info['address'])
 
             if len(self.addrs) < 1:
                 raise RuntimeError("%s has namespaced address", self)
@@ -1256,6 +1256,8 @@ class Node():
 
             # From now on, all run() commands run in <netns> namespace, unless explicitly excluded
             self.netns = netns
+            # Now ensure all netdevs are moved to the right namespace
+            self.ensure_netdev(netns=netns)
 
         self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'], update_config=False)
         self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'], update_config=False)
@@ -1272,6 +1274,28 @@ class Node():
 
         # Ensure that added nodes will be reflected in the DRBD configuration file.
         self.config_changed = True
+
+    def ensure_netdev(self, netns=None):
+        """
+        Ensure that all initially configured netdevs are online and addresses are configured.
+
+        Some older distributions drop this information while moving between namespaces.
+        """
+        for devname, address_info in self.netdevs.items():
+            base = ['ip']
+            if netns:
+                self.run(['ip', 'link', 'set', 'dev', devname, 'netns', netns], update_config=False, ignore_netns=True)
+                base = ['ip', '-netns', netns]
+
+            try:
+                self.run(base + [
+                    'addr', 'add', '{}/{}'.format(address_info['address'], address_info['prefix']), 'dev', devname
+                ], update_config=False, ignore_netns=True)
+            except CalledProcessError:
+                # The command fails if the address is already configured
+                pass
+
+            self.run(base + ['link', 'set', 'dev', devname, 'up'], update_config=False, ignore_netns=True)
 
     def get_drbd_version(self):
         self.run(['bash', '-c', '[ -e /proc/drbd ] || modprobe drbd'], update_config=False)

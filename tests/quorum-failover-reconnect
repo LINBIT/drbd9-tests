@@ -18,9 +18,9 @@ resource.add_disk('10M')
 resource.up_wait()
 
 node_p1, node_p2, node_s = resource.nodes
-bidir_p1_p2 = node_p1.bidir_connections_to_node(node_p2)
-bidir_p1_s = node_p1.bidir_connections_to_node(node_s)
-bidir_p2_s = node_p2.bidir_connections_to_node(node_s)
+bidir_p1_p2 = connections(node_p1, node_p2, bidir=True)
+bidir_p1_s = connections(node_p1, node_s, bidir=True)
+bidir_p2_s = connections(node_p2, node_s, bidir=True)
 peer_devices_s_p2 = node_s.volumes.peer_devices.to_node(node_p2)
 peer_devices_p1_s = node_p1.volumes.peer_devices.to_node(node_s)
 

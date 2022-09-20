@@ -16,12 +16,12 @@ resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.add_disk('10M', diskful_nodes=[node_b, node_c])
 resource.disk_options = 'c-max-rate 2M;'
 
-connection_a_b = node_a.connections_to_node(node_b)
-connection_b_c = node_b.connections_to_node(node_c)
-connection_c_b = node_c.connections_to_node(node_b)
-bidir_a_b = node_a.bidir_connections_to_node(node_b)
-bidir_a_c = node_a.bidir_connections_to_node(node_c)
-bidir_b_c = node_b.bidir_connections_to_node(node_c)
+connection_a_b = connections(node_a, node_b)
+connection_b_c = connections(node_b, node_c)
+connection_c_b = connections(node_c, node_b)
+bidir_a_b = connections(node_a, node_b, bidir=True)
+bidir_a_c = connections(node_a, node_c, bidir=True)
+bidir_b_c = connections(node_b, node_c, bidir=True)
 peer_device_b_c = drbdtest.PeerDevice(connection_b_c[0], resource.volumes[0])
 peer_device_c_b = drbdtest.PeerDevice(connection_c_b[0], resource.volumes[0])
 

@@ -26,8 +26,7 @@ resource.connections.to_node(primary_n).event(r'connection .* role:Primary')
 
 log('* Preparing existing nodes for new diskless')
 early_set = drbdtest.Nodes(resource.nodes)
-ld_connections = early_set.connections_to_node(late_diskless_n)
-ld_connections.extend(early_set.connections_from_node(late_diskless_n))
+ld_connections = connections(late_diskless_n, to_nodes=early_set, bidir=True)
 resource.add_node(late_diskless_n)
 early_set.adjust()
 
@@ -48,7 +47,7 @@ early_diskless_n.down()
 # That is an other path in the DRBD code...
 log('* Removing the later joined diskless again (%s)' % (late_diskless_n.name))
 late_diskless_n.down();
-l_connections = diskful_nodes.connections_to_node(late_diskless_n)
+l_connections = connections(from_nodes=diskful_nodes, to_node=late_diskless_n)
 l_connections.event(r'connection .* connection:Connecting')
 
 log('* Shut down and clean up.')

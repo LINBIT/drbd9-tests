@@ -144,7 +144,7 @@ while len(partition_b) < len(partition_a):
         r'connection:Timeout'
     ])
 
-    connections_new = partition_b.bidir_connections_to_node(moving)
+    connections_new = connections(from_nodes=partition_b, to_node=moving, bidir=True)
     connections_new.connect()
 
     partition_b.add(moving)

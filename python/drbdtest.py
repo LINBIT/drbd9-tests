@@ -409,24 +409,6 @@ class Nodes(Collection):
         self.drbdadm(['new-path', 'all'])
         self.connections.event(r'create path')
 
-    def bidir_connections_to_node(self, new_node):
-        cs = Connections()
-        for n in self.members:
-            cs.bidir_add(new_node, n)
-        return cs
-
-    def connections_to_node(self, new_node):
-        cs = Connections()
-        for n in self.members:
-            cs.add(Connection(n, new_node))
-        return cs
-
-    def connections_from_node(self, new_node):
-        cs = Connections()
-        for n in self.members:
-            cs.add(Connection(new_node, n))
-        return cs
-
     def get_diskful(self):
         """ Return nodes that have at least one disk. """
         return Nodes([node for node in self
@@ -730,12 +712,6 @@ class Resource(object):
     def handlers(self, value):
         self._handlers = value
         self.touch_config()
-
-    def peer_devices_to_peer(self, peer):
-        pds = self.peer_devices
-        for pd in pds:
-            log("** %s to %s" % pd.connection.nodes)
-        return PeerDevices([pd for pd in pds if peer == pd.connection.nodes[1]])
 
     def cleanup(self):
         if not skip_cleanup:
@@ -1715,12 +1691,6 @@ class Node():
 
     def new_path(self):
         Nodes([self]).new_path()
-
-    def bidir_connections_to_node(self, new_node):
-        return Nodes([self]).bidir_connections_to_node(new_node)
-
-    def connections_to_node(self, new_node):
-        return Nodes([self]).connections_to_node(new_node)
 
     def event(self, *args, **kwargs):
         return Nodes([self]).event(*args, **kwargs)

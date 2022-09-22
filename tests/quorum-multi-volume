@@ -52,8 +52,7 @@ primary_n.primary()
 
 resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
 resource.forbidden_patterns.remove(r'connection:Timeout') # network failure is expected
-c = primary_n.connections.to_node(resource.nodes[1])
-c.block()
+connections(primary_n).block()
 
 test_io_errors()
 

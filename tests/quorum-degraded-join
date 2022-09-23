@@ -53,11 +53,9 @@ def degrade_cluster():
         r'connection:Timeout'
     ])
 
-    connections_to_cut = connections(to_node=B)
-    connections_to_cut.block()
+    connections(to_node=B).block()
 
-    connections_witness = connections(from_node=B)
-    connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|Timeout)')
+    connections(B).event(r'connection .* connection:(BrokenPipe|NetworkFailure|Timeout)')
 
     A.volumes.write(direct=1)
     C.volumes.write(direct=1)
@@ -72,7 +70,7 @@ def reset(to_unblock):
     Resets the cluster to it's 3 node, all connected state
     """
     log_everywhere(resource.nodes, 'Resetting cluster state')
-    always_blocked = connections(to_node=B, from_nodes=[A, B, C])
+    always_blocked = connections(from_nodes=[A, B, C], to_node=B)
     all_blocked = always_blocked.extend(to_unblock)
     all_blocked.unblock()
     all_blocked.event(r'connection .* connection:Connected')
@@ -105,7 +103,7 @@ def test_1():
     resource.add_node(D)
     log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
 
-    blocked = connections(to_node=B, from_node=D)
+    blocked = connections(D, B)
     blocked.block()
     resource.nodes.adjust()
 
@@ -142,7 +140,7 @@ def test_2():
     resource.add_node(D)
     log_everywhere(resource.nodes, '* Adding new node D, isolated from A & C, connecting to B')
 
-    blocked = connections(to_node=D, from_nodes=[A, C])
+    blocked = connections(from_nodes=[A, C], to_node=D)
     blocked.block()
     resource.nodes.adjust()
 
@@ -178,7 +176,7 @@ def test_3():
     resource.add_node(D)
     log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
 
-    blocked = connections(to_node=B, from_node=D)
+    blocked = connections(D, B)
     blocked.block()
     resource.nodes.adjust()
 
@@ -212,7 +210,7 @@ def test_4():
     resource.add_node(D)
     log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
 
-    blocked = connections(to_node=D, from_nodes=[A, C])
+    blocked = connections(from_nodes=[A, C], to_node=D)
     blocked.block()
     resource.nodes.adjust()
 

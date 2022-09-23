@@ -30,8 +30,8 @@ def disconnect_and_write(n, remaining, file_nr):
     write_on_node(node_primary, file_nr, megs_per_file)
 
 def connect_and_check(n1, n2):
-    forward_c = drbdtest.Connection(n1, n2)
-    backward_c = drbdtest.Connection(n2, n1)
+    forward_c = connections(n1, n2)
+    backward_c = connections(n2, n1)
     cs = drbdtest.Connections([forward_c, backward_c])
     cs.connect()
     cs.event(r'connection .* connection:Connected')
@@ -47,8 +47,8 @@ def do_test(variant):
 
     log('* Start downstream resync.')
 
-    connection_s1_s0 = drbdtest.Connection(node_s1, node_s0)
-    connection_s0_s1 = drbdtest.Connection(node_s0, node_s1)
+    connection_s1_s0 = connections(node_s1, node_s0)
+    connection_s0_s1 = connections(node_s0, node_s1)
     cs = drbdtest.Connections([connection_s1_s0, connection_s0_s1])
     pds = drbdtest.PeerDevices.from_connections(cs)
     if variant == 1:
@@ -74,7 +74,7 @@ def do_test(variant):
 
     connect_and_check(node_primary, node_s0)
 
-    pd_primary_s0 = drbdtest.PeerDevice(drbdtest.Connection(node_primary, node_s0), resource.volumes[0])
+    pd_primary_s0 = peer_devices(node_primary, node_s0)
 
     log('* Wait for upstream resync')
     node_s0.volumes[0].event(r'device .* disk:UpToDate')

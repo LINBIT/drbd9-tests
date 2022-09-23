@@ -37,7 +37,7 @@ node_a.write()
 connections(node_b).disconnect()
 node_a.write()
 
-drbdtest.Connection(node_c, node_a).connect()
+connections(node_c, node_a).connect()
 node_c.volumes.event(r'device .* disk:UpToDate')
 
 connections_bc = drbdtest.Connections()
@@ -49,7 +49,7 @@ connection_bc = connections(node_b, node_c)
 peer_devices_bc = drbdtest.PeerDevices.from_connections(connection_bc)
 peer_devices_bc.event(r'peer-device .* replication:SyncTarget')
 
-connection_ba = drbdtest.Connection(node_b, node_a)
+connection_ba = connections(node_b, node_a)
 connection_ba.connect();
 connection_ba.event(r'connection .* connection:Connected')
 

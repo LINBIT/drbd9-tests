@@ -21,8 +21,8 @@ def write_on_node(node):
 
 def wait_backward_propagating_resyncs(nodes):
     for i in range(len(nodes) - 1, 0):
-        rspd = drbdtest.PeerDevice(drbdtest.Connection(nodes[i], nodes[i-1]), nodes[i].volumes[0])
-        rtpd = drbdtest.PeerDevice(drbdtest.Connection(nodes[i-1], nodes[i]), nodes[i].volumes[0])
+        rspd = peer_devices(nodes[i], nodes[i-1])
+        rtpd = peer_devices(nodes[i-1], nodes[i])
         rspd.event(r'peer-device .* replication:SyncSource')
         rspd.event(r'peer-device .* replication:Established')
         rtpd.event(r'peer-device .* replication:SyncTarget')
@@ -45,7 +45,7 @@ def outdate_test(write_between_actions = False):
     cs.event(r'connection .* connection:Connected')
 
     pds = drbdtest.PeerDevices()
-    pds.add(drbdtest.PeerDevice(drbdtest.Connection(first_node, last_node), last_node.volumes[0]))
+    pds.extend(peer_devices(first_node, last_node))
     last_node.volumes[0].event(r'device .* disk:UpToDate')
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
@@ -69,7 +69,7 @@ def outdate_test(write_between_actions = False):
 
     log("* See if node becomes Outdated when disconnecting from the primary.")
     first_to_last = drbdtest.Connections()
-    first_to_last.add(drbdtest.Connection(first_node, last_node))
+    first_to_last.extend(connections(first_node, last_node))
     first_to_last.disconnect(wait=False)
     last_node.volumes[0].event(r'device .* disk:Outdated')
     if write_between_actions:
@@ -81,7 +81,7 @@ def outdate_test(write_between_actions = False):
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
     last_to_first = drbdtest.Connections()
-    last_to_first.add(drbdtest.Connection(last_node, first_node))
+    last_to_first.extend(connections(last_node, first_node))
     last_to_first.disconnect(wait=False)
     last_node.volumes[0].event(r'device .* disk:Outdated')
     if write_between_actions:

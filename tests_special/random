@@ -193,7 +193,7 @@ def step_disconnect(executor, from_index, to_index):
 
 def disconnect(from_index, to_index):
     random_node = random_nodes[from_index]
-    drbdtest.Connection(resource.nodes[from_index], resource.nodes[to_index]).disconnect(force=random.choice([False, True]))
+    connections(resource.nodes[from_index], resource.nodes[to_index]).disconnect(force=random.choice([False, True]))
     random_node.connections[to_index].connect_command_state = None
 
 def step_connect(executor, from_index, to_index):
@@ -204,7 +204,7 @@ def step_connect(executor, from_index, to_index):
 
 def connect(from_index, to_index):
     random_node = random_nodes[from_index]
-    drbdtest.Connection(resource.nodes[from_index], resource.nodes[to_index]).connect()
+    connections(resource.nodes[from_index], resource.nodes[to_index]).connect()
     random_node.connections[to_index].connect_command_state = None
 
 def step_wait_connect(executor, from_index, to_index):

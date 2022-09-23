@@ -53,7 +53,7 @@ my_log('* Isolating the primary, while writing at the same time')
 tmp_pri = secondaries_a[0]
 remaining_a = drbdtest.Nodes(secondaries_a)
 remaining_a.remove(tmp_pri)
-tmp_old_pri = drbdtest.Connection(tmp_pri, primary_a)
+tmp_old_pri = connections(tmp_pri, primary_a)
 connections_to_cut = connections(from_nodes=remaining_a, to_node=primary_a)
 connections_witness = connections(primary_a)
 
@@ -163,14 +163,14 @@ if len(partition_b) == len(partition_a):
 
     connections_disconnect = drbdtest.Connections()
     for node in partition_a:
-        connections_disconnect.add(drbdtest.Connection(moving, node))
+        connections_disconnect.extend(connections(moving, node))
     connections_disconnect.disconnect()
 
     connections_new = drbdtest.Connections()
     connections_witness = drbdtest.Connections()
     for node_b in partition_b:
-        connections_new.add(drbdtest.Connection(node_b, moving))
-        connections_witness.add(drbdtest.Connection(moving, node_b))
+        connections_new.extend(connections(node_b, moving))
+        connections_witness.extend(connections(moving, node_b))
 
     connections_new.connect()
     connections_witness.event(r'connection .* connection:Connected')
@@ -192,8 +192,8 @@ connections_new = drbdtest.Connections()
 connections_witness = drbdtest.Connections()
 for node_a in partition_a:
     for node_b in partition_b:
-        connections_new.add(drbdtest.Connection(node_b, node_a))
-        connections_witness.add(drbdtest.Connection(node_a, node_b))
+        connections_new.extend(connections(node_b, node_a))
+        connections_witness.extend(connections(node_a, node_b))
 
 resource.forbidden_patterns.difference_update([
     r'connection:BrokenPipe',

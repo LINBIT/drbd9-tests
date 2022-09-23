@@ -34,8 +34,8 @@ def assert_resync_dir(forward_c, backward_c, oos_str):
     backward_pd.event(r'peer-device .* replication:Established')
 
 def connect_and_check_resync(newer_n, older_n):
-    forward_c = drbdtest.Connection(newer_n, older_n)
-    backward_c = drbdtest.Connection(older_n, newer_n)
+    forward_c = connections(newer_n, older_n)
+    backward_c = connections(older_n, newer_n)
     cs = drbdtest.Connections([forward_c, backward_c])
     cs.connect()
     cs.event(r'connection .* connection:Connected')
@@ -60,15 +60,15 @@ def connect_them_oldest_first(nodes):
 def connect_oldest_to_newest(newest_n, nodes):
     log('* Reconnecting the newest with the (former) oldest node of the chain')
     oldest_n = nodes[-1]
-    forward_c = drbdtest.Connection(newest_n, oldest_n)
-    backward_c = drbdtest.Connection(oldest_n, newest_n)
+    forward_c = connections(newest_n, oldest_n)
+    backward_c = connections(oldest_n, newest_n)
     backward_c.connect()
     assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
 
     log('* Verify a "wave" of resyncs going through the chain of nodes')
     for i in range(len(nodes)-1, 0, -1):
-        forward_c = drbdtest.Connection(nodes[i], nodes[i-1])
-        backward_c = drbdtest.Connection(nodes[i-1], nodes[i])
+        forward_c = connections(nodes[i], nodes[i-1])
+        backward_c = connections(nodes[i-1], nodes[i])
         #nodes[i].run(['true', 'mark_from']) # mark in syslog
         #nodes[i-1].run(['true', 'mark_to'])
         log('* from %s to %s' % (nodes[i-1], nodes[i]))
@@ -77,7 +77,7 @@ def connect_oldest_to_newest(newest_n, nodes):
 def form_a_ring(newest_n, nodes):
     log('* Completing the ring, verifying no resync happens')
     end_n = nodes[0]
-    forward_c = drbdtest.Connection(end_n, newest_n)
+    forward_c = connections(end_n, newest_n)
     resource.forbidden_patterns.update([r'replication:SyncSource', r'replication:SyncTarget'])
     forward_c.connect()
     forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
@@ -85,8 +85,8 @@ def form_a_ring(newest_n, nodes):
     resource.forbidden_patterns.difference_update([r'replication:SyncSource', r'replication:SyncTarget'])
 
 def form_a_chain(nodes):
-    forward_c = drbdtest.Connection(nodes[0], nodes[-1])
-    backward_c = drbdtest.Connection(nodes[-1], nodes[0])
+    forward_c = connections(nodes[0], nodes[-1])
+    backward_c = connections(nodes[-1], nodes[0])
     cs = drbdtest.Connections([forward_c, backward_c])
     cs.disconnect()
 
@@ -100,26 +100,26 @@ def write_on_head(nodes):
         write_on_node(head_n)
         log('* Verify a (forward) "wave" of resyncs going through the chain of nodes')
         for i in range(1, len(nodes)-1):
-            forward_c = drbdtest.Connection(nodes[i], nodes[i+1])
-            backward_c = drbdtest.Connection(nodes[i+1], nodes[i])
+            forward_c = connections(nodes[i], nodes[i+1])
+            backward_c = connections(nodes[i+1], nodes[i])
             log('* from %s to %s' % (nodes[i], nodes[i+1]))
             assert_resync_dir(forward_c, backward_c, ' .* out-of-sync:4')
 
 def disconnect_chain(nodes):
     cs = drbdtest.Connections()
     for node0, node1 in zip(nodes, nodes[1:]):
-        cs.add(drbdtest.Connection(node0, node1))
-        cs.add(drbdtest.Connection(node1, node0))
+        cs.extend(connections(node0, node1))
+        cs.extend(connections(node1, node0))
     cs.disconnect()
 
 def part_iii(nodes):
     (a,b,c) = nodes
-    ac = drbdtest.Connection(nodes[0], nodes[2])
-    ca = drbdtest.Connection(nodes[2], nodes[0])
-    ab = drbdtest.Connection(nodes[0], nodes[1])
-    ba = drbdtest.Connection(nodes[1], nodes[0])
-    bc = drbdtest.Connection(nodes[1], nodes[2])
-    cb = drbdtest.Connection(nodes[2], nodes[1])
+    ac = connections(nodes[0], nodes[2])
+    ca = connections(nodes[2], nodes[0])
+    ab = connections(nodes[0], nodes[1])
+    ba = connections(nodes[1], nodes[0])
+    bc = connections(nodes[1], nodes[2])
+    cb = connections(nodes[2], nodes[1])
 
     ac_bidir = drbdtest.Connections([ca, ac])
     ab_bidir = drbdtest.Connections([ab, ba])

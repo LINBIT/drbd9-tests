@@ -184,8 +184,8 @@ def test_case3_promote():
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
     resource.forbidden_patterns.remove(r'connection:Timeout')
 
-    connab = drbdtest.Connection(A, B)
-    connba = drbdtest.Connection(B, A)
+    connab = connections(A, B)
+    connba = connections(B, A)
     connac = connections(A, C)
     connbc = connections(B, C)
 

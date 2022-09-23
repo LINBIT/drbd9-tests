@@ -49,7 +49,7 @@ def pre_existing_test(write_between_actions = False):
     cs.bidir_add(diskless_node, resource.nodes.diskful[1])
     cs.event(r'connection .* connection:Connected')
     pds = drbdtest.PeerDevices()
-    pds.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, resource.nodes.diskful[1]), diskless_node.volumes[0]))
+    pds.extend(peer_devices(diskless_node, resource.nodes.diskful[1]))
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
     log('* Promoting the diskless')
@@ -66,7 +66,7 @@ def pre_existing_test(write_between_actions = False):
     n.drbdadm(["peer-device-options", "all"])
     n.attach()
     cs = drbdtest.Connections()
-    cs.add(drbdtest.Connection(n, resource.nodes.diskful[1]))
+    cs.extend(connections(n, resource.nodes.diskful[1]))
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 

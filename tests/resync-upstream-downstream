@@ -16,10 +16,10 @@ def connect_and_check(n1, n2):
 
 def wait_sync(node_source, node_target):
     pd_source = drbdtest.PeerDevice(
-            drbdtest.Connection(node_source, node_target),
+            connections(node_source, node_target),
             resource.volumes[0])
     pd_target = drbdtest.PeerDevice(
-            drbdtest.Connection(node_target, node_source),
+            connections(node_target, node_source),
             resource.volumes[0])
 
     pd_source.event(r'peer-device .* replication:SyncSource')
@@ -47,10 +47,10 @@ node_a.primary()
 log('* Disconnect and write something so that the initial UUID is no longer current')
 connections(node_c).disconnect()
 node_a.write(size='1M', bs='1M', offset='1M', end_fsync=1)
-drbdtest.Connection(node_c, node_a).connect()
+connections(node_c, node_a).connect()
 wait_sync(node_a, node_c)
 
-drbdtest.Connection(node_c, node_a).disconnect()
+connections(node_c, node_a).disconnect()
 node_a.write(size='1M', bs='1M', end_fsync=1)
 
 connections(node_b).disconnect()

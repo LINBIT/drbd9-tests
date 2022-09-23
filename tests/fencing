@@ -58,7 +58,7 @@ def prepare(description, fencing_mode, handler_exit, test_mode, nodes):
 
 def fencing_disconnect(n1, n2, test_mode):
     n1_to_n2 = drbdtest.Connections()
-    n1_to_n2.add(drbdtest.Connection(n1, n2))
+    n1_to_n2.extend(connections(n1, n2))
 
     if test_mode == "DOWN":
         n1_to_n2.disconnect()
@@ -68,7 +68,7 @@ def fencing_disconnect(n1, n2, test_mode):
         #    r'connection:BrokenPipe'
         #])
         n1_to_n2 = drbdtest.Connections()
-        n1_to_n2.add(drbdtest.Connection(n1, n2))
+        n1_to_n2.extend(connections(n1, n2))
         n1_to_n2.disconnect(force = True)
 
         #resource.sync_events(resource)
@@ -85,9 +85,9 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
     prepare("Promote before disconnect", fencing_mode, handler_exit, test_mode, [n1, n2])
 
     n1_to_n2 = drbdtest.Connections()
-    n1_to_n2.add(drbdtest.Connection(n1, n2))
+    n1_to_n2.extend(connections(n1, n2))
     pds = drbdtest.PeerDevices()
-    pds.add(drbdtest.PeerDevice(drbdtest.Connection(n2, n1), n2.volumes[0]))
+    pds.extend(peer_devices(n2, n1))
 
     n2.primary()
 
@@ -171,13 +171,13 @@ def fencing_test2(fencing_mode, handler_exit, test_mode):
     prepare("Disconnect before promote", fencing_mode, handler_exit, test_mode, [n1, n2])
 
     n1_to_n2 = drbdtest.Connections()
-    n1_to_n2.add(drbdtest.Connection(n1, n2))
+    n1_to_n2.extend(connections(n1, n2))
     pds = drbdtest.PeerDevices()
-    pds.add(drbdtest.PeerDevice(drbdtest.Connection(n2, n1), n2.volumes[0]))
+    pds.extend(peer_devices(n2, n1))
 
     fencing_disconnect(n1, n2, test_mode)
     n2_to_n1 = drbdtest.Connections()
-    n2_to_n1.add(drbdtest.Connection(n2, n1))
+    n2_to_n1.extend(connections(n2, n1))
     n2_to_n1.event(r'connection .* connection:Connecting')
     time.sleep(0.1) # to prevent concurrent state change....
 

@@ -34,11 +34,11 @@ a = resource.nodes[0]
 b = resource.nodes[1]
 c = resource.nodes[2]
 
-a_c = drbdtest.Connection(a, c)
-b_c = drbdtest.Connection(b, c)
+a_c = connections(a, c)
+b_c = connections(b, c)
 to_c = drbdtest.Connections([a_c, b_c])
-c_a = drbdtest.Connection(c, a)
-c_b = drbdtest.Connection(c, b)
+c_a = connections(c, a)
+c_b = connections(c, b)
 from_c = drbdtest.Connections([c_a, c_b])
 
 a_tc = trafficcontrol.TrafficControl(a, resource.nodes)

@@ -70,12 +70,12 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync();
 
 vol = resource.volumes[0]
-other_target_c = drbdtest.Connection(other_n, target_n)
+other_target_c = connections(other_n, target_n)
 other_target_pd = drbdtest.PeerDevice(other_target_c, other_n.volumes[0])
-target_other_c = drbdtest.Connection(target_n, other_n)
+target_other_c = connections(target_n, other_n)
 target_other_pd = drbdtest.PeerDevice(target_other_c, target_n.volumes[0])
-diskless_target_c = drbdtest.Connection(diskless_n, target_n)
-target_diskless_c = drbdtest.Connection(target_n, diskless_n)
+diskless_target_c = connections(diskless_n, target_n)
+target_diskless_c = connections(target_n, diskless_n)
 target_diskless_pd = drbdtest.PeerDevice(target_diskless_c, target_n.volumes[0])
 
 diskless_n.primary()

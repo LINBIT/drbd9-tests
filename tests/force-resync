@@ -23,7 +23,7 @@ resource = drbdtest.setup(nodes=2)
 # create two disks
 A = resource.nodes[0]
 B = resource.nodes[1]
-conn = drbdtest.Connection(A, B)
+conn = connections(A, B)
 resource.add_disk('8M')
 resource.add_disk('8M')
 

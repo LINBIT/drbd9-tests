@@ -120,7 +120,7 @@ first_node.drbdadm(['resize', resource.name])
 rstn = diskful_nodes.difference([first_node])
 pds = drbdtest.PeerDevices()
 for n in rstn:
-    pds.add(drbdtest.PeerDevice(drbdtest.Connection(first_node, n), first_node.volumes[0]))
+    pds.extend(peer_devices(first_node, n))
 pds.event(r'peer-device .* replication:SyncSource')
 pds.event(r'peer-device .* replication:Established')
 rstn.volumes.event(r'device .* disk:Inconsistent')
@@ -170,8 +170,8 @@ if len(resource.nodes.diskless) >= 1:
     two_nodes.up()
 
     pds = drbdtest.PeerDevices()
-    pds.add(drbdtest.PeerDevice(drbdtest.Connection(two_nodes[0], two_nodes[1]), two_nodes[0].volumes[0]))
-    pds.add(drbdtest.PeerDevice(drbdtest.Connection(two_nodes[1], two_nodes[0]), two_nodes[1].volumes[0]))
+    pds.extend(peer_devices(two_nodes[0], two_nodes[1]))
+    pds.extend(peer_devices(two_nodes[1], two_nodes[0]))
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
     # this is part of up_wait, so add it here explicitly:
@@ -191,7 +191,7 @@ if len(resource.nodes.diskless) >= 1:
 
     pds = drbdtest.PeerDevices()
     for n in two_nodes:
-        pds.add(drbdtest.PeerDevice(drbdtest.Connection(diskless_node, n), diskless_node.volumes[0]))
+        pds.extend(peer_devices(diskless_node, n))
     pds.event(r'peer-device .* replication:Established')
     # Unfortunately the BrokenPipe comes in after the Established, so do something in order to
     # see the BrokenPipe...

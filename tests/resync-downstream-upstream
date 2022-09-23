@@ -17,10 +17,10 @@ def connect_and_check(n1, n2):
 
 def wait_sync(node_source, node_target):
     pd_source = drbdtest.PeerDevice(
-            drbdtest.Connection(node_source, node_target),
+            connections(node_source, node_target),
             resource.volumes[0])
     pd_target = drbdtest.PeerDevice(
-            drbdtest.Connection(node_target, node_source),
+            connections(node_target, node_source),
             resource.volumes[0])
 
     pd_source.event(r'peer-device .* replication:SyncSource')

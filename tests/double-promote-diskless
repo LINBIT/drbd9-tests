@@ -11,7 +11,7 @@ from python.drbdtest import connections, log, peer_devices
 
 def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
     def connect_ca():
-        connection_ca = drbdtest.Connection(node_c, node_a)
+        connection_ca = connections(node_c, node_a)
         connection_ca.connect()
         pd = drbdtest.PeerDevice(connection_ca, resource.volumes[0])
         pd.event(r'peer-device .* replication:Established')
@@ -25,8 +25,8 @@ def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
         time.sleep(0.2)
 
     log('* Isolating %s' % (node_c.name))
-    connection_cb = drbdtest.Connection(node_c, node_b)
-    connection_ca = drbdtest.Connection(node_c, node_a)
+    connection_cb = connections(node_c, node_b)
+    connection_ca = connections(node_c, node_a)
     connection_cb.disconnect()
 
     log('* Promoting multiple times on %s' % (node_a.name))

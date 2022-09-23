@@ -15,8 +15,8 @@ from python import trafficcontrol
 
 resource = drbdtest.setup(nodes=3)
 writing_n, target_n, other_n = resource.nodes
-writing_target_c = drbdtest.Connection(writing_n, target_n)
-target_writing_c = drbdtest.Connection(target_n, writing_n)
+writing_target_c = connections(writing_n, target_n)
+target_writing_c = connections(target_n, writing_n)
 writing_tc = trafficcontrol.TrafficControl(writing_n, resource.nodes)
 resource.disk_options = 'c-min-rate 0;'
 resource.net_options = 'protocol A;'

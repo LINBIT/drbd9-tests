@@ -24,8 +24,8 @@ import time
 resource = drbdtest.setup(nodes=2)
 writing_n = resource.nodes[0]
 other_nodes = resource.nodes.difference([writing_n])
-writing_conn = drbdtest.Connection(writing_n, other_nodes[0])
-to_writing = drbdtest.Connection(other_nodes[0], writing_n)
+writing_conn = connections(writing_n, other_nodes[0])
+to_writing = connections(other_nodes[0], writing_n)
 resource.add_disk('128M')
 resource.up_wait()
 

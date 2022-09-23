@@ -72,7 +72,7 @@ for n in resource.nodes.diskful[1:]:
 
     cs = drbdtest.Connections() # Connections from n to all other diskful_nodes
     for n2 in resource.nodes.diskful.difference([n]):
-        cs.add(drbdtest.Connection(n, n2))
+        cs.extend(connections(n, n2))
     cs.connect()
 
     # Wait for the connections to connect and my disk to become Inconsistent. Arbitrary order!
@@ -89,7 +89,7 @@ for n in resource.nodes.diskful[1:]:
     n.event(r'response helper .* helper:after-resync-target')
 
     cs = drbdtest.Connections()
-    cs.add(drbdtest.Connection(n, diskless_node))
+    cs.extend(connections(n, diskless_node))
     cs.connect()
     cs.event(r'connection .* connection:Connected')
     n.volumes.event(r'device .* disk:UpToDate')
@@ -97,12 +97,12 @@ for n in resource.nodes.diskful[1:]:
     # Waiting for the reverse is necessary as well, otherwise the following
     # disconnect might fail
     cs = drbdtest.Connections()
-    cs.add(drbdtest.Connection(diskless_node, n))
+    cs.extend(connections(diskless_node, n))
     cs.event(r'connection .* connection:Connected')
 
     cs = drbdtest.Connections() # Connections from diskless_node to all other diskful_nodes
     for n2 in up_so_far:
-        cs.add(drbdtest.Connection(diskless_node, n2))
+        cs.extend(connections(diskless_node, n2))
     cs.disconnect()
     verify_files(diskless_node)
     cs.connect()

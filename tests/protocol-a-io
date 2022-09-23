@@ -14,7 +14,7 @@ from python import datatools
 
 resource = drbdtest.setup(nodes=2)
 writing_n, target_n = resource.nodes
-target_writing_c = drbdtest.Connection(target_n, writing_n)
+target_writing_c = connections(target_n, writing_n)
 resource.disk_options = 'c-min-rate 0;'
 resource.net_options = 'protocol A;'
 resource.add_disk('40M')

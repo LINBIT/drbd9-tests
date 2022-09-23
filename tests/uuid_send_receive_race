@@ -28,8 +28,8 @@ resource.up_wait()
 A = resource.nodes[0]
 B = resource.nodes[1]
 C = resource.nodes[2]
-from_a = resource.connections.from_node(A)
-to_a = resource.connections.to_node(A)
+from_a = connections(A)
+to_a = connections(to_node=A)
 a_b = drbdtest.Connection(A, B)
 a_b_pd = drbdtest.PeerDevice(a_b, resource.volumes[0])
 c_a = drbdtest.Connection(C, A)

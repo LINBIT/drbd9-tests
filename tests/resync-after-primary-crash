@@ -27,7 +27,7 @@ resource.forbidden_patterns.remove(r'connection:BrokenPipe')
 [source_n, primary_n, secondary_n] = resource.nodes
 
 def simulate_node_crash(node):
-    c = resource.connections.from_node(node)
+    c = connections(node)
     c.disconnect(force=True)
     node.down()
     node.drbdadm(['apply-al', resource.name])
@@ -66,7 +66,7 @@ def test():
     primary_n.primary()
     source_n.up()
 
-    pd = resource.peer_devices.from_node(secondary_n).to_node(source_n)[0]
+    pd = peer_devices(secondary_n, source_n)[0]
     ev1 = pd.event(r'peer-device .* replication:(SyncTarget|Established)')
     if ev1[0][0] == 'SyncTarget':
         ev2 = secondary_n.volumes[0].event(r'device .* disk:(UpToDate|Outdated)')
@@ -86,7 +86,7 @@ def test():
     if md5sum != verify_md5sum:
         raise Exception('Sync Target data mismatch: %s %s' % (md5sum, verify_md5sum))
 
-    c = resource.connections.from_node(primary_n).to_node(source_n)
+    c = connections(primary_n, source_n)
     c.event(r'connection .* connection:Connected')
 
     primary_n.secondary()

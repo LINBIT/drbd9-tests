@@ -17,11 +17,11 @@ resource.add_disk('10M', diskful_nodes=diskful_nodes)
 resource.up_wait()
 
 node_a, node_b, node_c, node_d = resource.nodes
-connections_to_a = resource.connections.to_node(node_a)
-connections_from_d = resource.connections.from_node(node_d)
-connection_da = resource.connections.from_node(node_d).to_node(node_a)
-connection_db = resource.connections.from_node(node_d).to_node(node_b)
-connection_dc = resource.connections.from_node(node_d).to_node(node_c)
+connections_to_a = connections(to_node=node_a)
+connections_from_d = connections(node_d)
+connection_da = connections(node_d, node_a)
+connection_db = connections(node_d, node_b)
+connection_dc = connections(node_d, node_c)
 peer_device_db = drbdtest.PeerDevices.from_connections(connection_db)
 peer_device_dc = drbdtest.PeerDevices.from_connections(connection_dc)
 

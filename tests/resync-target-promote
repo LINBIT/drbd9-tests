@@ -32,8 +32,8 @@ source_n.secondary()
 
 resource.nodes.adjust()
 
-source_pds = resource.peer_devices.from_node(source_n)
-target_pds = resource.peer_devices.to_node(source_n)
+source_pds = peer_devices(source_n)
+target_pds = peer_devices(to_node=source_n)
 
 source_pds.event(r'peer-device .* replication:SyncSource')
 target_pds.event(r'peer-device .* replication:SyncTarget')

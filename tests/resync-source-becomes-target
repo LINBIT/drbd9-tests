@@ -23,8 +23,8 @@ def write_on_node(node, file_nr, megs):
     node.run(['umount', '/mnt/1'])
 
 def disconnect_and_write(n, remaining, file_nr):
-    resource.connections.from_node(n).disconnect()
-    to = resource.connections.from_nodes(remaining).to_node(n)
+    connections(n).disconnect()
+    to = connections(from_nodes=remaining, to_node=n)
     to.event(r'connection .* connection:TearDown')
     to.event(r'connection .* connection:Connecting')
     write_on_node(node_primary, file_nr, megs_per_file)
@@ -43,7 +43,7 @@ def do_test(variant):
     disconnect_and_write(node_s1, [node_primary, node_s0], 0)
     disconnect_and_write(node_s0, [node_primary], 1)
 
-    resource.connections.from_node(node_primary).disconnect()
+    connections(node_primary).disconnect()
 
     log('* Start downstream resync.')
 

@@ -45,7 +45,7 @@ def test_case1():
     A.block_path(B, 0)
 
     # wait for disconnect
-    conn = resource.connections.from_node(A).to_node(B)
+    conn = connections(A, B)
     conn.event(r'connection:(NetworkFailure|Timeout)')
     B.event(r'device .* disk:Outdated') # verify that secondary becomes outdated
 
@@ -83,9 +83,9 @@ def test_case2():
     B.block_path(C, 0)
 
     # wait for disconnect
-    connab = resource.connections.from_node(A).to_node(B)
-    connbc = resource.connections.from_node(B).to_node(C)
-    connac = resource.connections.from_node(A).to_node(C)
+    connab = connections(A, B)
+    connbc = connections(B, C)
+    connac = connections(A, C)
     connab.event(r'connection:(NetworkFailure|Timeout)')
     connbc.event(r'connection:(NetworkFailure|Timeout)')
 
@@ -135,9 +135,9 @@ def test_case3():
     resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
     resource.forbidden_patterns.remove(r'connection:Timeout')
 
-    connab = resource.connections.from_node(A).to_node(B)
-    connac = resource.connections.from_node(A).to_node(C)
-    connbc = resource.connections.from_node(B).to_node(C)
+    connab = connections(A, B)
+    connac = connections(A, C)
+    connbc = connections(B, C)
 
     my_log('* Blocking A-C')
     A.block_path(C, 0)
@@ -186,8 +186,8 @@ def test_case3_promote():
 
     connab = drbdtest.Connection(A, B)
     connba = drbdtest.Connection(B, A)
-    connac = resource.connections.from_node(A).to_node(C)
-    connbc = resource.connections.from_node(B).to_node(C)
+    connac = connections(A, C)
+    connbc = connections(B, C)
 
     my_log('* Blocking A-C')
     A.block_path(C, 0)

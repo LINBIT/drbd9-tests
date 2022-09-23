@@ -14,9 +14,9 @@ resource.disk_options = 'c-max-rate 40M; c-min-rate 5M;'
 resource.up_wait()
 
 source_n, target_n = resource.nodes
-source_target_c = resource.connections.from_node(source_n).to_node(target_n)
-source_target_pd = resource.peer_devices.from_node(source_n).to_node(target_n)
-target_source_pd = resource.peer_devices.from_node(target_n).to_node(source_n)
+source_target_c = connections(source_n, target_n)
+source_target_pd = peer_devices(source_n, target_n)
+target_source_pd = peer_devices(target_n, source_n)
 
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()

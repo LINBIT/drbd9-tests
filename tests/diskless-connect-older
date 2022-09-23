@@ -29,13 +29,13 @@ resource.forbidden_patterns.remove(r'connection:NetworkFailure')
 node_a, node_b, node_c = resource.nodes
 
 def test(diskless, diskfull, third):
-    to_diskless_pd = resource.peer_devices.to_node(diskless)
-    to_diskless_c = resource.connections.to_node(diskless)
-    from_diskfull_c = resource.connections.from_node(diskfull)
-    to_diskfull_c = resource.connections.to_node(diskfull)
-    diskfull_to_diskless_c = resource.connections.from_node(diskfull).to_node(diskless)[0]
-    diskless_to_diskfull_pd = resource.peer_devices.from_node(diskless).to_node(diskfull)[0]
-    diskfull_to_third_c = resource.connections.from_node(diskfull).to_node(third)[0]
+    to_diskless_pd = peer_devices(to_node=diskless)
+    to_diskless_c = connections(to_node=diskless)
+    from_diskfull_c = connections(diskfull)
+    to_diskfull_c = connections(to_node=diskfull)
+    diskfull_to_diskless_c = connections(diskfull, diskless)[0]
+    diskless_to_diskfull_pd = peer_devices(diskless, diskfull)[0]
+    diskfull_to_third_c = connections(diskfull, third)[0]
 
     diskless.detach()
     to_diskless_pd.event(r'peer-device .* peer-disk:Diskless')

@@ -43,7 +43,7 @@ if md5sum_a != md5sum_c:
 
 log('* Make the cluster to move to new current UUID (node_b away and back)')
 
-connections_b = resource.connections.from_node(node_b)
+connections_b = connections(node_b)
 connections_b.disconnect()
 node_a.run(['mount', dev_name, '/mnt/1'])
 node_a.run(['umount', '/mnt/1'])

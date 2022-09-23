@@ -51,17 +51,17 @@ node_b.volumes[0].write(size='300M', bs='1M', direct=1)
 
 log('* Testing')
 node_c.up()
-conn_c_a = resource.connections.from_node(node_c).to_node(node_a)[0]
+conn_c_a = connections(node_c, node_a)[0]
 pd_c_a = drbdtest.PeerDevice(conn_c_a, resource.volumes[0])
 
 node_b.connect(node_c)
-conn_c_b = resource.connections.from_node(node_c).to_node(node_b)[0]
+conn_c_b = connections(node_c, node_b)[0]
 pd_c_b = drbdtest.PeerDevice(conn_c_b, resource.volumes[0])
 
 pd_c_b.event(r'peer-device .* replication:SyncTarget')
 
 node_b.connect(node_a)
-conn_b_a = resource.connections.from_node(node_b).to_node(node_a)[0]
+conn_b_a = connections(node_b, node_a)[0]
 pd_b_a = drbdtest.PeerDevice(conn_b_a, resource.volumes[0])
 
 pd_b_a.event(r'peer-device .* replication:SyncTarget')

@@ -30,9 +30,9 @@ resource.skip_initial_sync()
 
 node_a, node_b, node_c = resource.nodes
 
-connection_ab = resource.connections.from_node(node_a).to_node(node_b)
-connection_ac = resource.connections.from_node(node_a).to_node(node_c)
-connection_bc = resource.connections.from_node(node_b).to_node(node_c)
+connection_ab = connections(node_a, node_b)
+connection_ac = connections(node_a, node_c)
+connection_bc = connections(node_b, node_c)
 peer_devices_ab = drbdtest.PeerDevices.from_connections(connection_ab)
 peer_devices_ac = drbdtest.PeerDevices.from_connections(connection_ac)
 peer_devices_bc = drbdtest.PeerDevices.from_connections(connection_bc)

@@ -26,18 +26,18 @@ vol = resource.volumes[0]
 def heal_disk():
     log('* Healing disk.')
     diskless_n.secondary()
-    resource.connections.to_node(diskless_n).event(r'connection .* role:Secondary')
+    connections(to_node=diskless_n).event(r'connection .* role:Secondary')
 
     failing_n.disable_fault_injection(vol)
     failing_n.adjust()
     failing_n.volumes.event(r'device .* disk:UpToDate')
-    pds = drbdtest.PeerDevices.from_connections(resource.connections.to_node(failing_n))
+    pds = drbdtest.PeerDevices.from_connections(connections(to_node=failing_n))
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
 def wait_for_disk_failure():
     failing_n.volumes.event(r'device .* disk:Failed')
     failing_n.volumes.event(r'device .* disk:Diskless')
-    pds = drbdtest.PeerDevices.from_connections(resource.connections.to_node(failing_n))
+    pds = drbdtest.PeerDevices.from_connections(connections(to_node=failing_n))
     pds.event(r'peer-device .* peer-disk:Failed')
     pds.event(r'peer-device .* peer-disk:Diskless')
 

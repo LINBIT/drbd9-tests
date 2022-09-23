@@ -20,10 +20,10 @@ diskless_n = resource.nodes.diskless[0]
 flapping_n = diskful_nodes[0]
 stable_n = diskful_nodes[1]
 diskless_v = diskless_n.volumes[0]
-dless_to_flapping_pd = diskless_v.peer_devices.to_node(flapping_n)
-resync_target_pd = flapping_n.volumes[0].peer_devices.to_node(stable_n)
-resync_source_pd = stable_n.volumes[0].peer_devices.to_node(flapping_n)
-from_flapping_c = resource.connections.from_node(flapping_n)
+dless_to_flapping_pd = peer_devices(diskless_v, flapping_n)
+resync_target_pd = peer_devices(flapping_n, stable_n)
+resync_source_pd = peer_devices(stable_n, flapping_n)
+from_flapping_c = connections(flapping_n)
 flapping_to_dless_c = from_flapping_c.to_node(diskless_n)
 flapping_to_stable_c = from_flapping_c.to_node(stable_n)
 

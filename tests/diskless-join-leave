@@ -22,7 +22,7 @@ log('* Make up-to-date data available (%s is not part)' % (late_diskless_n.name)
 resource.skip_initial_sync()
 
 primary_n.primary()
-resource.connections.to_node(primary_n).event(r'connection .* role:Primary')
+connections(to_node=primary_n).event(r'connection .* role:Primary')
 
 log('* Preparing existing nodes for new diskless')
 early_set = drbdtest.Nodes(resource.nodes)
@@ -37,7 +37,7 @@ ld_connections.event(r'connection .* connection:Connected')
 
 log('* Removing other diskless (%s)' % (early_diskless_n.name))
 
-ed_connections = resource.connections.from_node(early_diskless_n)
+ed_connections = connections(early_diskless_n)
 resource.remove_node(early_diskless_n)
 resource.nodes.adjust()
 ed_connections.event(r'connection .* connection:Connecting')

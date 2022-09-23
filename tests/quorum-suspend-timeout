@@ -26,8 +26,8 @@ from python.drbdtest import connections, log, peer_devices
 def do_verify(node_source, node_target):
     node_source.drbdadm(['verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])
 
-    source_target_pds = node_source.peer_devices.to_node(node_target)
-    target_source_pds = node_target.peer_devices.to_node(node_source)
+    source_target_pds = peer_devices(node_source, node_target)
+    target_source_pds = peer_devices(node_target, node_source)
     source_target_pds.event(r'peer-device .* replication:VerifyS')
     target_source_pds.event(r'peer-device .* replication:VerifyT')
     ev1 = source_target_pds.event(r'peer-device .* replication:Established .* out-of-sync:(\d+)')
@@ -38,8 +38,8 @@ def do_verify(node_source, node_target):
 
 
 def prepare_test(primary_n, freezing_io_n):
-    primary_suspended_c = resource.connections.from_node(primary_n).to_node(freezing_io_n)
-    suspended_primary_c = resource.connections.from_node(freezing_io_n).to_node(primary_n)
+    primary_suspended_c = connections(primary_n, freezing_io_n)
+    suspended_primary_c = connections(freezing_io_n, primary_n)
 
     freezing_io_n.volumes.suspend()
 
@@ -109,18 +109,18 @@ vol = resource.volumes[0]
 resource.up_wait()
 
 primary_n, online_n, dead1_n, dead2_n = resource.nodes
-primary_dead2_c = resource.connections.from_node(primary_n).to_node(dead2_n)
-dead2_other_c = resource.connections.from_node(dead2_n)
-dead2_other_c.remove(resource.connections.from_node(dead2_n).to_node(primary_n)[0])
-dead2_primary_c = resource.connections.from_node(dead2_n).to_node(primary_n)
-dead2_primary_pds = resource.peer_devices.from_node(dead2_n).to_node(primary_n)
-dead1_primary_c = resource.connections.from_node(dead1_n).to_node(primary_n)
-dead1_primary_pds = resource.peer_devices.from_node(dead1_n).to_node(primary_n)
-online_primary_c = resource.connections.from_node(online_n).to_node(primary_n)
+primary_dead2_c = connections(primary_n, dead2_n)
+dead2_other_c = connections(dead2_n)
+dead2_other_c.remove(connections(dead2_n, primary_n)[0])
+dead2_primary_c = connections(dead2_n, primary_n)
+dead2_primary_pds = peer_devices(dead2_n, primary_n)
+dead1_primary_c = connections(dead1_n, primary_n)
+dead1_primary_pds = peer_devices(dead1_n, primary_n)
+online_primary_c = connections(online_n, primary_n)
 
 log('* Make up-to-date data available by initial resync.')
 primary_n.primary(force=True)
-resource.peer_devices.from_node(primary_n).event(r'peer-device .* replication:Established')
+peer_devices(primary_n).event(r'peer-device .* replication:Established')
 
 log("* Test 1: a node's disk freezes and thaws.")
 dead1_n.connections.disconnect()

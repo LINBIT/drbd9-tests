@@ -26,10 +26,10 @@ resource.skip_initial_sync()
 diskless_n = resource.nodes.diskless[0]
 target_n = resource.nodes[0]
 source_n = resource.nodes[1]
-target_diskless_c = resource.connections.from_node(target_n).to_node(diskless_n)
-target_source_c = resource.connections.from_node(target_n).to_node(source_n)
-to_target_c = resource.connections.to_node(target_n)
-source_target_pd = source_n.volumes[0].peer_devices.to_node(target_n)
+target_diskless_c = connections(target_n, diskless_n)
+target_source_c = connections(target_n, source_n)
+to_target_c = connections(to_node=target_n)
+source_target_pd = peer_devices(source_n, target_n)
 diskless_v = diskless_n.volumes[0]
 target_v = target_n.volumes[0]
 source_v = source_n.volumes[0]

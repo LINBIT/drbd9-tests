@@ -90,7 +90,7 @@ for mode in [M_PEER_ACKED, M_NOT_PEER_ACKED]:
 
 diskless_n.run(['umount', '/mnt/1'])
 diskless_n.secondary()
-resource.connections.to_node(diskless_n).event(r'connection .* role:Secondary')
+connections(to_node=diskless_n).event(r'connection .* role:Secondary')
 
 diskless_n.down()
 diskful_nodes.down()

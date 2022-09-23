@@ -42,7 +42,7 @@ slow.detach()
 # ensure "fast" node finishes before "slow" node
 primary_tc.slow_down(slow, speed='100mbit')
 
-c = resource.connections.to_node(primary)
+c = connections(to_node=primary)
 
 primary.write(size='100M', end_fsync=1)
 

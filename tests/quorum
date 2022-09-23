@@ -55,7 +55,7 @@ remaining_a = drbdtest.Nodes(secondaries_a)
 remaining_a.remove(tmp_pri)
 tmp_old_pri = drbdtest.Connection(tmp_pri, primary_a)
 connections_to_cut = remaining_a.connections.to_node(primary_a)
-connections_witness = resource.connections.from_node(primary_a)
+connections_witness = connections(primary_a)
 
 resource.forbidden_patterns.difference_update([
     r'connection:NetworkFailure',
@@ -116,7 +116,7 @@ while len(partition_b) < len(partition_a):
     partition_a.remove(moving)
     secondaries_a.remove(moving)
 
-    connections_to_cut = resource.connections.from_node(moving)
+    connections_to_cut = connections(moving)
     connections_witness = partition_a.connections.to_node(moving)
 
     # We will break connection when removing nodes from the first partition

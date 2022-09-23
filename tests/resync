@@ -46,9 +46,9 @@ def disconnect_reverse(writing_n, nodes):
     remaining = [writing_n, *nodes]
     for n in reversed(nodes):
         write_on_node(writing_n)
-        resource.connections.from_node(n).disconnect()
+        connections(n).disconnect()
         remaining.remove(n)
-        to = resource.connections.from_nodes(remaining).to_node(n)
+        to = connections(from_nodes=remaining, to_node=n)
         to.event(r'connection .* connection:TearDown')
         to.event(r'connection .* connection:Connecting')
 

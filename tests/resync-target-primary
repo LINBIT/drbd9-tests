@@ -21,7 +21,7 @@ resource.skip_initial_sync()
 [node_a, node_b, node_c] = resource.nodes
 
 log('* Isolating %s' % (node_a.name))
-resource.connections.from_node(node_a).disconnect()
+connections(node_a).disconnect()
 
 log('* New data on %s %s' % (node_b.name, node_c.name))
 node_b.volumes.write(size='9M', bs='1M')

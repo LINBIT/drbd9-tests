@@ -37,13 +37,13 @@ resource.add_disk('32M')
 resource.up_wait()
 
 node_a, node_b, node_c = resource.nodes
-connection_a_b = resource.connections.from_node(node_a).to_node(node_b)
-connection_a_c = resource.connections.from_node(node_a).to_node(node_c)
-connection_b_a = resource.connections.from_node(node_b).to_node(node_a)
-connection_c_b = resource.connections.from_node(node_c).to_node(node_b)
-peer_device_b_a = node_b.volumes[0].peer_devices.to_node(node_a)
-peer_device_c_b = node_c.volumes[0].peer_devices.to_node(node_b)
-connections_a = resource.connections.from_node(node_a)
+connection_a_b = connections(node_a, node_b)
+connection_a_c = connections(node_a, node_c)
+connection_b_a = connections(node_b, node_a)
+connection_c_b = connections(node_c, node_b)
+peer_device_b_a = peer_devices(node_b, node_a)
+peer_device_c_b = peer_devices(node_c, node_b)
+connections_a = connections(node_a)
 volume_a = node_a.volumes[0]
 volume_b = node_b.volumes[0]
 volume_c = node_c.volumes[0]

@@ -29,8 +29,8 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 node_a, node_b, node_c = resource.nodes
-connection_ab = resource.connections.from_node(node_a).to_node(node_b)
-connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+connection_ab = connections(node_a, node_b)
+connection_ba = connections(node_b, node_a)
 
 resource.forbidden_patterns.remove(r'connection:BrokenPipe')
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')

@@ -35,7 +35,7 @@ resource.skip_initial_sync()
 #  1) A promotes first, then A - C get disconnected gracefully
 A.primary()
 connections(A, C).disconnect(wait=False)
-A.peer_devices.to_node(C).event(r'peer-device .* peer-disk:Outdated')
+peer_devices(A, C).event(r'peer-device .* peer-disk:Outdated')
 C.volumes.event(r'device .* disk:Outdated')
 
 A.secondary()
@@ -48,7 +48,7 @@ C.volumes.event(r'device .* disk:UpToDate')
 #  2) A promotes first, then A - C get disconnected ungreaceful
 resource.forbidden_patterns.remove(r'connection:BrokenPipe')
 connections(C, A).disconnect(wait=False, force=True)
-A.peer_devices.to_node(C).event(r'peer-device .* peer-disk:Outdated')
+peer_devices(A, C).event(r'peer-device .* peer-disk:Outdated')
 C.volumes.event(r'device .* disk:Outdated')
 
 A.secondary()
@@ -63,7 +63,7 @@ resource.forbidden_patterns.add(r'connection:BrokenPipe')
 A.secondary()
 connections(A, C).disconnect()
 A.primary()
-A.peer_devices.to_node(C).event(r'peer-device .* peer-disk:Outdated')
+peer_devices(A, C).event(r'peer-device .* peer-disk:Outdated')
 C.volumes.event(r'device .* disk:Outdated')
 
 A.secondary()

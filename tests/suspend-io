@@ -20,10 +20,10 @@ resource.add_disk('10M')
 resource.up_wait()
 
 node_a, node_b = resource.nodes
-connection_a_b = resource.connections.from_node(node_a).to_node(node_b)
-connection_b_a = resource.connections.from_node(node_b).to_node(node_a)
-peer_device_a_b = resource.peer_devices.from_node(node_a).to_node(node_b)
-peer_device_b_a = resource.peer_devices.from_node(node_b).to_node(node_a)
+connection_a_b = connections(node_a, node_b)
+connection_b_a = connections(node_b, node_a)
+peer_device_a_b = peer_devices(node_a, node_b)
+peer_device_b_a = peer_devices(node_b, node_a)
 
 log('* Make up-to-date data available.')
 resource.skip_initial_sync();

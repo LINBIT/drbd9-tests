@@ -14,9 +14,9 @@ resource.net_options = 'verify-alg md5;'
 resource.up_wait()
 
 node_a, node_b = resource.nodes
-connection_a_b = resource.connections.from_node(node_a).to_node(node_b)
-connection_b_a = resource.connections.from_node(node_b).to_node(node_a)
-peer_device_b_a = resource.peer_devices.from_node(node_b).to_node(node_a)
+connection_a_b = connections(node_a, node_b)
+connection_b_a = connections(node_b, node_a)
+peer_device_b_a = peer_devices(node_b, node_a)
 
 def dbdt(node, res_name, peer_node_id):
     result = node.run(['drbdsetup', 'status', res_name, '--json'], return_stdout=True)

@@ -20,10 +20,10 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 node_a, node_b, node_c = resource.nodes
-connection_ac = resource.connections.from_node(node_a).to_node(node_c)
-peer_device_bc = resource.peer_devices.from_node(node_b).to_node(node_c)
-peer_device_cb = resource.peer_devices.from_node(node_c).to_node(node_b)
-peer_device_ac = resource.peer_devices.from_node(node_a).to_node(node_c)
+connection_ac = connections(node_a, node_c)
+peer_device_bc = peer_devices(node_b, node_c)
+peer_device_cb = peer_devices(node_c, node_b)
+peer_device_ac = peer_devices(node_a, node_c)
 
 # Make the resync slow, so that the issue triggers
 peer_device_ac.peer_device_options("--c-max-rate=250k")

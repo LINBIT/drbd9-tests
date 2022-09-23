@@ -31,10 +31,10 @@ resource.add_disk('10M', meta_size='4M', diskful_nodes=diskful_nodes, max_size='
 resource.up_wait()
 
 node_a, node_b, node_c = resource.nodes
-connections_to_c = resource.connections.to_node(node_c)
-connection_ab = resource.connections.from_node(node_a).to_node(node_b)
-connection_ac = resource.connections.from_node(node_a).to_node(node_c)
-connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+connections_to_c = connections(to_node=node_c)
+connection_ab = connections(node_a, node_b)
+connection_ac = connections(node_a, node_c)
+connection_ba = connections(node_b, node_a)
 
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()

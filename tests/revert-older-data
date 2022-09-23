@@ -36,7 +36,7 @@ for initial_sync in False, True:
             node_secondary.volumes[0].event(r'device .* disk:UpToDate')
         else:
             resource.skip_initial_sync()
-        connection_primary_secondary = resource.connections.from_node(node_primary).to_node(node_secondary)
+        connection_primary_secondary = connections(node_primary, node_secondary)
 
         if initial_write:
             write_disconnected()

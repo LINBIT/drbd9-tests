@@ -50,7 +50,7 @@ node_a.secondary()
 
 node_b.up_wait()
 
-connection_ba = resource.connections.from_node(node_b).to_node(node_a)
+connection_ba = connections(node_b, node_a)
 peer_devices_ba = drbdtest.PeerDevices.from_connections(connection_ba)
 peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
 peer_devices_ba.event(r'peer-device .* replication:Established')

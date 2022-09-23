@@ -39,8 +39,8 @@ def test_write_between_disconnects(resource):
     cut2_sec = rem_sec[0]
 
     log('* cutting off first secondary (%s) from primary' % (cut1_sec.name))
-    connection_to_cut1 = resource.connections.to_node(primary_n).from_node(cut1_sec)[0]
-    connection_witness1 = resource.connections.from_node(primary_n).to_node(cut1_sec)[0]
+    connection_to_cut1 = connections(cut1_sec, primary_n)[0]
+    connection_witness1 = connections(primary_n, cut1_sec)[0]
 
     connection_to_cut1.block(jump_to="DROP")
     cut2_sec.block_packet_type(drbdtest.P_PING_ACK, from_node=primary_n, volume=0xFFFF)
@@ -57,7 +57,7 @@ def test_write_between_disconnects(resource):
 
     log('* silently cutting off other secondary (%s) from primary' % (cut2_sec.name))
 
-    connection_to_cut2 = resource.connections.to_node(primary_n).from_node(cut2_sec)[0]
+    connection_to_cut2 = connections(cut2_sec, primary_n)[0]
     connection_to_cut2.block(jump_to="DROP")
 
     try:
@@ -104,8 +104,8 @@ def test_quick_promote(resource):
 
     log('* Isolating the primary, while writing at the same time')
     tmp_pri = secondaries_n[0]
-    connections_to_cut = resource.connections.to_node(primary_n)
-    connections_witness = resource.connections.from_node(primary_n)
+    connections_to_cut = connections(to_node=primary_n)
+    connections_witness = connections(primary_n)
 
     connections_to_cut.block(jump_to="REJECT")
     connections_to_cut.disconnect(wait = False, force = True)

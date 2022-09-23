@@ -27,8 +27,8 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 [source_n, target_n] = resource.nodes
-forward_c = resource.connections.from_node(source_n).to_node(target_n)[0]
-backward_c = resource.connections.from_node(target_n).to_node(source_n)[0]
+forward_c = connections(source_n, target_n)[0]
+backward_c = connections(target_n, source_n)[0]
 forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
 backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
 

@@ -23,8 +23,8 @@ resource.forbidden_patterns.difference_update([
 ])
 
 conns = resource.connections
-pd_from_second = resource.peer_devices.from_node(second_n).to_node(first_n)[0]
-pd_from_first = resource.peer_devices.from_node(first_n).to_node(second_n)[0]
+pd_from_second = peer_devices(second_n, first_n)[0]
+pd_from_first = peer_devices(first_n, second_n)[0]
 
 def test():
     conns.disconnect()

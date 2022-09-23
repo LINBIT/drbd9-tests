@@ -18,8 +18,8 @@ def do_test(resource):
 
     assert node_a.id < node_b.id and node_b.id < node_c.id
 
-    conn_a_b = resource.connections.from_node(node_a).to_node(node_b)[0]
-    conn_c_b = resource.connections.from_node(node_c).to_node(node_b)[0]
+    conn_a_b = connections(node_a, node_b)[0]
+    conn_c_b = connections(node_c, node_b)[0]
     conn_a_b.disconnect()
     conn_c_b.disconnect()
 
@@ -48,7 +48,7 @@ resource.forbidden_patterns.difference_update([
     r'connection:Timeout',
 ])
 [node_a, node_b, node_c] = list(resource.nodes)
-conn_a_c = resource.connections.from_node(node_a).to_node(node_c)[0]
+conn_a_c = connections(node_a, node_c)[0]
 
 do_test(resource)
 conn_a_c.disconnect()

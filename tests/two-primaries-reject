@@ -148,11 +148,11 @@ for node_p1, node_s, node_p2 in permutations(resource.nodes):
     for node in resource.nodes:
         log('*********** {} is {}'.format(node, node_to_role[node]))
 
-    connections_from_p1 = resource.connections.from_node(node_p1)
-    peer_devices_from_p1 = resource.peer_devices.from_node(node_p1)
+    connections_from_p1 = connections(node_p1)
+    peer_devices_from_p1 = peer_devices(node_p1)
     connection_p1_s = connections_from_p1.to_node(node_s)
     connection_p1_p2 = connections_from_p1.to_node(node_p2)
-    connections_to_p1 = resource.connections.to_node(node_p1)
+    connections_to_p1 = connections(to_node=node_p1)
     connection_s_p1 = connections_to_p1.from_node(node_s)
     connection_p2_p1 = connections_to_p1.from_node(node_p2)
 

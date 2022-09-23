@@ -39,8 +39,8 @@ def test():
     if ['Connecting'] in ev:
         raise Exception('One of the nodes did not recognise the split brain!')
 
-    conns.to_node(second_n).connect(options=['--discard-my-data'])
-    conns.to_node(first_n).connect()
+    connections(to_node=second_n).connect(options=['--discard-my-data'])
+    connections(to_node=first_n).connect()
     pd_from_second.event(r'peer-device .* replication:SyncSource')
     pd_from_first.event(r'peer-device .* replication:SyncTarget')
     pd_from_second.event(r'peer-device .* replication:Established')

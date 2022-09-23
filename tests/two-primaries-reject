@@ -150,11 +150,11 @@ for node_p1, node_s, node_p2 in permutations(resource.nodes):
 
     connections_from_p1 = connections(node_p1)
     peer_devices_from_p1 = peer_devices(node_p1)
-    connection_p1_s = connections_from_p1.to_node(node_s)
-    connection_p1_p2 = connections_from_p1.to_node(node_p2)
+    connection_p1_s = connections(node_p1, node_s)
+    connection_p1_p2 = connections(node_p1, node_p2)
     connections_to_p1 = connections(to_node=node_p1)
-    connection_s_p1 = connections_to_p1.from_node(node_s)
-    connection_p2_p1 = connections_to_p1.from_node(node_p2)
+    connection_s_p1 = connections(node_s, node_p1)
+    connection_p2_p1 = connections(node_p2, node_p1)
 
     scenario_disconnect_no_new_data()
     scenario_disconnect_p2_ahead()

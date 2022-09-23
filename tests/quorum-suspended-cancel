@@ -37,7 +37,7 @@ def write_on_node(node):
 
 def do_test(primary_n, other_nodes, wait_before_write):
     dd_pid = 0
-    primary_conn = other_nodes.connections.to_node(primary_n)
+    primary_conn = connections(from_nodes=other_nodes, to_node=primary_n)
 
     # cut connection so that primary loses quorum
     for n in other_nodes:

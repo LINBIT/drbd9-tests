@@ -506,18 +506,6 @@ class Connections(Collection):
             results = resource.logscan(self, where, *args, **kwargs)
         return results
 
-    def from_node(self, node):
-        return self.from_nodes([node])
-
-    def from_nodes(self, nodes):
-        return Connections([_ for _ in self if _.nodes[0] in nodes])
-
-    def to_node(self, node):
-        return self.to_nodes([node])
-
-    def to_nodes(self, nodes):
-        return Connections([_ for _ in self if _.nodes[1] in nodes])
-
     def run_drbdadm(self, cmd, state_str, wait=True, options=[]):
         for connection in self:
             node0, node1 = connection.nodes
@@ -590,18 +578,6 @@ class PeerDevices(Collection):
             node0, node1 = pd.connection.nodes
             node0.drbdadm(['peer-device-options', '%s:%s' %
                        (pd.connection.resource.name, node1.hostname), opts])
-
-    def from_node(self, node):
-        return self.from_nodes([node])
-
-    def from_nodes(self, nodes):
-        return PeerDevices([_ for _ in self if _.connection.nodes[0] in nodes])
-
-    def to_node(self, node):
-        return self.to_nodes([node])
-
-    def to_nodes(self, nodes):
-        return PeerDevices([_ for _ in self if _.connection.nodes[1] in nodes])
 
     def verify(self, wait=True, options=[]):
         for pd in self:

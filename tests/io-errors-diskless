@@ -31,13 +31,13 @@ def heal_disk():
     failing_n.disable_fault_injection(vol)
     failing_n.adjust()
     failing_n.volumes.event(r'device .* disk:UpToDate')
-    pds = drbdtest.PeerDevices.from_connections(connections(to_node=failing_n))
+    pds = peer_devices(to_node=failing_n)
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
 def wait_for_disk_failure():
     failing_n.volumes.event(r'device .* disk:Failed')
     failing_n.volumes.event(r'device .* disk:Diskless')
-    pds = drbdtest.PeerDevices.from_connections(connections(to_node=failing_n))
+    pds = peer_devices(to_node=failing_n)
     pds.event(r'peer-device .* peer-disk:Failed')
     pds.event(r'peer-device .* peer-disk:Diskless')
 

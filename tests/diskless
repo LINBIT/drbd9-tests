@@ -125,10 +125,7 @@ diskful_nodes[0].fio(drbdtest.fio_verify_args)
 
 log('* Disconnecting nodes.')
 diskless_node.primary()
-resource.connections. \
-        from_node(diskless_node). \
-        to_nodes(diskful_nodes[:-1]). \
-        disconnect()
+connections(diskless_node, to_nodes=diskful_nodes[:-1]).disconnect()
 
 try:
     diskless_node.disconnect(diskful_nodes[-1])
@@ -153,9 +150,7 @@ diskless_node.secondary()
 #   State change failed: (-2) Need access to UpToDate data
 # Even this wait often isn't enough to prevent this error, though -- this needs
 # to be debugged.
-resource.connections. \
-        to_node(diskless_node). \
-        event(r'connection .* role:Secondary')
+connections(to_node=diskless_node).event(r'connection .* role:Secondary')
 
 # FIXME: Simulate network outage
 

@@ -28,6 +28,7 @@ done
 
 test_args=( "$@" "--logdir" "/log" )
 [ "$DRBD_TEST_RDMA" = "true" ] && test_args+=( "--rdma" )
+[ -n "$DRBD_VERSION" ] && test_args+=( "--drbd-version=$DRBD_VERSION" )
 [ -n "$DRBD_VERSION_OTHER" ] && test_args+=( "--drbd-version-other=$DRBD_VERSION_OTHER" )
 [ -n "$SCRATCH_DISK" ] && test_args+=( "--backing-device=$SCRATCH_DISK")
 [ -n "$DRBD_TEST_STORAGE" ] && test_args+=( "--storage-backend=$DRBD_TEST_STORAGE" )

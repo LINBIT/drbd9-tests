@@ -1200,7 +1200,7 @@ class Node():
 
         self.hostname = self.run(['hostname', '-f'], return_stdout=True,
                                  update_config=False)
-        self.drbd_version_tuple = self.get_drbd_version()
+        self.read_drbd_version()
 
         self.os_id, self.os_version_id = self.run(
                 ['bash', '-c', '. /etc/os-release ; echo $ID ; echo $VERSION_ID'],
@@ -1297,11 +1297,20 @@ class Node():
 
             self.run(base + ['link', 'set', 'dev', devname, 'up'], update_config=False, ignore_netns=True)
 
-    def get_drbd_version(self):
+    def read_drbd_version(self):
         self.run(['bash', '-c', '[ -e /proc/drbd ] || modprobe drbd'], update_config=False)
-        version_line = self.run(['head', '-n1', '/proc/drbd'], return_stdout=True, update_config=False)
-        m = re.match(r'version: ([0-9]+)\.([0-9]+)\.([0-9]+).*', version_line)
-        return int(m.group(1)), int(m.group(2)), int(m.group(3))
+        proc_drbd_lines = self.run(['cat', '/proc/drbd'], return_stdout=True, update_config=False).splitlines()
+        version_line = proc_drbd_lines[0]
+        git_hash_line = proc_drbd_lines[1]
+
+        version_line_match = re.match(r'version: ([^ ]+).*', version_line)
+        self.drbd_version = version_line_match.group(1)
+
+        version_match = re.match(r'([0-9]+)\.([0-9]+)\.([0-9]+).*', self.drbd_version)
+        self.drbd_version_tuple = int(version_match.group(1)), int(version_match.group(2)), int(version_match.group(3))
+
+        hash_match = re.match(r'GIT-hash: ([0-9a-f]+).*', git_hash_line)
+        self.drbd_git_hash = hash_match.group(1)
 
     def addr_port(self, net_num=0):
         return '%s:%s' % (self.addrs[net_num], self.port)
@@ -1433,7 +1442,7 @@ class Node():
     def install_drbd(self, version):
         self.rmmod()
         self.run_helper('install-drbd', ['{}/{}*'.format(package_download_dir, version)])
-        self.drbd_version_tuple = self.get_drbd_version()
+        self.read_drbd_version()
 
     def next_minor(self):
         self.minors += 1
@@ -1936,6 +1945,32 @@ def skip_test(text):
     sys.exit(100)
 
 
+def validate_drbd_versions(nodes, drbd_version, drbd_version_other):
+    """
+    Check the expected DRBD versions of given nodes.
+
+    :param nodes: Nodes to validate.
+    :param drbd_version: If set, validate that this version is installed and all git hashes match.
+    :param drbd_version_other: If set, this version is expected on nodes[0].
+    """
+
+    git_hashes = set()
+
+    for i, node in enumerate(nodes):
+        expect_version = None
+        if drbd_version_other and i == 0:
+            expect_version = drbd_version_other
+        elif drbd_version:
+            expect_version = drbd_version
+            git_hashes.add(node.drbd_git_hash)
+
+        if expect_version and node.drbd_version != expect_version:
+            raise RuntimeError("{}: expect DRBD version '{}'; found '{}'".format(node, expect_version, node.drbd_version))
+
+    if len(git_hashes) > 1:
+        raise RuntimeError("Differing git hashes found for DRBD version '{}': {}".format(drbd_version, git_hashes))
+
+
 def setup(parser=argparse.ArgumentParser(),
           _node_class=Node, _res_class=Resource,
           nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None):
@@ -1972,6 +2007,7 @@ def setup(parser=argparse.ArgumentParser(),
     parser.add_argument('--memlimit', type=int)
     parser.add_argument('--storage-backend', default='lvm', choices=('lvm', 'raw', 'zfs'))
     parser.add_argument('--backing-device', type=str)
+    parser.add_argument('--drbd-version', help='validate that this DRBD version is installed')
     parser.add_argument('--drbd-version-other')
     args = parser.parse_args()
 
@@ -2107,6 +2143,8 @@ def setup(parser=argparse.ArgumentParser(),
     if args.drbd_version_other:
         # Automatically install other version on the first node
         resource.nodes[0].install_drbd(args.drbd_version_other)
+
+    validate_drbd_versions(resource.nodes, args.drbd_version, args.drbd_version_other)
 
     for node in resource.nodes:
         node.listen_to_events()

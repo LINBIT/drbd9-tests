@@ -4,6 +4,7 @@ TestSuiteImage = "drbd9-tests"
 RDMA = "" # set to "true" to enable
 Storage = "lvm" # Also possible: raw and zfs
 OutDir = ""
+DrbdVersion = "" # validate that this DRBD version is installed
 DrbdVersionOther = ""
 
 [[steps]]
@@ -69,6 +70,7 @@ image = "{{.TestSuiteImage}}"
 SCRATCH_DISK = "{{.ScratchDisk}}"
 DRBD_TEST_STORAGE = "{{.Storage}}"
 DRBD_TEST_RDMA = "{{.RDMA}}"
+DRBD_VERSION = "{{.DrbdVersion}}"
 DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
 [steps.docker.copy]
 source = "/log"

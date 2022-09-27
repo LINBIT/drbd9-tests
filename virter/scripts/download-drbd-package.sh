@@ -16,7 +16,6 @@ cd "$download_dir"
 
 if command -v yum > /dev/null; then
 	available=$(yum list available --quiet --showduplicates \
-		--disablerepo="*" --enablerepo="drbd" \
 		"kmod-drbd-${drbd_version}_*" \
 			| grep '^kmod-drbd' \
 			| awk '{print "kmod-drbd-" $2}') || die "Failed to list kmods"

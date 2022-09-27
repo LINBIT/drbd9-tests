@@ -1,6 +1,7 @@
 [values]
 RepositoryURL = ""
 DrbdRepositoryURL = ""
+ReleaseRepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
 RepositoryPackages = "" # comma separated
 DrbdVersion = ""
@@ -53,12 +54,21 @@ if command -v yum > /dev/null; then
 		fi
 	fi
 
+	if [ -n "$RELEASE_REPOSITORY_URL" ]; then
+		cat <<- EOF > /etc/yum.repos.d/linbit.repo
+		[linbit-internal]
+		name=LINBIT Internal
+		baseurl=$RELEASE_REPOSITORY_URL
+		gpgcheck=0
+		enabled=1
+		EOF
+	fi
+
 	[ -d /opt/packages ] && packages="$packages $(find /opt/packages -maxdepth 1 -name "*.rpm")"
 elif command -v apt-get > /dev/null; then
-	if [ -n "$REPOSITORY_URL" ]; then
-		echo deb [trusted=yes] $REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/drbd.list
-		apt-get update
-	fi
+	[ -n "$REPOSITORY_URL" ] && echo deb [trusted=yes] $REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/drbd.list
+	[ -n "$RELEASE_REPOSITORY_URL" ] && echo deb [trusted=yes] $RELEASE_REPOSITORY_URL $REPOSITORY_DISTRIBUTION drbd-9 > /etc/apt/sources.list.d/linbit.list
+	apt-get update
 
 	[ -d /opt/packages ] && packages="$packages $(find /opt/packages -maxdepth 1 -name "*.deb")"
 else
@@ -111,6 +121,7 @@ echo 'include "/var/lib/drbd-test/*.res";' > /etc/drbd.d/drbd-test.res
 [steps.shell.env]
 REPOSITORY_URL = "{{.RepositoryURL}}"
 DRBD_REPOSITORY_URL = "{{.DrbdRepositoryURL}}"
+RELEASE_REPOSITORY_URL = "{{.ReleaseRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
 REPOSITORY_PACKAGES = "{{.RepositoryPackages}}"
 DRBD_VERSION = "{{.DrbdVersion}}"

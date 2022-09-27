@@ -157,8 +157,9 @@ scheduled-test:
   rules:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
   timeout: 12h
+  variables:
+    VMSHED_TEST_SELECTION: all
   script:
     - export DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
-    - export VMSHED_TEST_SELECTION=all
     - run_test --repeats="$SCHEDULED_TEST_COUNT" --error-details=false --quiet $SCHEDULED_TEST_VMSHED_ARGS || true
     - ./virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json

@@ -1303,7 +1303,7 @@ class Node():
         version_line = proc_drbd_lines[0]
         git_hash_line = proc_drbd_lines[1]
 
-        version_line_match = re.match(r'version: ([^ ]+).*', version_line)
+        version_line_match = re.match(r'version: ([^ -]+).*', version_line)
         self.drbd_version = version_line_match.group(1)
 
         version_match = re.match(r'([0-9]+)\.([0-9]+)\.([0-9]+).*', self.drbd_version)

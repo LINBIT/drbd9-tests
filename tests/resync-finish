@@ -27,10 +27,10 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 [source_n, target_n] = resource.nodes
-forward_c = connections(source_n, target_n)[0]
-backward_c = connections(target_n, source_n)[0]
-forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
-backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
+forward_c = connections(source_n, target_n)
+backward_c = connections(target_n, source_n)
+forward_pd = peer_devices(source_n, target_n)
+backward_pd = peer_devices(target_n, source_n)
 
 forward_c.disconnect()
 source_n.volumes[0].write(size='8M', bs='1M', direct=1)

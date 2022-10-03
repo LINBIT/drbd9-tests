@@ -32,18 +32,16 @@ log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
 primary_n, secondary_slow, secondary_quick = resource.nodes
-conn_slow = drbdtest.Connections()
-conn_slow.bidir_add(primary_n, secondary_slow)
-conn_quick = drbdtest.Connections()
-conn_quick.bidir_add(primary_n, secondary_quick)
+conn_slow = connections(primary_n, secondary_slow, bidir=True)
+conn_quick = connections(primary_n, secondary_quick, bidir=True)
 
-forward_c = connections(secondary_quick, secondary_slow)[0]
-backward_c = connections(secondary_slow, secondary_quick)[0]
-forward_pd = drbdtest.PeerDevice(forward_c, resource.volumes[0])
-backward_pd = drbdtest.PeerDevice(backward_c, resource.volumes[0])
+forward_c = connections(secondary_quick, secondary_slow)
+backward_c = connections(secondary_slow, secondary_quick)
+forward_pd = peer_devices(secondary_quick, secondary_slow)
+backward_pd = peer_devices(secondary_slow, secondary_quick)
 
-slow_primary_c = connections(secondary_slow, primary_n)[0]
-slow_primary_pd = drbdtest.PeerDevice(slow_primary_c, resource.volumes[0])
+slow_primary_c = connections(secondary_slow, primary_n)
+slow_primary_pd = peer_devices(secondary_slow, primary_n)
 
 to_primary_c = connections(to_node=primary_n)
 

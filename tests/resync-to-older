@@ -40,8 +40,7 @@ node_a.write()
 connections(node_c, node_a).connect()
 node_c.volumes.event(r'device .* disk:UpToDate')
 
-connections_bc = drbdtest.Connections()
-connections_bc.bidir_add(node_b, node_c)
+connections_bc = connections(node_b, node_c, bidir=True)
 connections_bc.connect()
 connections_bc.event(r'connection .* connection:Connected')
 

@@ -39,13 +39,11 @@ def outdate_test(write_between_actions = False):
         write_on_node(first_node)
 
     log("* See if node becomes UpToDate when connecting to the primary.")
-    cs = drbdtest.Connections()
-    cs.bidir_add(first_node, last_node)
+    cs = connections(first_node, last_node, bidir=True)
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 
-    pds = drbdtest.PeerDevices()
-    pds.extend(peer_devices(first_node, last_node))
+    pds = peer_devices(first_node, last_node)
     last_node.volumes[0].event(r'device .* disk:UpToDate')
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
@@ -68,8 +66,7 @@ def outdate_test(write_between_actions = False):
     resource.forbidden_patterns.add(r'connection:Timeout')
 
     log("* See if node becomes Outdated when disconnecting from the primary.")
-    first_to_last = drbdtest.Connections()
-    first_to_last.extend(connections(first_node, last_node))
+    first_to_last = connections(first_node, last_node)
     first_to_last.disconnect(wait=False)
     last_node.volumes[0].event(r'device .* disk:Outdated')
     if write_between_actions:
@@ -80,8 +77,7 @@ def outdate_test(write_between_actions = False):
     last_node.volumes[0].event(r'device .* disk:UpToDate')
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
-    last_to_first = drbdtest.Connections()
-    last_to_first.extend(connections(last_node, first_node))
+    last_to_first = connections(last_node, first_node)
     last_to_first.disconnect(wait=False)
     last_node.volumes[0].event(r'device .* disk:Outdated')
     if write_between_actions:

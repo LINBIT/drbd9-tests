@@ -30,7 +30,7 @@ log('* Resync from %s to %s' % (node_b.name, node_a.name))
 connection_ab = connections(node_a, node_b)
 connection_ab.connect()
 
-peer_device_ab = drbdtest.PeerDevice(connection_ab, resource.volumes[0])
+peer_device_ab = peer_devices(node_a, node_b)
 while True:
     done = peer_device_ab.event(r'peer-device .* done:([0-9.]+)')
     if float(done[0][0]) > 20.0:
@@ -50,7 +50,7 @@ log('* Ensure resync from %s to %s' % (node_a.name, node_c.name))
 connection_ca = connections(node_c, node_a)
 connection_ca.event(r'connection .* connection:Connected')
 connection_ac.event(r'connection .* connection:Connected')
-peer_device_ca = drbdtest.PeerDevice(connection_ca, resource.volumes[0])
+peer_device_ca = peer_devices(node_c, node_a)
 [[repl_state]] = peer_device_ca.event(r'peer-device .* replication:([^ ]+)')
 if repl_state != 'WFBitMapT':
     raise RuntimeError("Expected a resync here but got %s" % (repl_state))

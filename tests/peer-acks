@@ -71,12 +71,12 @@ resource.skip_initial_sync();
 
 vol = resource.volumes[0]
 other_target_c = connections(other_n, target_n)
-other_target_pd = drbdtest.PeerDevice(other_target_c, other_n.volumes[0])
+other_target_pd = peer_devices(other_n, target_n)
 target_other_c = connections(target_n, other_n)
-target_other_pd = drbdtest.PeerDevice(target_other_c, target_n.volumes[0])
+target_other_pd = peer_devices(target_n, other_n)
 diskless_target_c = connections(diskless_n, target_n)
 target_diskless_c = connections(target_n, diskless_n)
-target_diskless_pd = drbdtest.PeerDevice(target_diskless_c, target_n.volumes[0])
+target_diskless_pd = peer_devices(target_n, diskless_n)
 
 diskless_n.primary()
 dev_name = diskless_n.volumes[0].device()

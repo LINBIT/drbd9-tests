@@ -31,9 +31,9 @@ C = resource.nodes[2]
 from_a = connections(A)
 to_a = connections(to_node=A)
 a_b = connections(A, B)
-a_b_pd = drbdtest.PeerDevice(a_b, resource.volumes[0])
+a_b_pd = peer_devices(A, B)
 c_a = connections(C, A)
-c_a_pd = drbdtest.PeerDevice(c_a, resource.volumes[0])
+c_a_pd = peer_devices(C, A)
 
 my_log('* Make up-to-date data available.')
 resource.skip_initial_sync()

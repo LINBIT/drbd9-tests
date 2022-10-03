@@ -57,8 +57,7 @@ def prepare(description, fencing_mode, handler_exit, test_mode, nodes):
     drbdtest.Nodes(nodes).drbdadm(['adjust', resource.name])
 
 def fencing_disconnect(n1, n2, test_mode):
-    n1_to_n2 = drbdtest.Connections()
-    n1_to_n2.extend(connections(n1, n2))
+    n1_to_n2 = connections(n1, n2)
 
     if test_mode == "DOWN":
         n1_to_n2.disconnect()
@@ -67,8 +66,6 @@ def fencing_disconnect(n1, n2, test_mode):
         #    r'connection:NetworkFailure',
         #    r'connection:BrokenPipe'
         #])
-        n1_to_n2 = drbdtest.Connections()
-        n1_to_n2.extend(connections(n1, n2))
         n1_to_n2.disconnect(force = True)
 
         #resource.sync_events(resource)
@@ -84,10 +81,8 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
     n1, n2 = resource.nodes[:2]
     prepare("Promote before disconnect", fencing_mode, handler_exit, test_mode, [n1, n2])
 
-    n1_to_n2 = drbdtest.Connections()
-    n1_to_n2.extend(connections(n1, n2))
-    pds = drbdtest.PeerDevices()
-    pds.extend(peer_devices(n2, n1))
+    n1_to_n2 = connections(n1, n2)
+    pds = peer_devices(n2, n1)
 
     n2.primary()
 
@@ -161,8 +156,7 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
 
     if test_mode != "RECONNECT":
         n1_to_n2.connect()
-        n1_to_n2 = drbdtest.Connections()
-        n1_to_n2.bidir_add(n1, n2)
+        n1_to_n2 = connections(n1, n2, bidir=True)
         n1_to_n2.event(r'connection .* connection:Connected')
         pds.event(r'peer-device .* peer-disk:UpToDate')
 
@@ -170,14 +164,11 @@ def fencing_test2(fencing_mode, handler_exit, test_mode):
     n1, n2 = resource.nodes[:2]
     prepare("Disconnect before promote", fencing_mode, handler_exit, test_mode, [n1, n2])
 
-    n1_to_n2 = drbdtest.Connections()
-    n1_to_n2.extend(connections(n1, n2))
-    pds = drbdtest.PeerDevices()
-    pds.extend(peer_devices(n2, n1))
+    n1_to_n2 = connections(n1, n2)
+    pds = peer_devices(n2, n1)
 
     fencing_disconnect(n1, n2, test_mode)
-    n2_to_n1 = drbdtest.Connections()
-    n2_to_n1.extend(connections(n2, n1))
+    n2_to_n1 = connections(n2, n1)
     n2_to_n1.event(r'connection .* connection:Connecting')
     time.sleep(0.1) # to prevent concurrent state change....
 
@@ -229,8 +220,7 @@ def fencing_test2(fencing_mode, handler_exit, test_mode):
 
     if test_mode != "RECONNECT":
         n1_to_n2.connect()
-        n1_to_n2 = drbdtest.Connections()
-        n1_to_n2.bidir_add(n1, n2)
+        n1_to_n2 = connections(n1, n2, bidir=True)
         n1_to_n2.event(r'connection .* connection:Connected')
         pds.event(r'peer-device .* peer-disk:UpToDate')
 

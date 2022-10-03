@@ -9,18 +9,13 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
 def connect_and_check(n1, n2):
-    cs = drbdtest.Connections()
-    cs.bidir_add(n1, n2)
+    cs = connections(n1, n2, bidir=True)
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 
 def wait_sync(node_source, node_target):
-    pd_source = drbdtest.PeerDevice(
-            connections(node_source, node_target),
-            resource.volumes[0])
-    pd_target = drbdtest.PeerDevice(
-            connections(node_target, node_source),
-            resource.volumes[0])
+    pd_source = peer_devices(node_source, node_target)
+    pd_target = peer_devices(node_target, node_source)
 
     pd_source.event(r'peer-device .* replication:SyncSource')
     pd_source.event(r'peer-device .* replication:Established')

@@ -13,7 +13,7 @@ def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
     def connect_ca():
         connection_ca = connections(node_c, node_a)
         connection_ca.connect()
-        pd = drbdtest.PeerDevice(connection_ca, resource.volumes[0])
+        pd = peer_devices(node_c, node_a)
         pd.event(r'peer-device .* replication:Established')
 
     def new_current_uuid_a():
@@ -41,7 +41,7 @@ def do_test(node_a, node_b, node_c, connect_to_diskless_first=False):
     log('* Resync from %s to %s' % (node_b.name, node_c.name))
     connection_cb.connect()
 
-    pd = drbdtest.PeerDevice(connection_cb, resource.volumes[0])
+    pd = peer_devices(node_c, node_b)
     pd.event(r'peer-device .* replication:SyncTarget')
     pd.event(r'peer-device .* replication:Established')
 

@@ -99,9 +99,7 @@ def check_resync(expect_resync_source, running_writer):
     if expect_resync_source == node_c:
         connection_bc.connect()
 
-    peer_device_source = drbdtest.PeerDevice(
-            connections(expect_resync_source, node_b),
-            resource.volumes[0])
+    peer_device_source = peer_devices(expect_resync_source, node_b)
     peer_device_source.event(r'peer-device .* replication:WFBitMapS')
 
     if running_writer is not None:

@@ -8,10 +8,9 @@ from subprocess import CalledProcessError
 import os
 
 
-def assert_resync_dir(forward_c, backward_c, oos_str):
-    v = resource.volumes[0]
-    forward_pd = drbdtest.PeerDevice(forward_c, v)
-    backward_pd = drbdtest.PeerDevice(backward_c, v)
+def assert_resync_dir(source_n, target_n, oos_str):
+    forward_pd = peer_devices(source_n, target_n)
+    backward_pd = peer_devices(target_n, source_n)
     forward_pd.event(r'peer-device .* replication:SyncSource' + oos_str)
     forward_pd.event(r'peer-device .* replication:Established')
     backward_pd.event(r'peer-device .* replication:SyncTarget' + oos_str)
@@ -214,7 +213,7 @@ def test_case3_promote():
     connab.event(r'connection .* connection:Connected')
     connba.event(r'connection .* connection:Connected')
 
-    assert_resync_dir(connba, connab, ' .* out-of-sync:4')
+    assert_resync_dir(B, A, ' .* out-of-sync:4')
 
     # reconnect
     my_log('* Unblocking A-C')

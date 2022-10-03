@@ -45,11 +45,9 @@ def pre_existing_test(write_between_actions = False):
     log('* Bringing up the diskless and one server, connect them')
     resource.nodes.diskful[1].up()
     diskless_node.up()
-    cs = drbdtest.Connections()
-    cs.bidir_add(diskless_node, resource.nodes.diskful[1])
+    cs = connections(diskless_node, resource.nodes.diskful[1], bidir=True)
     cs.event(r'connection .* connection:Connected')
-    pds = drbdtest.PeerDevices()
-    pds.extend(peer_devices(diskless_node, resource.nodes.diskful[1]))
+    pds = peer_devices(diskless_node, resource.nodes.diskful[1])
     pds.event(r'peer-device .* peer-disk:UpToDate')
 
     log('* Promoting the diskless')
@@ -65,8 +63,7 @@ def pre_existing_test(write_between_actions = False):
     n.new_path()
     n.drbdadm(["peer-device-options", "all"])
     n.attach()
-    cs = drbdtest.Connections()
-    cs.extend(connections(n, resource.nodes.diskful[1]))
+    cs = connections(n, resource.nodes.diskful[1])
     cs.connect()
     cs.event(r'connection .* connection:Connected')
 
@@ -74,8 +71,7 @@ def pre_existing_test(write_between_actions = False):
     n.volumes[0].event(r'device .* disk:Outdated')
 
     # Ensure nothing is out of sync!
-    pds = drbdtest.PeerDevices()
-    pds.add(drbdtest.PeerDevice(cs[0], diskless_node.volumes[0]))
+    pds = peer_devices(n, resource.nodes.diskful[1])
     if not write_between_actions:
         resource.forbidden_patterns.update([r'out-of-sync:[1-9][0-9]*'])
     pds.event(r'peer-device .* replication:Established')

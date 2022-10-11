@@ -72,20 +72,20 @@ connection_ba.disconnect()
 # have good chances of covering all relevant cases.
 
 node_a.fio({},
-        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='960M', bs='1M',
-        blockalign='3M', # scatter blocks
+        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='60M', bs='64K',
+        blockalign='{}K'.format(3 * 64), # scatter blocks
         norandommap=1, # required for blockalign
         buffer_pattern='"x"')
 
 node_a.fio({},
-        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='960M', bs='1M',
-        blockalign='5M', # scatter blocks differently
+        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='60M', bs='64K',
+        blockalign='{}K'.format(5 * 64), # scatter blocks differently
         norandommap=1, # required for blockalign
         zero_buffers=1)
 
 node_a.fio({},
-        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='960M', bs='1M',
-        blockalign='7M', # scatter blocks differently again
+        direct=1, rw='randwrite', ioengine='libaio', iodepth=16, size='60M', bs='64K',
+        blockalign='{}K'.format(7 * 64), # scatter blocks differently again
         norandommap=1, # required for blockalign
         zero_buffers=1)
 

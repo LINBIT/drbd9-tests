@@ -41,7 +41,7 @@ script = """
 units="unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer"
 
 # Disable services which fail anyway
-units="$units kdump.service postfix.service"
+units="$units kdump.service postfix.service fwupd-refresh.service fwupd-refresh.timer"
 
 for u in $units; do
 	if systemctl list-unit-files | grep -Fq $u; then

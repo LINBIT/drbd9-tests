@@ -5,39 +5,69 @@
 # backing volume on the resync target node after
 # the resync
 
-import json
-import os
-
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
+def test(resource, discard_granularity):
+    node_a, node_b = resource.nodes
+
+    connection_ba = connections(node_b, node_a)
+    connection_ab = connections(node_a, node_b)
+
+    if discard_granularity <= 1<<27:
+        connection_ba.disconnect()
+        connection_ab.event(r'connection .* connection:Connecting')
+        node_a.primary(force=True)
+        node_a.run(['blkdiscard', node_a.volumes[0].device()])
+        node_a.secondary()
+        connection_ba.connect()
+    else:
+        # DRBD does not accept discards larger than 128MiB, so we need another
+        # method to trigger the full resync.
+        node_a.primary(force=True)
+
+    peer_devices_ba = drbdtest.PeerDevices.from_connections(connection_ba)
+    peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
+    peer_devices_ba.event(r'peer-device .* replication:Established')
+
+    data_percent_a = node_a.storage_pool.fill_percentage(node_a.volumes[0].disk)
+    data_percent_b = node_b.storage_pool.fill_percentage(node_b.volumes[0].disk)
+
+    if data_percent_a != data_percent_b:
+        raise Exception("node_a data_percent {} while node_b shows {}"
+                        .format(data_percent_a, data_percent_b))
+
 
 resource = drbdtest.setup(nodes=2)
-resource.disk_options = 'discard-zeroes-if-aligned yes; rs-discard-granularity 65536; c-max-rate 10M;'
-resource.create_storage_pool(thin=True)
-resource.add_disk('11M')
 
-node_a, node_b = resource.nodes
-dev_name = node_a.volumes[0].device()
+if any(node.drbd_version_tuple < (9, 2, 0) for node in resource.nodes):
+    # 9.1 can not deal with discard granularity > 1M. Since it lacks the discard merging, we need to test
+    # with a volume 100 times smaller, to finish in acceptable time.
+    discard_granularities = [1<<16]
+    disk_size = '11M'
+elif any(node.storage_backend == 'zfs' for node in resource.nodes):
+    # With ZFS, we can only control the discard granularity by setting
+    # 'volblocksize', which has a maximum of 1MiB. Note that this also changes
+    # MIN-IO, PHY-SEC etc.
+    discard_granularities = [1<<16, 1<<20]
+    disk_size = '1G'
+else:
+    discard_granularities = [1<<16, 1<<22, 1<<28]  # 64KiB, 4MiB and 256MiB. (each is 64 times the previous)
+    disk_size = '1G'
 
-node_a.up_wait()
-node_a.primary(force=True)
-node_a.secondary()
+for discard_granularity in discard_granularities:
+    drbd_rs_discard_granularity = min(discard_granularity, 1<<20)
+    resource.disk_options = 'discard-zeroes-if-aligned yes; rs-discard-granularity {};'.format(drbd_rs_discard_granularity)
+    resource.create_storage_pool(thin=True, discard_granularity=discard_granularity)
+    resource.add_disk(disk_size)
 
-node_b.up_wait()
+    resource.up_wait()
 
-connection_ba = connections(node_b, node_a)
-peer_devices_ba = drbdtest.PeerDevices.from_connections(connection_ba)
-peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
-peer_devices_ba.event(r'peer-device .* replication:Established')
+    test(resource, discard_granularity)
 
-data_percent_a = node_a.storage_pool.fill_percentage(node_a.volumes[0].disk)
-data_percent_b = node_b.storage_pool.fill_percentage(node_b.volumes[0].disk)
+    resource.down()
+    resource.remove_storage_pool()
 
-if data_percent_a != data_percent_b:
-    raise Exception("node_a data_percent {} while node_b shows {}"
-                    .format(data_percent_a, data_percent_b))
 
 log('* Shut down and clean up.')
-resource.down()
 resource.teardown()

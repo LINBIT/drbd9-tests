@@ -14,7 +14,8 @@ from python.drbdtest import connections, log, peer_devices
 
 resource = drbdtest.setup(nodes=2)
 resource.disk_options = 'discard-zeroes-if-aligned yes; rs-discard-granularity 65536; c-max-rate 10M;'
-resource.add_disk('11M', thin=True)
+resource.create_storage_pool(thin=True)
+resource.add_disk('11M')
 
 node_a, node_b = resource.nodes
 dev_name = node_a.volumes[0].device()
@@ -30,8 +31,8 @@ peer_devices_ba = drbdtest.PeerDevices.from_connections(connection_ba)
 peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
 peer_devices_ba.event(r'peer-device .* replication:Established')
 
-data_percent_a = node_a.disk_tools.fill_percentage(node_a.volumes[0].disk)
-data_percent_b = node_b.disk_tools.fill_percentage(node_b.volumes[0].disk)
+data_percent_a = node_a.storage_pool.fill_percentage(node_a.volumes[0].disk)
+data_percent_b = node_b.storage_pool.fill_percentage(node_b.volumes[0].disk)
 
 if data_percent_a != data_percent_b:
     raise Exception("node_a data_percent {} while node_b shows {}"

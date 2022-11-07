@@ -230,7 +230,7 @@ def test_4():
 test_1()
 test_2()
 
-D.disk_tools.remove_disk(D.volumes[0].disk)
+D.storage_pool.remove_disk(D.volumes[0].disk)
 D.volumes[0].disk = None
 
 test_3()

@@ -12,24 +12,6 @@ DrbdVersionOther = ""
 script = '''
 set -e
 
-case "$DRBD_TEST_STORAGE" in
-lvm)
-    if ! vgs scratch; then
-	    vgcreate scratch "$SCRATCH_DISK"
-	    lvcreate --thin --size 1G scratch/drbdthinpool
-    fi
-    ;;
-raw)
-    ;;
-zfs)
-    zpool create scratch $SCRATCH_DISK
-    ;;
-*)
-    echo "Unknown storage backend" 1>&2
-    exit 1
-    ;;
-esac
-
 # Find the default route which must have a /24 address range.
 default_gateway=$(ip route show to 0.0.0.0/0 | awk {'print $3'})
 default_route=$(ip route show to match $default_gateway | grep /24)

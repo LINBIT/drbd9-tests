@@ -230,7 +230,8 @@ resource.net_options = net_options
 # Use a thin backing volume so that the discard is definitely reported as being
 # supported. This is necessary for VariantType.THIN to actually test thin
 # resync.
-resource.add_disk('100M', thin=True, diskful_nodes=[source_n, target_n])
+resource.create_storage_pool(thin=True)
+resource.add_disk('100M', diskful_nodes=[source_n, target_n])
 resource.up_wait()
 
 from_target = connections(target_n)

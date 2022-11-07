@@ -21,7 +21,7 @@ import signal
 from subprocess import CalledProcessError
 import atexit
 from .ordered_set import OrderedSet
-from .disktools import DiskTools
+from . import disktools
 import io
 
 from io import StringIO
@@ -620,8 +620,16 @@ class Resource(object):
         self.num_volumes += 1
         return volume
 
-    def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, thin=False,
-                 max_peers=None):
+    def create_storage_pool(self, thin=False, discard_granularity=None):
+        for node in self.nodes:
+            node.create_storage_pool(thin=thin, discard_granularity=discard_granularity)
+
+    def remove_storage_pool(self):
+        self.num_volumes = 0
+        for node in self.nodes:
+            node.remove_storage_pool()
+
+    def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, max_peers=None):
         """
         Create and add a new disk on some or all nodes.
 
@@ -632,7 +640,6 @@ class Resource(object):
         diskful_nodes   -- nodes which shall have a local lower-level device
                            (defaults to all nodes)
         max_size        -- maximum we expect this disk to be resized to
-        thin            -- wheter to create a thin provisioned disk
         max_peers       -- maximum number of peers to reserve metadata for
         """
 
@@ -642,7 +649,7 @@ class Resource(object):
         for node in self.nodes:
             if diskful_nodes is None or node in diskful_nodes:
                 diskful_volumes.append(node.add_disk(
-                    volume_number, size, meta_size=meta_size, max_size=max_size, thin=thin))
+                    volume_number, size, meta_size=meta_size, max_size=max_size))
             else:
                 node.add_disk(volume_number)
 
@@ -779,7 +786,8 @@ class Resource(object):
     def add_new_posfile(self, posfile):
         data = ''.join(['1 0 events-%s\n' % node.name for node in self.nodes])
         fd = os.open(os.path.join(self.logdir, posfile),
-                     os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+                     os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o666)
+        # | os.O_EXCL
         os.write(fd, data.encode())
         os.close(fd)
 
@@ -934,26 +942,26 @@ class Volume(object):
     def __repr__(self):
         return '%s:%s' % (self.node, self.volume)
 
-    def create_disks(self, size, meta_size=None, *, max_size=None, thin=False):
+    def create_disks(self, size, meta_size=None, *, max_size=None):
         self.disk_lv = '{}-disk{}'.format(self.node.resource.name, self.volume)
-        self.disk = self.node.disk_tools.create_disk(self.disk_lv, size, max_size=max_size, thin=thin)
+        self.disk = self.node.storage_pool.create_disk(self.disk_lv, size, max_size=max_size)
         if meta_size:
             self.meta_lv = '{}-meta{}'.format(self.node.resource.name, self.volume)
-            self.meta = self.node.disk_tools.create_disk(self.meta_lv, meta_size, thin=thin)
+            self.meta = self.node.storage_pool.create_disk(self.meta_lv, meta_size)
 
     def create_md(self, max_peers):
         if max_peers is None:
             max_peers = len(self.node.resource.nodes) - 1
             if max_peers < 1:
                 max_peers = 1
-        DiskTools.create_md(self.node, self.volume, max_peers=max_peers)
+        disktools.create_md(self.node, self.volume, max_peers=max_peers)
 
     def event(self, *args, **kwargs):
         return Volumes([self]).event(*args, **kwargs)
 
     def resize(self, size):
         # TODO: metadata-resize?
-        self.node.disk_tools.resize(self.disk, size)
+        self.node.storage_pool.resize(self.disk, size)
 
     def device(self):
         return '/dev/drbd%d' % self.minor
@@ -1154,7 +1162,6 @@ class Node():
                  addr=None, port=7789, multi_paths=None, netns=None):
         self.resource = resource
         self.name = name
-        self.disk_tools = DiskTools(self, storage_backend, backing_device)
         self.netns = None
         try:
             self.addr = addr if addr else socket.gethostbyname(name)
@@ -1171,7 +1178,10 @@ class Node():
         self.resource.posfiles_add_node(self)
         self.minors = 0
         self.config_changed = True
+        self.storage_pool = None
         self.volume_group = volume_group
+        self.storage_backend = storage_backend
+        self.backing_device = backing_device
         self.connections = Connections()
 
         self.hostname = self.run(['hostname', '-f'], return_stdout=True,
@@ -1299,11 +1309,8 @@ class Node():
         self.run(['bash', '-c',
             '! [ -e /proc/drbd ] || drbdsetup down {}'.format(self.resource.name)],
             update_config=False)
-        for volume in self.volumes:
-            if volume.disk is not None:
-                self.disk_tools.remove_disk(volume.disk)
-            if volume.meta is not None:
-                self.disk_tools.remove_disk(volume.meta)
+        if self.storage_pool:
+            self.storage_pool.remove()
 
     def cleanup_framework(self):
         """
@@ -1424,7 +1431,21 @@ class Node():
         self.minors += 1
         return self.minors
 
-    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None, thin=False):
+    def create_storage_pool(self, thin=False, discard_granularity=None):
+        if self.storage_pool:
+            raise RuntimeError('storage pool already created')
+        self.storage_pool = disktools.create_storage_pool(self, self.storage_backend, self.backing_device,
+                thin=thin, discard_granularity=discard_granularity)
+
+    def remove_storage_pool(self):
+        if not self.storage_pool:
+            raise RuntimeError('no storage pool to remove')
+        self.disks = []
+        self.storage_pool.remove()
+        self.storage_pool = None
+        self.config_changed = True
+
+    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None):
         """
         Keyword arguments:
         volume_number -- volume number of the new disk
@@ -1433,12 +1454,18 @@ class Node():
         max_size -- maximum we expect this disk to be resized to
         thin -- whether to create a thin provisioned disk
         """
-        # FIXME: Volume is not added at the right index (by volume number)
-        # here.  Does that matter?
+
+        # Create storage pool if not yet created
+        if not self.storage_pool:
+            self.storage_pool = disktools.create_storage_pool(self, self.storage_backend, self.backing_device)
+
         volume = Volume(self, volume_number)
         if size is not None:
-            volume.create_disks(size, meta_size, max_size=max_size, thin=thin)
-        self.disks.append(volume)
+            volume.create_disks(size, meta_size, max_size=max_size)
+        if volume_number >= len(self.disks):
+            self.disks.append(volume)
+        else:
+            self.disks[volume_number] = volume
         self.config_changed = True
         return volume
 

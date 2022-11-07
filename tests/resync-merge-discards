@@ -40,7 +40,8 @@ def number_of_discards(node, vol):
 
 resource = drbdtest.setup(nodes=2)
 resource.disk_options = 'discard-zeroes-if-aligned yes; rs-discard-granularity 65536; c-max-rate 500M;'
-resource.add_disk('1G', thin=True)
+resource.create_storage_pool(thin=True)
+resource.add_disk('1G')
 
 node_a, node_b = resource.nodes
 

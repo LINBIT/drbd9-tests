@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2], "vms_ci": [2], "drbd_version_min": "9.0" }
+### vmshed: { "vms_all": [2], "vms_ci": [2], "drbd_version_min": "8.4" }
 
 # This test makes drbd call a broken fence peer script with
 # fencing=resource-and-stonith. This causes DRBD to freeze IO.
@@ -12,7 +12,7 @@ from python.drbdtest import connections, log, peer_devices
 import time
 
 resource = drbdtest.setup(nodes=2)
-resource.net_options = 'fencing resource-and-stonith;'
+resource.set_fencing_mode('resource-and-stonith')
 # "1" is not a valid exit code for a fence handler.
 # This simulates a broken fence peer script.
 resource.handlers = 'fence-peer "exit 1";'

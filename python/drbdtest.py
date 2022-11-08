@@ -696,6 +696,10 @@ class Resource(object):
         self._handlers = value
         self.touch_config()
 
+    def set_fencing_mode(self, mode):
+        for node in self.nodes:
+            node.fencing_mode = mode
+
     def cleanup(self):
         if not skip_cleanup:
             for node in self.nodes:
@@ -1168,6 +1172,7 @@ class ConfigBlock(object):
 class Node():
     def __init__(self, resource, name, volume_group, storage_backend, backing_device,
                  addr=None, port=7789, multi_paths=None, netns=None):
+        self._fencing_mode = ""
         self.resource = resource
         self.name = name
         self.netns = None
@@ -1483,6 +1488,15 @@ class Node():
         self.config_changed = True
         return volume
 
+    @property
+    def fencing_mode(self):
+        return self._fencing_mode
+
+    @fencing_mode.setter
+    def fencing_mode(self, value):
+        self._fencing_mode = value
+        self.config_changed = True
+
     def _config_conns_84(self):
         # no explicit connections for 8.4
         # done via "address" in "on <host>" section
@@ -1561,11 +1575,15 @@ class Node():
                     # Work around issue on Ubuntu Bionic.
                     # Application IO activity is detected when there is none, causing c-min-rate throttling to be applied.
                     disk.write("c-min-rate 0;")
+                if self._fencing_mode and self.drbd_version_tuple < (9, 0, 0):
+                    disk.write('fencing {};'.format(self._fencing_mode))
                 disk.write(resource._disk_options)
 
             with ConfigBlock(t='net') as net:
                 if resource.rdma:
                     net.write("transport rdma;")
+                if self._fencing_mode and self.drbd_version_tuple >= (9, 0, 0):
+                    net.write('fencing {};'.format(self._fencing_mode))
                 net.write(resource._net_options)
 
             # NOTE: (wap) W/ drbd9/LINSTOR, separate proxy stanza not needed

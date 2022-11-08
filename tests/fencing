@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2, 5], "vms_ci": [2, 5], "drbd_version_min": "9.0" }
+### vmshed: { "vms_all": [2, 5], "vms_ci": [2, 5], "drbd_version_min": "8.4" }
 
 # For your convenience, fence handler exit code map:
 # 3  Peer's disk state was already Inconsistent.
@@ -48,7 +48,7 @@ def prepare(description, fencing_mode, handler_exit, test_mode, nodes):
     log('* %s; fencing = %s; handler_exit = %d; test = %s; case_nr = %d'
             % (description, fencing_mode, handler_exit, test_mode, test_run))
 
-    resource.net_options = 'fencing %s;' % (fencing_mode)
+    resource.set_fencing_mode(fencing_mode)
     if test_mode == "RECONNECT":
         resource.handlers = 'fence-peer "sleep 10; exit %d";' % (handler_exit)
     else:
@@ -225,16 +225,23 @@ def fencing_test2(fencing_mode, handler_exit, test_mode):
         pds.event(r'peer-device .* peer-disk:UpToDate')
 
 def execute_test_cases(test_func):
-    for test_mode in ["DOWN", "FORCE"]:
+    if resource.nodes.min_drbd_version_tuple() >= (9, 0, 0):
+        test_modes = ['DOWN', 'FORCE']
+    else:
+        test_modes = ['FORCE']
+
+    for test_mode in ['DOWN', 'FORCE']:
+        # DOWN with dont-care works for 8.4 as well
         test_func("dont-care", 0, test_mode)
 
-    for test_mode in ["DOWN", "FORCE"]:
+    for test_mode in test_modes:
         for fencing_mode in ["resource-only", "resource-and-stonith"]:
             for exit_code in range(3, 8):
                 test_func(fencing_mode, exit_code, test_mode)
 
-    for fencing_mode in ["resource-only", "resource-and-stonith"]:
-        test_func(fencing_mode, 0, "RECONNECT")
+    if resource.nodes.min_drbd_version_tuple() >= (9, 0, 0):
+        for fencing_mode in ["resource-only", "resource-and-stonith"]:
+            test_func(fencing_mode, 0, "RECONNECT")
 
 # main
 

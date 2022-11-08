@@ -143,6 +143,8 @@ class ZfsPool(object):
             extra_args += ['-o', 'volblocksize={}'.format(self._discard_granularity)]
         self._node.run(['zfs', 'create', '-V', str(size), '{}/{}'.format(self._node.volume_group, name)] + extra_args,
                       update_config=False)
+        self._node.run(['udevadm', 'trigger'], update_config=False)
+        self._node.run(['udevadm', 'settle'], update_config=False)
         return '/dev/zvol/{}/{}'.format(self._node.volume_group, name)
 
     def remove_disk(self, name):

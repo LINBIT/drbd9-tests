@@ -36,8 +36,8 @@ def ioctl(fd, request, ioctl_range, name):
     return n
 
 def main():
+    # 128KiB - a multiple of discard_granularity
     size = 128 * 1024
-    ioctl_range = IOCTL_range(0, 131072)
 
     if len(sys.argv) > 2:
         size = int(sys.argv[2])
@@ -45,18 +45,10 @@ def main():
     fd = os.open(sys.argv[1], os.O_RDWR | os.O_DIRECT)
     # will raise an exception if open fails
 
-    try:
-        ioctl(fd, BLKZEROUT,     IOCTL_range(0 * size, 1 * size), "BLKZEROUT")
-    except:
-        pass
-    try:
-        ioctl(fd, BLKDISCARD,    IOCTL_range(1 * size, 2 * size), "BLKDISCARD")
-    except:
-        pass
-    try:
-        ioctl(fd, BLKSECDISCARD, IOCTL_range(2 * size, 3 * size), "BLKSECDISCARD")
-    except:
-        pass
+    ioctl(fd, BLKZEROUT,     IOCTL_range(0 * size, 1 * size), "BLKZEROUT")
+    ioctl(fd, BLKDISCARD,    IOCTL_range(1 * size, 2 * size), "BLKDISCARD")
+    # The backing disk in the test infrastructure does not support BLKSECDISCARD.
+    #ioctl(fd, BLKSECDISCARD, IOCTL_range(4 * size, 3 * size), "BLKSECDISCARD")
 
     os.close(fd)
 

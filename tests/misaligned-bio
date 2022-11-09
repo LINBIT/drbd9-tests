@@ -9,6 +9,7 @@ from python.drbdtest import connections, log, peer_devices
 resource = drbdtest.setup(max_nodes=2)
 first_node, other_node = resource.nodes
 
+resource.create_storage_pool(thin=True, discard_granularity='64K')
 resource.add_disk('10M')
 
 log('* Bring up the first node, make it primary, and write defined data onto all volumes.')
@@ -24,6 +25,11 @@ with other_node.asPrimary():
 
 # That is BLKZEROOUT, BLKDISCARD and BLKSECDISCARD
 with first_node.asPrimary():
+    first_node.run_helper('unusual_bios.py', [dev_name])
+
+    # Try again without the peer, in case the success of the remote request is
+    # masking a local error.
+    connections(first_node, other_node).disconnect()
     first_node.run_helper('unusual_bios.py', [dev_name])
 
 log('* Shut down and clean up.')

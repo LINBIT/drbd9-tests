@@ -633,6 +633,8 @@ class Resource(object):
         self.num_volumes = 0
         self.logdir = logdir
         self.rdma = rdma
+        self.drbd_version = ""
+        self.drbd_version_other = ""
         self.events_cls = None
         self.forbidden_patterns = OrderedSet()
         self.add_new_posfile('.events.pos')
@@ -2063,16 +2065,21 @@ def skip_test(text):
     sys.exit(100)
 
 
-def validate_drbd_versions(nodes, drbd_version, drbd_version_other):
+def validate_drbd_versions(nodes):
     """
-    Check the expected DRBD versions of given nodes.
+    Check the expected DRBD versions of given nodes. If
+    resource.drbd_version_other is set, validate that this version is installed
+    on nodes[0]. If resource.drbd_version is set, validate that this version is
+    installed on all other nodes and all git hashes match.
 
     :param nodes: Nodes to validate.
-    :param drbd_version: If set, validate that this version is installed and all git hashes match.
-    :param drbd_version_other: If set, this version is expected on nodes[0].
     """
 
     git_hashes = set()
+
+    resource = nodes[0].resource
+    drbd_version = resource.drbd_version
+    drbd_version_other = resource.drbd_version_other
 
     for i, node in enumerate(nodes):
         expect_version = None
@@ -2213,6 +2220,8 @@ def setup(parser=argparse.ArgumentParser(),
                           rdma=args.rdma)
 
     resource.job = args.job
+    resource.drbd_version = args.drbd_version
+    resource.drbd_version_other = args.drbd_version_other
 
     for node in args.node:
         _node_class(resource, node, args.volume_group, args.storage_backend, args.backing_device,
@@ -2262,7 +2271,7 @@ def setup(parser=argparse.ArgumentParser(),
         # Automatically install other version on the first node
         resource.nodes[0].install_drbd(args.drbd_version_other)
 
-    validate_drbd_versions(resource.nodes, args.drbd_version, args.drbd_version_other)
+    validate_drbd_versions(resource.nodes)
 
     for node in resource.nodes:
         node.listen_to_events()

@@ -1,0 +1,80 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "8.4" }
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+from python import datatools
+
+resource = drbdtest.setup(min_nodes=2)
+first, second, *others = resource.nodes
+
+def upgrade(node, primary):
+    log('* Upgrade {}, expecting resync from {}'.format(node, primary))
+    node.down()
+    # Only need to upgrade if we actually downgraded
+    if resource.drbd_version_other:
+        version_tuple_before = node.drbd_version_tuple
+
+        node.install_drbd(resource.drbd_version)
+        node.listen_to_events()
+
+        # If we are upgrading from 8.4, we need to convert the metadata.
+        # We must not run "create-md" if we are already running DRBD 9, because
+        # that will overwrite the existing metadata and trigger a full sync.
+        if version_tuple_before < (9, 0, 0):
+            node.volumes[0].create_md()
+    node.up()
+    peer_devices(primary, node).event(r'peer-device .* replication:SyncSource')
+    peer_devices(node, primary).event(r'peer-device .* replication:SyncTarget')
+    peer_devices(primary, node).event(r'peer-device .* replication:Established')
+    peer_devices(node, primary).event(r'peer-device .* replication:Established')
+
+if not resource.drbd_version:
+    raise RuntimeError('No version specified to upgrade to')
+
+if resource.drbd_version_other:
+    log('* Downgrade remaining nodes to {}'.format(resource.drbd_version_other))
+    for node in [second, *others]:
+        node.install_drbd(resource.drbd_version_other)
+        node.listen_to_events()
+else:
+    log('* No version to downgrade to, just testing failovers')
+
+resource.add_disk('96M')
+# Make resync rate too slow to complete a full sync before the timeout
+resource.disk_options = 'c-max-rate 1M; c-min-rate 0;'
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+# Write slowly to avoid blocking resync for DRBD 9.1 and below.
+# This gives us a rate of approximately 32 KiB/s, so the resyncs can complete
+# even with the limited resync rate.
+writer_args = '--iodepth=1 --thinktime=125ms'
+
+first.primary()
+writer_first = busywrite.BusyWrite(first.volumes[0])
+writer_first.start(writer_args)
+
+for node in [second, *others]:
+    upgrade(node, first)
+
+log('* Fail over to {}'.format(second))
+writer_first.stop()
+first.secondary()
+
+second.primary()
+writer_second = busywrite.BusyWrite(second.volumes[0])
+writer_second.start(writer_args)
+
+upgrade(first, second)
+
+writer_second.stop()
+second.secondary()
+
+log('* Shut down and clean up.')
+resource.down()
+datatools.verify_data(resource.nodes, size_mb=90, backing_disk=True)
+resource.teardown()

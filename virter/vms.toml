@@ -10,7 +10,7 @@ memory = "1G"
 vm_tags = [ "discard-stat" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/rhel9/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
 ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.0/drbd-9/$basearch/"
 
 [vms.metadata]
@@ -30,7 +30,7 @@ memory = "1G"
 vm_tags = [ "discard-stat" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
 ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.5/drbd-9/$basearch/"
 
 [vms.metadata]
@@ -49,7 +49,7 @@ memory = "1G"
 vm_tags = [ "discard-stat" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
 ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.4/drbd-9/$basearch/"
 
 [vms.metadata]
@@ -67,7 +67,7 @@ memory = "1G"
 vm_tags = [ "discard-stat", "rdma" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/rhel8/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
 ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.1/drbd-9/$basearch/"
 
 [vms.metadata]
@@ -85,7 +85,7 @@ memory = "1G"
 vm_tags = [ "rdma" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel7/"
 ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel7/drbd-9/$basearch/"
 
 [vms.metadata]
@@ -103,7 +103,7 @@ memory = "1G"
 vm_tags = [ "rdma" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/rhel7/"
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel7/"
 ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel7/drbd-9/$basearch/"
 
 [vms.metadata]

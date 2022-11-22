@@ -40,7 +40,7 @@ virter image build ubuntu-focal-drbd-k40 ubuntu-focal-drbd-k40-t -p virter/provi
 And similarly for RedHat-based images:
 
 ```
-virter image build centos-8-drbd-k193 centos-8-drbd-k193-t -p provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/rhel8/ --set values.DrbdVersion=9.0.0.0db548ca455a85569031337991f1527cbe34c437
+virter image build centos-8-drbd-k193 centos-8-drbd-k193-t -p provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/ci-yum/rhel8/ --set values.DrbdVersion=9.0.0.0db548ca455a85569031337991f1527cbe34c437
 ```
 
 ### Start cluster

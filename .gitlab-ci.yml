@@ -75,7 +75,7 @@ rebuild_drbd:
     - |
       parallel --will-cite --line-buffer --tag \
         trigger -h https://gitlab.at.linbit.com -a $LINBOT_API_TOKEN -p $CI_JOB_TOKEN -t {} -e DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME drbd/drbd \
-        ::: drbd-9.0 drbd-9.1 master
+        ::: drbd-9.1 master
 
 build-docker:
   stage: build

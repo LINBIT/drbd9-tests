@@ -1299,8 +1299,10 @@ class Node():
         version_match = re.match(r'([0-9]+)\.([0-9]+)\.([0-9]+).*', self.drbd_version)
         self.drbd_version_tuple = int(version_match.group(1)), int(version_match.group(2)), int(version_match.group(3))
 
-        hash_match = re.match(r'GIT-hash: ([0-9a-f]+).*', git_hash_line)
-        self.drbd_git_hash = hash_match.group(1)
+        # out-of-tree drbd uses "GIT-hash: 0a1b2c3d",
+        # in-tree uses "srcversion: 0A1B2C3D"; allow both formats.
+        hash_match = re.match(r'(?:srcversion|GIT-hash): ([0-9A-Fa-f]+).*', git_hash_line)
+        self.drbd_git_hash = hash_match.group(1).lower()
 
     def addr_port(self, net_num=0):
         return '%s:%s' % (self.addrs[net_num], self.port)

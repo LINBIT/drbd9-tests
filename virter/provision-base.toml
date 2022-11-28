@@ -59,6 +59,15 @@ if command -v snap > /dev/null; then
 fi
 """
 
+# Uninstall bcache-tools
+[[steps]]
+[steps.shell]
+script = """
+if [ -f /lib/udev/probe-bcache ]; then
+	apt-get purge bcache-tools
+fi
+"""
+
 [[steps]]
 [steps.rsync]
 source = "{{ .KernelPackage }}"

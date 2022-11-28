@@ -94,7 +94,6 @@ def test_case2():
     # tiebreaker "switches sides", nobody should gain quorum from this
     my_log('* Blocking A-C')
     A.block_path(C, 0)
-    A.event(r'connection:Unconnected', r'quorum:no') # A should lose quorum
     resource.forbidden_patterns.add(r'quorum:yes') # B should NOT regain quorum
     my_log('* Unblocking B-C')
     B.unblock_path(C)
@@ -152,7 +151,6 @@ def test_case3():
     # tiebreaker "switches sides", nobody should gain quorum from this
     my_log('* Blocking B-C')
     B.block_path(C, 0)
-    B.event(r'connection:Unconnected', r'quorum:no') # B should lose quorum
     resource.forbidden_patterns.add(r'quorum:yes')
     my_log('* Unblocking A-C')
     A.unblock_path(C)

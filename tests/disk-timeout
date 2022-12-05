@@ -1,0 +1,126 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.1" }
+#
+# Test disk-timeout for
+#  1 resync write on sync target
+#  2 resync read on sync source
+#  3 meta-data write
+#  4 meta-data read
+#  5 application write on primary
+#  6 application read on primary
+#  7 application write on secondary
+#  8 application read on secondary (requires diskless primary)
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from subprocess import CalledProcessError
+
+def wait_for_sync_progress(target_source_pd):
+    while True:
+        done = target_source_pd.event(r'peer-device .* done:([0-9.]+)')
+        if float(done[0][0]) > 10.0:
+            break
+
+resource = drbdtest.setup(nodes=2)
+resource.disk_options = 'c-max-rate 5M; disk-timeout 20; # 2 seconds'
+A, B = resource.nodes
+
+resource.add_disk('20M')
+resource.up_wait()
+
+resource.forbidden_patterns.remove(r'disk:Failed')
+resource.forbidden_patterns.remove(r'peer-disk:Failed')
+
+log('* Test 1, resync-write on resync target')
+A.primary(force=True) # Start resync by primary --force
+wait_for_sync_progress(peer_devices(B, A)[0])
+B.volumes.suspend()
+B.volumes.event(r'device .* disk:Failed')
+B.volumes.resume()
+B.volumes.event(r'device .* disk:Diskless')
+B.attach()
+B.volumes.event(r'device .* disk:UpToDate')
+A.secondary()
+
+log('* Test 2, resync-read on resync source')
+B.run(['drbdsetup', 'invalidate', str(resource.volumes[0].minor)])
+wait_for_sync_progress(peer_devices(B, A)[0])
+A.volumes.suspend()
+A.volumes.event(r'device .* disk:Failed')
+A.volumes.resume()
+A.volumes.event(r'device .* disk:Diskless')
+A.attach()
+A.volumes.event(r'device .* disk:UpToDate')
+B.volumes.event(r'device .* disk:UpToDate')  # Wait for resync to finish
+
+log('* Test 3, meta-data write')
+B.volumes.write(size='4K', direct=1) # ... and cause a resync from B->A at attach time
+A.volumes.suspend()
+A.primary()
+A.volumes.write(size='4K', direct=1)
+A.volumes.event(r'device .* disk:Failed')
+A.volumes.resume()
+A.volumes.event(r'device .* disk:Diskless')
+A.secondary()
+A.attach()
+A.volumes.event(r'device .* disk:UpToDate')
+
+#log('* Test 4, meta-data read')
+#A.detach()
+#A.volumes.suspend()
+#A.attach()                                   ## hangs forever
+#A.volumes.event(r'device .* disk:Failed')
+#A.volumes.resume()
+#A.volumes.event(r'device .* disk:Diskless')
+#A.attach()
+#A.volumes.event(r'device .* disk:UpToDate')
+
+#log('* Test 5, application write on primary')
+#A.primary()
+#A.volumes.write(size='4K', direct=1)
+#A.volumes.suspend()
+#A.volumes.write(size='4K', direct=1)
+#A.volumes.event(r'device .* disk:Failed')
+#A.volumes.resume()                           ## Kernel crash upon late IO completion
+#A.volumes.event(r'device .* disk:Diskless')
+#A.secondary()
+#A.attach()
+#A.volumes.event(r'device .* disk:UpToDate')
+
+#log('* Test 6, application read on primary')
+#A.primary()
+#A.volumes.write(size='4K', direct=1)
+#A.volumes.suspend()
+#A.volumes.fio(rw='read', size='4K', direct=1)  ## read never returns! Hangs here!
+#A.volumes.event(r'device .* disk:Failed')
+#A.volumes.resume()
+#A.volumes.event(r'device .* disk:Diskless')
+#A.secondary()
+#A.attach()
+#A.volumes.event(r'device .* disk:UpToDate')
+
+log('* Test 7, application write on secondary')
+A.primary()
+A.volumes.write(size='4K', direct=1)
+B.volumes.suspend()
+A.volumes.write(size='4K', direct=1)
+B.volumes.event(r'device .* disk:Failed')
+B.volumes.resume()
+B.volumes.event(r'device .* disk:Diskless')
+B.attach()
+B.volumes.event(r'device .* disk:UpToDate')
+
+#log('* Test 8, application read on secondary')
+#A.detach()
+#A.volumes.write(size='4K', direct=1)
+#B.volumes.suspend()
+#A.volumes.fio(rw='read', size='4K', direct=1)  ## read returns later than expected
+#B.volumes.event(r'device .* disk:Failed')
+#B.volumes.resume()
+#B.volumes.event(r'device .* disk:Diskless')
+#B.attach()
+#B.volumes.event(r'device .* disk:UpToDate')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.teardown()

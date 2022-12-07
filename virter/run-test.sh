@@ -28,7 +28,8 @@ echo "=== generate vmshed test configuration" >&2
 make virter/tests.toml \
 	VMSHED_TEST_SELECTION="${VMSHED_TEST_SELECTION:-ci}" \
 	DRBD_VERSION="$DRBD_VERSION" \
-	DRBD_VERSION_OTHER="$DRBD_VERSION_OTHER"
+	DRBD_VERSION_OTHER="$DRBD_VERSION_OTHER" \
+	VMSHED_TEST_TIMEOUT="$VMSHED_TEST_TIMEOUT"
 
 echo "=== virter version:" >&2
 virter version >&2

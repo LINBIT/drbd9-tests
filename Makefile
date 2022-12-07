@@ -4,6 +4,7 @@ NOCACHE ?= false
 VMSHED_TEST_SELECTION ?= ci
 DRBD_VERSION ?=
 DRBD_VERSION_OTHER ?=
+VMSHED_TEST_TIMEOUT ?=
 
 .PHONY: docker
 docker:
@@ -14,4 +15,5 @@ virter/tests.toml: tests/* virter/vmshed_tests_generator.py
 		--selection "$(VMSHED_TEST_SELECTION)" \
 		--drbd-version "$(DRBD_VERSION)" \
 		--drbd-version-other "$(DRBD_VERSION_OTHER)" \
+		$(if $(VMSHED_TEST_TIMEOUT),--test-timeout $(VMSHED_TEST_TIMEOUT),) \
 		> virter/tests.toml

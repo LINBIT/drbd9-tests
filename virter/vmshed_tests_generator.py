@@ -7,7 +7,7 @@ import argparse
 
 tests_dir = 'tests'
 vmshed_prefix = '### vmshed: '
-output_header = 'virter/tests.header.toml'
+variants_toml = 'virter/variants.toml'
 
 def main():
     parser = argparse.ArgumentParser()
@@ -17,6 +17,8 @@ def main():
     parser.add_argument('--drbd-version-other', help='only output tests also supported by this DRBD version')
     parser.add_argument('--default-variants', default=['tcp', 'rdma'], type=str, nargs='+',
                         help='which variants to add to tests that do not specify their own')
+    parser.add_argument('--test-timeout', default='5m',
+                        help='test timeout in Golang duration format (default "5m")')
     args = parser.parse_args()
 
     drbd_version = parse_version(args.drbd_version) if args.drbd_version else None
@@ -49,8 +51,13 @@ def main():
         test_configs.append((name, vmshed_config))
 
     # Write header
-    with open(output_header) as f:
+    print('test_suite_file = "run.toml"')
+    print('test_timeout = "{}"'.format(args.test_timeout))
+    print()
+    with open(variants_toml) as f:
         print(f.read().rstrip())
+    print()
+    print('[tests]')
 
     # Write tests
     for name, vmshed_config in sorted(test_configs, key=lambda a: a[0]):

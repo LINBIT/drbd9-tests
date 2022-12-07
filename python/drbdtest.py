@@ -1635,7 +1635,7 @@ class Node():
             stdout=f, stderr=subprocess.STDOUT, stdin=devnull, close_fds=True)
         self.event(r'exists -', word_boundary=False)
 
-    def run(self, cmd, update_config=True, quote=True, catch=False, return_stdout=False, stdin=None, stdout=None, stderr=None, env={}, ignore_netns=False):
+    def run(self, cmd, update_config=True, quote=True, catch=False, return_stdout=False, stdin=None, stdout=None, stderr=None, env={}, timeout=None, ignore_netns=False):
         """
         Run a command via SSH on the target node.
 
@@ -1648,6 +1648,7 @@ class Node():
         :param stdout: standard output from command (file-like object)
         :param sterr: standard error from command (file-like object)
         :param env: a dictionary of extra environment variables which will be exported to the command
+        :param timeout: command timeout in seconds
         :param ignore_netns: optionally, ignore a node's configured network namespace
         :returns: nothing, or a string if return_stdout is True
         :raise CalledProcessError: when the command fails (unless catch is True)
@@ -1671,7 +1672,7 @@ class Node():
             cmd_string = "ip netns exec {} {}".format(self.netns, cmd_string)
 
         log(self.name + ': ' + cmd_string)
-        result = self.ssh.run(cmd_string, env=env, stdin=stdin, stdout=stdout, stderr=stderr)
+        result = self.ssh.run(cmd_string, env=env, stdin=stdin, stdout=stdout, stderr=stderr, timeout=timeout)
         if result != 0:
             if catch:
                 print('error: {} failed ({})'.format(cmd[0], result), file=logstream)

@@ -53,9 +53,9 @@ class BusyWrite(object):
             return False
         raise RuntimeError('unexpected output from running check: ' + running_str)
 
-    def wait(self):
+    def wait(self, timeout=None):
         """ Wait for fio to terminate and collect results. """
-        self._node.run(['tail', '--pid={}'.format(self._fio_pid), '-f', '/dev/null'])
+        self._node.run(['tail', '--pid={}'.format(self._fio_pid), '-f', '/dev/null'], timeout=timeout)
         self._fio_pid = None
         self._fio_out_str = self._node.run(['cat', '/tmp/{}'.format(self._output_filename)], return_stdout=True)
         # Some fio versions write non-json messages before the json output

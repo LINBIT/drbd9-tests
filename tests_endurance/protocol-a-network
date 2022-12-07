@@ -1,0 +1,12 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2,3], "drbd_version_min": "8.4" }
+
+from python import drbdtest, endurance
+
+resource = drbdtest.setup(min_nodes=2)
+
+config = endurance.EnduranceConfig()
+config.protocol = 'A'
+config.network_rate = '100mbit'
+
+endurance.run(resource, config)

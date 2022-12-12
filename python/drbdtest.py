@@ -923,8 +923,8 @@ class Volume(object):
         self.volume = volume
         self.minor = minor
         self.node = node
-        self.disk = None
-        self.meta = None
+        self.disk_volume = None
+        self.meta_volume = None
         self.disk_lv = None
         self.meta_lv = None
 
@@ -944,10 +944,18 @@ class Volume(object):
 
     def create_disks(self, size, meta_size=None, *, max_size=None):
         self.disk_lv = '{}-disk{}'.format(self.node.resource.name, self.volume)
-        self.disk = self.node.storage_pool.create_disk(self.disk_lv, size, max_size=max_size)
+        self.disk_volume = self.node.storage_pool.create_disk(self.disk_lv, size, max_size=max_size)
         if meta_size:
             self.meta_lv = '{}-meta{}'.format(self.node.resource.name, self.volume)
-            self.meta = self.node.storage_pool.create_disk(self.meta_lv, meta_size)
+            self.meta_volume = self.node.storage_pool.create_disk(self.meta_lv, meta_size)
+
+    @property
+    def disk(self):
+        return self.disk_volume.volume_path() if self.disk_volume else None
+
+    @property
+    def meta(self):
+        return self.meta_volume.volume_path() if self.meta_volume else None
 
     def create_md(self, max_peers):
         if max_peers is None:
@@ -961,7 +969,7 @@ class Volume(object):
 
     def resize(self, size):
         # TODO: metadata-resize?
-        self.node.storage_pool.resize(self.disk, size)
+        self.disk_volume.resize(size)
 
     def device(self):
         return '/dev/drbd%d' % self.minor

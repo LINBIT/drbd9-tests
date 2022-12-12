@@ -30,8 +30,8 @@ def test(resource, discard_granularity):
     peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
     peer_devices_ba.event(r'peer-device .* replication:Established')
 
-    data_percent_a = node_a.storage_pool.fill_percentage(node_a.volumes[0].disk)
-    data_percent_b = node_b.storage_pool.fill_percentage(node_b.volumes[0].disk)
+    data_percent_a = node_a.volumes[0].disk_volume.fill_percentage()
+    data_percent_b = node_b.volumes[0].disk_volume.fill_percentage()
 
     if data_percent_a != data_percent_b:
         raise Exception("node_a data_percent {} while node_b shows {}"

@@ -629,7 +629,7 @@ class Resource(object):
         for node in self.nodes:
             node.remove_storage_pool()
 
-    def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, max_peers=None):
+    def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, max_peers=None, delay_ms=None):
         """
         Create and add a new disk on some or all nodes.
 
@@ -649,7 +649,7 @@ class Resource(object):
         for node in self.nodes:
             if diskful_nodes is None or node in diskful_nodes:
                 diskful_volumes.append(node.add_disk(
-                    volume_number, size, meta_size=meta_size, max_size=max_size))
+                    volume_number, size, meta_size=meta_size, max_size=max_size, delay_ms=delay_ms))
             else:
                 node.add_disk(volume_number)
 
@@ -946,12 +946,14 @@ class Volume(object):
     def __repr__(self):
         return '%s:%s' % (self.node, self.volume)
 
-    def create_disks(self, size, meta_size=None, *, max_size=None):
+    def create_disks(self, size, meta_size=None, *, max_size=None, delay_ms=None):
         self.disk_lv = '{}-disk{}'.format(self.node.resource.name, self.volume)
-        self.disk_volume = self.node.storage_pool.create_disk(self.disk_lv, size, max_size=max_size)
+        self.disk_volume = disktools.create_disk(self.node, self.disk_lv,
+                size, max_size=max_size, delay_ms=delay_ms)
         if meta_size:
             self.meta_lv = '{}-meta{}'.format(self.node.resource.name, self.volume)
-            self.meta_volume = self.node.storage_pool.create_disk(self.meta_lv, meta_size)
+            self.meta_volume = disktools.create_disk(self.node, self.meta_lv,
+                    meta_size, delay_ms=delay_ms)
 
     @property
     def disk(self):
@@ -1329,7 +1331,7 @@ class Node():
             '! [ -e /proc/drbd ] || drbdsetup down {}'.format(self.resource.name)],
             update_config=False)
         if self.storage_pool:
-            self.storage_pool.remove()
+            self.remove_storage_pool()
 
     def cleanup_framework(self):
         """
@@ -1459,12 +1461,19 @@ class Node():
     def remove_storage_pool(self):
         if not self.storage_pool:
             raise RuntimeError('no storage pool to remove')
+
+        for volume in self.disks:
+            if volume.disk_volume:
+                volume.disk_volume.remove()
+            if volume.meta_volume:
+                volume.meta_volume.remove()
+
         self.disks = []
         self.storage_pool.remove()
         self.storage_pool = None
         self.config_changed = True
 
-    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None):
+    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None, delay_ms=None):
         """
         Keyword arguments:
         volume_number -- volume number of the new disk
@@ -1480,7 +1489,7 @@ class Node():
 
         volume = Volume(self, volume_number)
         if size is not None:
-            volume.create_disks(size, meta_size, max_size=max_size)
+            volume.create_disks(size, meta_size, max_size=max_size, delay_ms=delay_ms)
         if volume_number >= len(self.disks):
             self.disks.append(volume)
         else:

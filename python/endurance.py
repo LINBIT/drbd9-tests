@@ -18,12 +18,18 @@ test_runtime = 9 * 60
 class EnduranceConfig(object):
     protocol: typing.Optional[str]
     network_rate: typing.Optional[str]
+    disk_delay_ms: typing.Optional[int]
     diskless_primary: bool
 
     def __init__(self):
         self.protocol = None
         self.network_rate = None
+        self.disk_delay_ms = None
         self.diskless_primary = False
+
+    def __repr__(self):
+        return 'EnduranceConfig(protocol={}, network_rate={}, disk_delay_ms={}, diskless_primary={})'.format(
+                repr(self.protocol), repr(self.network_rate), repr(self.disk_delay_ms), repr(self.diskless_primary))
 
 
 def run(resource, config):
@@ -38,6 +44,10 @@ def run(resource, config):
         for node in resource.nodes[1:]:
             primary_tc.slow_down(node, speed=config.network_rate)
 
+    if config.disk_delay_ms:
+        for node in diskful_nodes:
+            node.volumes[0].disk_volume.set_delay_ms(config.disk_delay_ms)
+
     if config.protocol:
         writer = busywrite.BusyWrite(primary_n.volumes[0])
         start_fio(writer, test_runtime)
@@ -48,6 +58,10 @@ def run(resource, config):
     else:
         log('* Doing nothing for {}s'.format(test_runtime))
         time.sleep(test_runtime)
+
+    if config.disk_delay_ms:
+        for node in diskful_nodes:
+            node.volumes[0].disk_volume.set_delay_ms(0)
 
     teardown(resource, primary_n, diskful_nodes)
     primary_tc.reset()
@@ -64,6 +78,20 @@ def run_resync(resource, config):
 
     fio_rates = ['1M', '4M', '16M', '64M', '256M', '1G']
     count = 0
+
+    traffic_controls = []
+
+    if config.network_rate:
+        for from_n in resource.nodes:
+            tc = trafficcontrol.TrafficControl(from_n, resource.nodes)
+            traffic_controls.append(tc)
+            for to_n in resource.nodes:
+                if to_n != from_n:
+                    tc.slow_down(to_n, speed=config.network_rate)
+
+    if config.disk_delay_ms:
+        for node in diskful_nodes:
+            node.volumes[0].disk_volume.set_delay_ms(config.disk_delay_ms)
 
     start = time.time()
     while time.time() - start < test_runtime:
@@ -85,14 +113,22 @@ def run_resync(resource, config):
 
         count += 1
 
+    if config.disk_delay_ms:
+        for node in diskful_nodes:
+            node.volumes[0].disk_volume.set_delay_ms(0)
+
     teardown(resource, primary_n, diskful_nodes)
+
+    for tc in traffic_controls:
+        tc.reset()
 
 
 def setup(resource, config, primary_n, diskful_nodes):
     resource.disk_options = 'al-extents 67; c-max-rate 1G; c-min-rate 0;'
     resource.net_options = 'protocol {};'.format(config.protocol if config.protocol else 'C')
 
-    resource.add_disk('300M', diskful_nodes=diskful_nodes)
+    resource.add_disk('300M', diskful_nodes=diskful_nodes,
+            delay_ms=0 if config.disk_delay_ms else None)
 
     resource.up_wait()
 

@@ -1,3 +1,4 @@
+from io import StringIO
 import json
 import uuid
 
@@ -23,6 +24,17 @@ def create_storage_pool(node, backend, backing_device, thin=False, discard_granu
         raise NotImplementedError('backend "{}" not implemented'.format(backend))
 
     return pool
+
+
+def create_disk(node, name, size, *, max_size=None, delay_ms=None):
+    storage_volume = node.storage_pool.create_disk(name, size, max_size=max_size)
+
+    if delay_ms is not None:
+        disk_volume = DelayVolume(node, name, storage_volume, delay_ms=delay_ms)
+    else:
+        disk_volume = storage_volume
+
+    return disk_volume
 
 
 class LvmPool(object):
@@ -183,3 +195,39 @@ class ZfsVolume(object):
         used = int(lines[0].split()[2])
         volsize = int(lines[1].split()[2])
         return used / volsize
+
+
+class DelayVolume(object):
+    def __init__(self, node, name, backing_volume, *, delay_ms):
+        self._node = node
+        self._backing_volume = backing_volume
+        self._device_name = '{}-delay'.format(name)
+        self._device_path = '/dev/mapper/{}'.format(self._device_name)
+
+        self._sectors = self._node.run(['blockdev', '--getsz', self._backing_volume.volume_path()],
+                update_config=False, return_stdout=True)
+
+        self._node.run(['dmsetup', 'create', self._device_name],
+                stdin=StringIO(self._table(delay_ms)), update_config=False)
+
+    def volume_path(self):
+        return self._device_path
+
+    def remove(self):
+        self._node.run(['dmsetup', 'remove', self._device_name], update_config=False)
+        self._backing_volume.remove()
+
+    def resize(self, size):
+        raise NotImplementedError('delay storage volume does not implement resize')
+
+    def fill_percentage(self):
+        return self._backing_volume.fill_percentage()
+
+    def set_delay_ms(self, delay_ms):
+        self._node.run(['dmsetup', 'reload', self._device_name],
+                stdin=StringIO(self._table(delay_ms)), update_config=False)
+        self._node.run(['dmsetup', 'suspend', self._device_name], update_config=False)
+        self._node.run(['dmsetup', 'resume', self._device_name], update_config=False)
+
+    def _table(self, delay_ms):
+        return '0 {} delay {} 0 {}'.format(self._sectors, self._backing_volume.volume_path(), delay_ms)

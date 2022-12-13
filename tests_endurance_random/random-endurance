@@ -1,0 +1,21 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2,3,4], "drbd_version_min": "8.4" }
+
+import random
+from python import drbdtest, endurance
+
+resource = drbdtest.setup(min_nodes=2)
+
+random.seed()
+
+config = endurance.EnduranceConfig()
+
+# Bias towards tests with IO since they are more interesting.
+config.protocol = random.choice([None] + ['A', 'C'] * 5)
+config.network_rate = random.choice([None, '300mbit', '1000mbit', '3000mbit', '10000mbit'])
+config.disk_delay_ms = random.choice([None, 1, 2, 5, 10])
+config.diskless_primary = random.choice([False, True])
+
+drbdtest.log('*** endurance config: {}'.format(config))
+
+endurance.run(resource, config)

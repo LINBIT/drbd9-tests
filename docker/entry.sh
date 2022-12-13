@@ -2,7 +2,7 @@
 
 set -e
 
-[ -n "$TEST_NAME" ] && TEST_PATH="tests/$TEST_NAME"
+[ -n "$TEST_NAME" ] && TEST_PATH="${DRBD_TESTS_DIR:-tests}/$TEST_NAME"
 
 if [ -z "$TEST_PATH" ]; then
     echo "No test specified"

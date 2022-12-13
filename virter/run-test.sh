@@ -7,6 +7,7 @@ die() {
 	exit 1
 }
 
+[ -z "$DRBD_TESTS_DIR" ] && die "Missing \$DRBD_TESTS_DIR"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
@@ -26,6 +27,7 @@ done
 
 echo "=== generate vmshed test configuration" >&2
 make virter/tests.toml \
+	DRBD_TESTS_DIR="$DRBD_TESTS_DIR" \
 	VMSHED_TEST_SELECTION="${VMSHED_TEST_SELECTION:-ci}" \
 	DRBD_VERSION="$DRBD_VERSION" \
 	DRBD_VERSION_OTHER="$DRBD_VERSION_OTHER" \
@@ -54,6 +56,7 @@ vmshed										\
 	--vms virter/vms.toml					\
 	--tests virter/tests.toml				\
 	--set values.TestSuiteImage=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$DRBD9_TESTS_VERSION \
+	--set values.TestsDir="$DRBD_TESTS_DIR"					\
 	--set values.DrbdVersion=$DRBD_VERSION					\
 	--set values.RepositoryPackages=drbd-utils=$DRBD_UTILS_VERSION		\
 	"${extra_args[@]}"

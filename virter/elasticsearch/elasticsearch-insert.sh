@@ -13,6 +13,7 @@ url="$1"
 results_file="$2"
 
 [ -z "$CI_JOB_ID" ] && die "Missing \$CI_JOB_ID"
+[ -z "$DRBD_TESTS_DIR" ] && die "Missing \$DRBD_TESTS_DIR"
 [ -z "$DRBD_TEST_SERIES" ] && die "Missing \$DRBD_TEST_SERIES"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
@@ -55,7 +56,7 @@ if [ "$index_exists" = false ]; then
 	'
 fi
 
-ci_tests_config="$(virter/vmshed_tests_generator.py --selection ci --drbd-version "$DRBD_VERSION")"
+ci_tests_config="$(virter/vmshed_tests_generator.py --tests-dir "$DRBD_TESTS_DIR" --selection ci --drbd-version "$DRBD_VERSION")"
 ci_tests="$(printf '%s' "$ci_tests_config" | rq -t | jq -c '.tests | to_entries | map(.key + "-" + (.value.vms[] | tostring))')"
 
 echo "CI Tests: $ci_tests"

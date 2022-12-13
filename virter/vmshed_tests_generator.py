@@ -5,12 +5,13 @@ import json
 import argparse
 
 
-tests_dir = 'tests'
 vmshed_prefix = '### vmshed: '
 variants_toml = 'virter/variants.toml'
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--tests-dir', default='tests',
+            help='directory containing test scripts')
     parser.add_argument('--selection', choices=['all', 'ci'], default='all',
             help='which selection of tests to generate (default "all")')
     parser.add_argument('--drbd-version', help='only output tests for this DRBD version')
@@ -34,15 +35,14 @@ def main():
 
     # Read test files
     test_configs = []
-    for name in os.listdir(tests_dir):
-        filepath = tests_dir + '/' + name
+    for name in os.listdir(args.tests_dir):
+        filepath = args.tests_dir + '/' + name
         if not os.path.isfile(filepath):
             continue
 
         vmshed_config = read_vmshed_json(filepath)
         if vmshed_config is None:
             raise RuntimeError('no "{}" line found in "{}"'.format(vmshed_prefix, filepath))
-            continue
 
         vms = vmshed_config.get('vms_all')
         if vms is None or len(vms) == 0:
@@ -62,7 +62,7 @@ def main():
     # Write tests
     for name, vmshed_config in sorted(test_configs, key=lambda a: a[0]):
         vms_key = 'vms_all' if args.selection == 'all' else 'vms_ci'
-        vms = vmshed_config[vms_key]
+        vms = vmshed_config.get(vms_key)
         if vms is None:
             continue
 

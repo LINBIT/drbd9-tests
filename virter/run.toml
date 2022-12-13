@@ -1,6 +1,7 @@
 [values]
 ScratchDisk = "/dev/sda"
 TestSuiteImage = "drbd9-tests"
+TestsDir = "tests"
 RDMA = "" # set to "true" to enable
 Storage = "lvm" # Also possible: raw and zfs
 OutDir = ""
@@ -51,6 +52,7 @@ DRBD_TEST_RDMA = "{{.RDMA}}"
 [steps.docker]
 image = "{{.TestSuiteImage}}"
 [steps.docker.env]
+DRBD_TESTS_DIR = "{{.TestsDir}}"
 SCRATCH_DISK = "{{.ScratchDisk}}"
 DRBD_TEST_STORAGE = "{{.Storage}}"
 DRBD_TEST_RDMA = "{{.RDMA}}"

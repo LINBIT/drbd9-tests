@@ -12,6 +12,9 @@ DrbdVersionOther = ""
 script = '''
 set -e
 
+# Create RAM disk automatically for convenience.
+[ "$SCRATCH_DISK" = "/dev/ram0" -a ! -b "/dev/ram0" ] && modprobe brd rd_nr=1 rd_size=$((10 * 2**20))
+
 # Find the default route which must have a /24 address range.
 default_gateway=$(ip route show to 0.0.0.0/0 | awk {'print $3'})
 default_route=$(ip route show to match $default_gateway | grep /24)
@@ -42,7 +45,6 @@ done
 '''
 [steps.shell.env]
 SCRATCH_DISK = "{{.ScratchDisk}}"
-DRBD_TEST_STORAGE = "{{.Storage}}"
 DRBD_TEST_RDMA = "{{.RDMA}}"
 
 [[steps]]

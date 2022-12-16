@@ -22,7 +22,6 @@ def create_storage_pool(node, backend, backing_device, thin=False, discard_granu
     else:
         raise NotImplementedError('backend "{}" not implemented'.format(backend))
 
-    pool.create()
     return pool
 
 
@@ -33,7 +32,6 @@ class LvmPool(object):
         self._thin = thin
         self._discard_granularity = discard_granularity
 
-    def create(self):
         self._node.run(['vgcreate', self._node.volume_group, self._backing_device])
         if self._thin:
             extra_args = []
@@ -45,21 +43,15 @@ class LvmPool(object):
         self._node.run(['vgremove', '-y', self._node.volume_group])
 
     def create_disk(self, name, size, *, max_size=None):
-        volume = LvmVolume(self._node, name)
-        volume.create(size, thin=self._thin)
-        return volume
+        return LvmVolume(self._node, name, size=size, thin=self._thin)
 
 
 class LvmVolume(object):
-    def __init__(self, node, name):
+    def __init__(self, node, name, *, size, thin=False):
         self._node = node
         self._name = name
         self._lv = '/dev/{}/{}'.format(node.volume_group, name)
 
-    def volume_path(self):
-        return self._lv
-
-    def create(self, size, *, thin=False):
         if thin:
             lvcreate_args = ['--virtualsize', str(size), '--thin', '{}/drbdthinpool'.format(self._node.volume_group)]
         else:
@@ -67,6 +59,9 @@ class LvmVolume(object):
 
         lvcreate_args += ['--wipesignatures', 'y', '--yes']
         self._node.run(['lvcreate', '--name', self._name] + lvcreate_args, update_config=False)
+
+    def volume_path(self):
+        return self._lv
 
     def remove(self):
         self._node.run(['lvremove', '--force', self._lv], update_config=False)
@@ -86,32 +81,20 @@ class RawPool(object):
         self._node = node
         self._backing_device = backing_device
 
-    def create(self):
-        # Nothing to do
-        pass
-
     def remove(self):
         self._node.run(['wipefs', '-a', self._backing_device])
 
     def create_disk(self, name, size, *, max_size=None):
-        volume = RawVolume(self._node, self._backing_device, name)
-        volume.create(size, max_size=max_size)
-        return volume
+        return RawVolume(self._node, self._backing_device, name, size=size, max_size=max_size)
 
 
 class RawVolume(object):
-    def __init__(self, node, backing_device, name):
+    def __init__(self, node, backing_device, name, *, size, max_size=None):
         self._node = node
         self._backing_device = backing_device
         self._guid = uuid.uuid5(uuid.NAMESPACE_URL, name)
         self._device_path = '/dev/disk/by-partuuid/{}'.format(self._guid)
-        self._start = None
-        self._part_number = None
 
-    def volume_path(self):
-        return self._device_path
-
-    def create(self, size, *, max_size=None):
         self._start = "0"
         if max_size:
             # If we expect to grow the volume, ensure we have enough space left over after it by starting at the end
@@ -128,6 +111,9 @@ class RawVolume(object):
         self._refresh_partitions()
         self._part_number = self._node.run(['partx', '--show', '--output', 'NR', '--noheadings', self._device_path], return_stdout=True,
                                     update_config=False).strip()
+
+    def volume_path(self):
+        return self._device_path
 
     def remove(self):
         self._node.run(['sgdisk', '--delete={}'.format(self._part_number), self._backing_device], update_config=False)
@@ -158,28 +144,22 @@ class ZfsPool(object):
         self._thin = thin
         self._discard_granularity = discard_granularity
 
-    def create(self):
         self._node.run(['zpool', 'create', self._node.volume_group, self._backing_device])
 
     def remove(self):
         self._node.run(['zpool', 'destroy', self._node.volume_group])
 
     def create_disk(self, name, size, *, max_size=None):
-        volume = ZfsVolume(self._node, name)
-        volume.create(size, thin=self._thin, discard_granularity=self._discard_granularity)
-        return volume
+        return ZfsVolume(self._node, name,
+                size=size, thin=self._thin, discard_granularity=self._discard_granularity)
 
 
 class ZfsVolume(object):
-    def __init__(self, node, name):
+    def __init__(self, node, name, *, size, thin=False, discard_granularity=None):
         self._node = node
         self._dataset_name = '{}/{}'.format(node.volume_group, name)
         self._zvol_path = '/dev/zvol/' + self._dataset_name
 
-    def volume_path(self):
-        return self._zvol_path
-
-    def create(self, size, *, thin=False, discard_granularity=None):
         extra_args = ['-s'] if thin else []
         if discard_granularity is not None:
             extra_args += ['-o', 'volblocksize={}'.format(discard_granularity)]
@@ -187,6 +167,9 @@ class ZfsVolume(object):
                       update_config=False)
         self._node.run(['udevadm', 'trigger'], update_config=False)
         self._node.run(['udevadm', 'settle'], update_config=False)
+
+    def volume_path(self):
+        return self._zvol_path
 
     def remove(self):
         self._node.run(['zfs', 'destroy', self._dataset_name], update_config=False)

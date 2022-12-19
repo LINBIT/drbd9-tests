@@ -7,7 +7,6 @@ die() {
 	exit 1
 }
 
-[ -z "$DRBD_TESTS_DIR" ] && die "Missing \$DRBD_TESTS_DIR"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
@@ -24,6 +23,9 @@ done
 [ "$variant_set" = "true" ] || extra_args+=( "--variant" "tcp" "--variant" "raw" "--variant" "zfs" )
 
 [ -n "$DRBD_VERSION_OTHER" ] && extra_args+=( "--set" "values.DrbdVersionOther=$DRBD_VERSION_OTHER" )
+
+# DRBD_TESTS_DIR is optional. Use default value if empty.
+DRBD_TESTS_DIR="${DRBD_TESTS_DIR:-tests}"
 
 echo "=== generate vmshed test configuration" >&2
 make virter/tests.toml \

@@ -33,6 +33,7 @@ prepare:base_image:
       when: manual
     - if: $CI_COMMIT_BRANCH == 'master'
       when: manual
+  needs: []
   tags:
     - libvirt
   # avoid blocking the pipeline with a manual job
@@ -69,6 +70,7 @@ build:rebuild_drbd:
       when: manual
     - if: $CI_COMMIT_BRANCH == 'master'
       when: manual
+  needs: []
   # avoid blocking the pipeline with a manual job
   allow_failure: true
   script:
@@ -78,6 +80,27 @@ build:rebuild_drbd:
         trigger -h https://gitlab.at.linbit.com -a $LINBOT_API_TOKEN -p $CI_JOB_TOKEN -t {} -e DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME drbd/drbd \
         ::: drbd-9.1 master
 
+build:drbd:
+  stage: build
+  image: registry.gitlab.com/finestructure/pipeline-trigger
+  rules:
+    - if: $DRBD_REF
+  needs: []
+  script:
+    # Work around misplaced module in image
+    - cp /usr/local/lib/python3*/site-packages/trigger.py "$(python3 -c 'import site; print(site.getsitepackages()[0])')"
+    # Run our wrapper for 'trigger'
+    - >
+      .gitlab/trigger_for_artifact.py -h https://gitlab.at.linbit.com
+      -a $LINBOT_API_TOKEN -p $CI_JOB_TOKEN
+      -t $DRBD_REF
+      -e DRBD_BUILD_CONDITIONAL=true
+      -e DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
+      drbd/drbd
+  artifacts:
+    reports:
+      dotenv: downstream.env
+
 build:docker:
   stage: build
   tags:
@@ -86,6 +109,8 @@ build:docker:
     - if: $CI_MERGE_REQUEST_ID
     - if: $CI_COMMIT_BRANCH == 'master'
     - if: $CI_PIPELINE_SOURCE == 'schedule'
+    - if: $CI_PIPELINE_SOURCE == 'api'
+  needs: []
   script:
     - ln -snf $DOCKER_AUTH_CONFIG_FILE $HOME/.docker/config.json
     - >-
@@ -101,7 +126,7 @@ push:docker:
     - shell
   rules:
     - if: $CI_COMMIT_BRANCH == 'master' && $CI_PIPELINE_SOURCE != 'schedule'
-  dependencies:
+  needs:
     - build:docker
   script:
     - ln -snf $DOCKER_AUTH_CONFIG_FILE $HOME/.docker/config.json
@@ -132,8 +157,10 @@ push:docker:
         export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
         ./virter/run-test.sh "$@"
       }
-  dependencies:
-    - build:docker
+  needs:
+    - job: build:docker
+    - job: build:drbd
+      optional: true
   artifacts:
     # provide a convenient name so that the downloaded artifacts can be identified
     name: $CI_PROJECT_NAME-$CI_JOB_ID
@@ -157,6 +184,7 @@ test:generic:
   extends: [ .cache-download, .test ]
   rules:
     - if: $CI_PIPELINE_SOURCE == 'schedule'
+    - if: $CI_PIPELINE_SOURCE == 'api'
   timeout: 12h
   variables:
     VMSHED_TEST_SELECTION: all

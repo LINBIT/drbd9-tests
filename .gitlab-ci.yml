@@ -2,8 +2,8 @@ image: $LINBIT_DOCKER_REGISTRY/build-helpers:$BUILD_HELPERS_VERSION
 
 variables:
   BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
-  SCHEDULED_TEST_COUNT: 1
-  SCHEDULED_TEST_VMSHED_ARGS: ""
+  DRBD_TEST_COUNT: 1
+  VMSHED_ARGS: ""
   DRBD_TEST_SERIES: "none" # To distinguish regular stability tests from other scheduled tests.
   DRBD_TESTS_DIR: "tests"
   DRBD_VERSION: 9.1.0.latest
@@ -25,7 +25,7 @@ stages:
     paths:
       - download
 
-base_image:
+prepare:base_image:
   extends: .cache-download
   stage: base_image
   rules:
@@ -61,7 +61,7 @@ base_image:
     when: always
     expire_in: 1 week
 
-rebuild_drbd:
+build:rebuild_drbd:
   stage: base_image
   image: registry.gitlab.com/finestructure/pipeline-trigger
   rules:
@@ -78,7 +78,7 @@ rebuild_drbd:
         trigger -h https://gitlab.at.linbit.com -a $LINBOT_API_TOKEN -p $CI_JOB_TOKEN -t {} -e DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME drbd/drbd \
         ::: drbd-9.1 master
 
-build-docker:
+build:docker:
   stage: build
   tags:
     - shell
@@ -95,14 +95,14 @@ build-docker:
       docker
     - docker push $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
 
-push-docker:
+push:docker:
   stage: publish
   tags:
     - shell
   rules:
     - if: $CI_COMMIT_BRANCH == 'master' && $CI_PIPELINE_SOURCE != 'schedule'
   dependencies:
-    - build-docker
+    - build:docker
   script:
     - ln -snf $DOCKER_AUTH_CONFIG_FILE $HOME/.docker/config.json
     - docker pull $LINBIT_DOCKER_REGISTRY/drbd9-tests:$CI_COMMIT_SHA
@@ -133,7 +133,7 @@ push-docker:
         ./virter/run-test.sh "$@"
       }
   dependencies:
-    - build-docker
+    - build:docker
   artifacts:
     # provide a convenient name so that the downloaded artifacts can be identified
     name: $CI_PROJECT_NAME-$CI_JOB_ID
@@ -142,7 +142,7 @@ push-docker:
     when: always
     expire_in: 1 week
 
-test:
+test:merge_request:
   stage: test
   extends: [ .cache-download, .test ]
   rules:
@@ -152,7 +152,7 @@ test:
     reports:
       junit: tests-out/test-results/*.xml
 
-scheduled-test:
+test:generic:
   stage: test
   extends: [ .cache-download, .test ]
   rules:
@@ -162,5 +162,5 @@ scheduled-test:
     VMSHED_TEST_SELECTION: all
   script:
     - export DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
-    - run_test --repeats="$SCHEDULED_TEST_COUNT" --error-details=false --quiet $SCHEDULED_TEST_VMSHED_ARGS || true
+    - run_test --repeats="$DRBD_TEST_COUNT" --error-details=false --quiet $VMSHED_ARGS || true
     - ./virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json

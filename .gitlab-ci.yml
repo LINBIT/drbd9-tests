@@ -2,7 +2,7 @@ image: $LINBIT_DOCKER_REGISTRY/build-helpers:$BUILD_HELPERS_VERSION
 
 variables:
   BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
-  SCHEDULED_TEST_COUNT: 50
+  SCHEDULED_TEST_COUNT: 1
   SCHEDULED_TEST_VMSHED_ARGS: ""
   DRBD_TEST_SERIES: "none" # To distinguish regular stability tests from other scheduled tests.
   DRBD_TESTS_DIR: "tests"

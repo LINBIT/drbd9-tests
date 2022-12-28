@@ -1,0 +1,5 @@
+{
+    "DRBD_TESTS_DIR": "tests_endurance",
+    "VMSHED_TEST_TIMEOUT": "10m",
+    "VMSHED_ARGS": "--set values.ScratchDisk=/dev/ram0"
+}

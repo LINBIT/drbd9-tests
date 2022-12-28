@@ -1,0 +1,4 @@
+{
+    "DRBD_VERSION_OTHER": "8.4.12",
+    "VMSHED_ARGS": "--base-image centos-7-drbd-k1160"
+}

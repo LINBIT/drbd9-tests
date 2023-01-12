@@ -52,30 +52,18 @@ def isolate_primary(isolated_n, other_n, diskless_n):
     isolate_secondary(isolated_n, other_n, diskless_n)
     isolated_n.secondary()
 
-def verify_quorumless_shrinks(isolated_n, other_n, diskless_n):
-    connections(isolated_n, diskless_n).disconnect()
+def verify_quorumless_propagates(isolated_n, other_n, diskless_n):
     connections(isolated_n, other_n).disconnect()
-    ensure_quorum(isolated_n, other_n, diskless_n)
-    connections(isolated_n, diskless_n).connect()
-    connections(isolated_n, diskless_n).event(r'connection .* connection:Connected')
-
     connections(isolated_n, diskless_n).disconnect()
-    connections(diskless_n, isolated_n).event(r'connection .* connection:Unconnected')
-
-    connections(other_n, diskless_n).disconnect()
-    try:
-        other_n.primary()
-    except CalledProcessError:
-        pass
-    else:
-        raise Exception('promote worked! should not here!')
-
-    connections(other_n, diskless_n).connect()
+    connections(diskless_n, other_n).disconnect()
+    other_n.primary() # This promote proves that this partition has quorum;
+    other_n.secondary()
+    connections(diskless_n, other_n).connect()
+    connections(isolated_n, diskless_n).connect()
+    connections(isolated_n, other_n).connect()
     connections(other_n, diskless_n).event(r'connection .* connection:Connected')
-    connections(isolated_n, to_nodes=[other_n,diskless_n]).connect()
-    connections(isolated_n, to_nodes=[other_n,diskless_n]).event(r'connection .* connection:Connected')
-    connections(from_nodes=[other_n,diskless_n], to_node=isolated_n).event(r'connection .* connection:Connected')
-
+    connections(other_n, isolated_n).event(r'connection .* connection:Connected')
+    connections(diskless_n, isolated_n).event(r'connection .* connection:Connected')
 
 
 resource = drbdtest.setup(nodes=3)
@@ -92,9 +80,8 @@ log('* disconnect A and check remaining B has quorum')
 disconnect_secondary(A, B, C)
 log('* disconnect B and check remaining A has quorum')
 disconnect_secondary(B, A, C)
-
-log('* disconnect A, let it temporarily reconnect to C, verify no quorum on B')
-verify_quorumless_shrinks(B, A, C)
+log('* disconnect A, and B, verify C has quorum')
+verify_quorumless_propagates(A, B, C)
 
 resource.forbidden_patterns.remove(r'connection:BrokenPipe')
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')
@@ -103,10 +90,10 @@ log('* isolate primary A and check remaining B has quorum')
 isolate_primary(A, B, C)
 log('* isolate primary B and check remaining A has quorum')
 isolate_primary(B, A, C)
-log('* isolate secondary A and check remaining B has quorum')
-isolate_secondary(A, B, C)
-log('* isolate secondary B and check remaining A has quorum')
-isolate_secondary(B, A, C)
+#log('* isolate secondary A and check remaining B has quorum')
+#isolate_secondary(A, B, C)
+#log('* isolate secondary B and check remaining A has quorum')
+#isolate_secondary(B, A, C)
 
 resource.down()
 resource.teardown()

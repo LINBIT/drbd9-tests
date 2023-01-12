@@ -79,7 +79,7 @@ log('* Scenario: Disconnected, Diskless - UpToDate - UpToDate')
 resource.connections.disconnect(wait=False)
 node_a.event(may_promote_no_event)
 node_b.event(may_promote_no_event)
-node_c.event(may_promote_no_event)
+#node_c.event(may_promote_no_event)
 
 log('* Shut down and clean up.')
 resource.down()

@@ -141,6 +141,8 @@ def fencing_test1(fencing_mode, handler_exit, test_mode):
                     n1_to_n2.connect()
                     regex = []
                     regex.append(r'change peer-device .* peer-node-id:%d .* peer-disk:UpToDate' % n1.id)
+                    # Test that "unfence-peer" was called even though there was no write while disconnected.
+                    regex.append(r'call helper .* peer-node-id:%d .* helper:unfence-peer' % n1.id)
                     if was_suspended_fencing:
                         regex.append(r'resource .* suspended:no')
                     n2.event(*regex)

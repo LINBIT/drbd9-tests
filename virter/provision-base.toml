@@ -19,6 +19,13 @@ if command -v setenforce > /dev/null; then
 fi
 """
 
+# Disable any banners from being displayed upon login
+[[steps]]
+[steps.shell]
+script = """
+touch /root/.hushlogin
+"""
+
 # Configure kernel parameters
 [[steps]]
 [steps.shell]

@@ -104,7 +104,7 @@ def test_case2():
     my_log('* Unblocking A-B')
     A.unblock_path(B)
     connab.event(r'connection .* connection:Connected')
-    A.event(r'quorum:yes')
+    # A.event(r'quorum:yes') # never loses quorum (new with drbd-9.1.13)
     B.event(r'quorum:yes')
     my_log('* Unblocking A-C')
     A.unblock_path(C)

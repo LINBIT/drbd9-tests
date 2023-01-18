@@ -64,6 +64,7 @@ resource.forbidden_patterns.difference_update([
 ])
 
 tmp_old_pri.disconnect(wait = True, force = True)
+time.sleep(0.5) # Wait both nodes did their 2PCs after remote left.
 
 connections_to_cut.block(jump_to="REJECT")
 connections_to_cut.disconnect(wait = False, force = True)

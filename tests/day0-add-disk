@@ -1,0 +1,119 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "8.4" }
+
+# Test the behavior of DRBD when LINSTOR adds a disk to a diskless node.
+
+import json
+from python import drbdtest
+from python.drbdtest import MetadataFlag, connections, log, peer_devices
+from python import datatools
+
+
+resource = drbdtest.setup(nodes=2)
+node_a, node_b = resource.nodes
+
+def choose_data_pattern(data_is_clean, write, spare_bitmap_slot):
+    if data_is_clean:
+        data_pattern = 32
+        if write:
+            data_pattern += 1
+        if spare_bitmap_slot:
+            data_pattern += 2
+        return data_pattern
+    else:
+        # Random data
+        return None
+
+def write_disk(node, data_pattern):
+    # If data_pattern is not given, do not set buffer_pattern; fio will write random data
+    data_args = {} if data_pattern is None else { 'buffer_pattern': data_pattern }
+    node.fio_file(node.volumes[0].disk, rw='write', size='16M', bs='1M', direct=1, **data_args)
+
+def ensure_out_of_sync_zero(node, peer):
+    result = node.run(['drbdsetup', 'status', resource.name, '--json'], return_stdout=True)
+    status = json.loads(result)[0]
+    connection = next(c for c in status['connections'] if c['peer-node-id'] == peer.id)
+    out_of_sync = int(connection['peer_devices'][0]['out-of-sync'])
+    drbdtest.ensure(0, out_of_sync, 'No out-of-sync bits expected')
+
+def test(data_is_clean, write, spare_bitmap_slot):
+    log('*** Test with data_is_clean={} write={} spare_bitmap_slot={}'.format(
+        data_is_clean, write, spare_bitmap_slot))
+
+    flags = MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE if data_is_clean else []
+    max_peers = 2 if spare_bitmap_slot else 1
+
+    log('* Initialize with a disk on node_a, diskless on node_b')
+    # Call next_volume because it has important side effects; we know that it will return 0
+    resource.next_volume()
+    node_a.add_disk(0, '16M')
+    node_b.add_disk(0)
+    write_disk(node_a, choose_data_pattern(data_is_clean, write, spare_bitmap_slot))
+
+    node_a.volumes[0].create_md(max_peers=max_peers)
+    node_a.set_gi(node_a.volumes[0], 'C641EFB50C399AF2', flags_set=flags)
+
+    node_a.adjust()
+    if not data_is_clean:
+        node_a.primary(force=True)
+        node_a.secondary()
+
+    node_b.adjust()
+
+    peer_devices(node_a, node_b).event(r'peer-device .* peer-disk:Diskless')
+    peer_devices(node_b, node_a).event(r'peer-device .* peer-disk:UpToDate')
+
+    if write:
+        log('* Write while one node is still diskless')
+        node_a.write(direct=1)
+
+    log('* Add a disk to diskless node')
+    node_b.add_disk(0, '16M')
+    write_disk(node_b, choose_data_pattern(data_is_clean, write, spare_bitmap_slot))
+
+    # Clear intentional diskless status of node_b
+    resource.touch_config()
+    node_a.adjust()
+
+    node_b.volumes[0].create_md(max_peers=max_peers)
+    node_b.set_gi(node_b.volumes[0], 'C641EFB50C399AF2', flags_set=flags)
+
+    node_b.adjust()
+
+    if not data_is_clean or write:
+        if data_is_clean and spare_bitmap_slot:
+            expect_sectors = 8
+        else:
+            expect_sectors = int(node_b.run(['blockdev', '--getsz', node_b.volumes[0].device()],
+                return_stdout=True))
+
+        peer_devices(node_b, node_a).event(
+                r'peer-device .* replication:SyncTarget .* out-of-sync:{}'.format(expect_sectors // 2))
+        peer_devices(node_b, node_a).event(r'peer-device .* replication:Established')
+
+    else:
+        node_b.volumes[0].event(r'device .* disk:UpToDate',
+                no=r'peer-device .* replication:SyncTarget')
+
+    ensure_out_of_sync_zero(node_a, node_b)
+    ensure_out_of_sync_zero(node_b, node_a)
+
+    log('* Clear up and check data')
+    resource.down()
+
+    # Only verify data area, not metadata
+    datatools.verify_data(resource.nodes, size_mb=12, backing_disk=True)
+
+    for n in resource.nodes:
+        n.volumes[0].disk_volume.remove()
+        n.volumes[0].disk_volume = None
+    resource.num_volumes = 0
+
+test(data_is_clean=False, write=False, spare_bitmap_slot=True)
+test(data_is_clean=True, write=False, spare_bitmap_slot=False)
+test(data_is_clean=True, write=False, spare_bitmap_slot=True)
+test(data_is_clean=True, write=True, spare_bitmap_slot=False)
+test(data_is_clean=True, write=True, spare_bitmap_slot=True)
+
+log('* Clean up.')
+resource.teardown()

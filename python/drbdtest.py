@@ -1505,7 +1505,11 @@ class Node():
         if not self.storage_pool:
             self.storage_pool = disktools.create_storage_pool(self, self.storage_backend, self.backing_device)
 
-        volume = Volume(self, volume_number)
+        if volume_number >= len(self.disks):
+            minor = None
+        else:
+            minor = self.disks[volume_number].minor
+        volume = Volume(self, volume_number, minor=minor)
         if size is not None:
             volume.create_disks(size, meta_size, max_size=max_size, delay_ms=delay_ms)
         if volume_number >= len(self.disks):

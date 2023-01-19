@@ -21,7 +21,7 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import connections, log, peer_devices
+from python.drbdtest import MetadataFlag, connections, log, peer_devices
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(nodes=3)
@@ -38,9 +38,9 @@ def pre_existing_test(write_between_actions = False):
                "dd if=/dev/urandom of=%s seek=2000 bs=4096 || true" % (n.disks[0].disk)])
         # Preset the bitmap to some randomly set bits...
 
-        n.drbdadm(["create-md", "--force", resource.name])
-        n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
-	       "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"]);
+        n.volumes[0].create_md()
+        n.set_gi(n.volumes[0], '87236C45CB784220',
+                flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE)
 
     log('* Bringing up the diskless and one server, connect them')
     resource.nodes.diskful[1].up()

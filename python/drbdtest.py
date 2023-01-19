@@ -8,6 +8,7 @@ import os
 import errno
 import sys
 import re
+from enum import Flag, auto
 import json
 import time
 import pipes
@@ -136,6 +137,23 @@ devnull = open(os.devnull, 'w')
 
 # stream to write output to
 logstream = None
+
+
+class MetadataFlag(Flag):
+    CONSISTENT = auto()
+    PRIMARY_IND = auto()
+    WAS_UP_TO_DATE = auto()
+    CRASHED_PRIMARY = auto()
+    AL_CLEAN = auto()
+    AL_DISABLED = auto()
+    PRIMARY_LOST_QUORUM = auto()
+    PEER_CONNECTED = auto()
+    PEER_OUTDATED = auto()
+    PEER_FENCING = auto()
+    PEER_FULL_SYNC = auto()
+    PEER_DEVICE_SEEN = auto()
+    NODE_EXISTS = auto()
+    HAVE_BITMAP = auto()
 
 
 class Tee(object):
@@ -1794,6 +1812,45 @@ class Node():
         self.drbdadm(['secondary', res])
         if wait:
             self.event(r'resource .* role:Secondary')
+
+    def set_gi(self, peer_volume, current_uuid=None, bitmap_uuid=None,
+            history_uuid_0=None, history_uuid_1=None,
+            flags_set=[], flags_unset=[]):
+        """
+        Run set-gi on the given volume. This should be a volume from a peer if
+        any of the peer related values are touched, but may be a local volume
+        otherwise.
+        """
+        local_volume = self.volumes[peer_volume.volume]
+
+        def empty_if_none(arg):
+            return '' if arg is None else str(arg)
+
+        def flag_val(flag):
+            return '1' if flag in flags_set else '0' if flag in flags_unset else ''
+
+        values = [empty_if_none(current_uuid),
+                empty_if_none(bitmap_uuid),
+                empty_if_none(history_uuid_0),
+                empty_if_none(history_uuid_1),
+                flag_val(MetadataFlag.CONSISTENT),
+                flag_val(MetadataFlag.WAS_UP_TO_DATE),
+                flag_val(MetadataFlag.PRIMARY_IND),
+                flag_val(MetadataFlag.CRASHED_PRIMARY),
+                flag_val(MetadataFlag.AL_CLEAN),
+                flag_val(MetadataFlag.AL_DISABLED),
+                flag_val(MetadataFlag.PRIMARY_LOST_QUORUM),
+                flag_val(MetadataFlag.PEER_CONNECTED),
+                flag_val(MetadataFlag.PEER_OUTDATED),
+                flag_val(MetadataFlag.PEER_FENCING),
+                flag_val(MetadataFlag.PEER_FULL_SYNC),
+                flag_val(MetadataFlag.PEER_DEVICE_SEEN)]
+
+        # Call drbdmeta directly instead of drbdadm because drbdadm doesn't
+        # allow peer_volume to be a local volume.
+        self.run(['drbdmeta', str(local_volume.minor), 'v09', local_volume.disk, 'internal',
+            '--node-id={}'.format(peer_volume.node.id), '--force',
+            'set-gi', ':'.join(values)])
 
     def connect(self, node):
         return Connections([Connection(self, node)]).connect()

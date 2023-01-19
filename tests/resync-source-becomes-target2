@@ -11,20 +11,7 @@
 
 import time
 from python import drbdtest
-from python.drbdtest import connections, log, peer_devices
-
-def set_gi(n, peer, uuids):
-    uuid_str = ''
-    index = 0
-    for uuid in uuids:
-        uuid_str += '%016X:' % (uuid)
-        index += 1
-    for i in range(index,4):
-        uuid_str += ':'
-    uuid_str += '1:1'
-    log(uuid_str)
-    n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
-           "--node-id=%d" % (peer.id), "set-gi", uuid_str, "--force"]);
+from python.drbdtest import MetadataFlag, connections, log, peer_devices
 
 
 resource = drbdtest.setup(nodes=3)
@@ -33,11 +20,12 @@ resource.add_disk('600M')
 [node_a, node_b, node_c] = list(resource.nodes)
 
 log('* Preparing')
-set_gi(node_a, node_b, [0xAAA, 0xBBB, 0xCCC])
-set_gi(node_a, node_c, [0xAAA, 0xBBB, 0xCCC])
-set_gi(node_b, node_c, [0xBBB, 0xCCC])
-set_gi(node_b, node_a, [0xBBB, 0xCCC])
-set_gi(node_c, node_a, [0xCCC])
+flags = MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE
+node_a.set_gi(node_b.volumes[0], 'AAA', 'BBB', 'CCC', flags_set=flags)
+node_a.set_gi(node_c.volumes[0], 'AAA', 'BBB', 'CCC', flags_set=flags)
+node_b.set_gi(node_c.volumes[0], 'BBB', 'CCC', flags_set=flags)
+node_b.set_gi(node_a.volumes[0], 'BBB', 'CCC', flags_set=flags)
+node_c.set_gi(node_a.volumes[0], 'CCC', flags_set=flags)
 
 node_a.up()
 node_a.volumes[0].write(size='400M', bs='1M', direct=1)

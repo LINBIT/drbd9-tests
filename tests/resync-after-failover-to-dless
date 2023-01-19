@@ -11,7 +11,7 @@
 # storage node.
 
 from python import drbdtest
-from python.drbdtest import connections, log, peer_devices
+from python.drbdtest import MetadataFlag, connections, log, peer_devices
 import time
 
 resource = drbdtest.setup(nodes=3)
@@ -43,8 +43,7 @@ def test(write_in_between, crashed_primary):
     target_source_c.disconnect(wait=False,force=True)
     target_n.down()
     if crashed_primary:
-        target_n.drbdadm(['--force', '::::::1:1', 'set-gi',
-                      '%s:%s/%d' % (resource.name, source_n.name, target_v.volume)])
+        target_n.set_gi(source_v, flags_set=MetadataFlag.PRIMARY_IND | MetadataFlag.CRASHED_PRIMARY)
     to_target_c.event(r'connection .* connection:Connecting')
 
     log('* The diskless becomes primary ')

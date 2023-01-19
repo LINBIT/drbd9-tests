@@ -8,7 +8,7 @@
 # Only 2 of the 3 nodes have a disk.
 
 from python import drbdtest
-from python.drbdtest import connections, log, peer_devices
+from python.drbdtest import MetadataFlag, connections, log, peer_devices
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup(nodes=3)
@@ -17,8 +17,8 @@ node_a, node_b = diskful_nodes
 resource.add_disk('100M', max_peers=3, diskful_nodes=diskful_nodes) # That is one spare to keep day0 bitmap
 
 for n in diskful_nodes:
-    n.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
-	   "--node-id=1", "set-gi", "87236C45CB784220::::1:1", "--force"])
+    n.set_gi(n.volumes[0], '87236C45CB784220',
+            flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE)
 
 log('* All nodes on same current UUID, waiting for them to connect.')
 resource.up()
@@ -37,9 +37,8 @@ log('* node_b is repaired but returns with an empty disk (day0 current UUID)')
 # zero out the backing disk
 node_b.fio_file(node_b.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
 
-node_b.drbdadm(['create-md', '--force', '--max-peers=3', resource.name])
-node_b.run(["drbdmeta", str(n.disks[0].minor), "v09", n.disks[0].disk, "internal",
-	   "--node-id=1", "set-gi", "87236C45CB784220:", "--force"])
+node_b.volumes[0].create_md(max_peers=3)
+node_b.set_gi(node_b.volumes[0], '87236C45CB784220')
 
 node_b.adjust()
 node_b.volumes.event(r'device .* disk:UpToDate')

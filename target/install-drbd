@@ -4,12 +4,16 @@
 
 die() { >&2 printf "\nError: %s\n" "$*"; exit 1; }
 
+dir="$1"
+mapfile="$dir/pkgs.map"
+pkg=$(grep -F "$2:" "$mapfile" | cut -d':' -f2)
+
 if command -v rpm > /dev/null; then
 	no_initramfs=1 rpm --erase "kmod-drbd-*"
-	no_initramfs=1 rpm --install "$@" || die "Failed to install"
+	no_initramfs=1 rpm --install "$dir/$pkg" || die "Failed to install"
 elif command -v dpkg > /dev/null; then
 	dpkg --purge "$(dpkg-query --show --showformat='${Package}\n' | grep -E 'drbd.?-module')"
-	dpkg --install "$(compgen -G "$@")" || die "Failed to install"
+	dpkg --install "$dir/$pkg" || die "Failed to install"
 else
 	die "Unknown package manager"
 fi

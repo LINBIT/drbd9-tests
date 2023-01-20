@@ -1463,7 +1463,7 @@ class Node():
 
     def install_drbd(self, version):
         self.rmmod()
-        self.run_helper('install-drbd', ['{}/{}*'.format(package_download_dir, version)])
+        self.run_helper('install-drbd', [package_download_dir, version])
         self.read_drbd_version()
 
     def next_minor(self):

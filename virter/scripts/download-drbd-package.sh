@@ -14,6 +14,10 @@ download_dir="/opt/package-download"
 mkdir -p "$download_dir"
 cd "$download_dir"
 
+find_pattern() {
+	find . -maxdepth 1 -name "$1" -exec basename \{\} \; | sort
+}
+
 if command -v yum > /dev/null; then
 	available=$(yum list available --quiet --showduplicates \
 		"kmod-drbd-${drbd_version}_*" \
@@ -26,17 +30,24 @@ if command -v yum > /dev/null; then
 	best=$(lbdisttool.py --kmods $available) || die "Failed to choose kmod"
 	log "Best kmod: $best"
 
+	pkgs_before=$(find_pattern '*.rpm')
 	yum install -y --downloadonly --downloaddir . "$best" || die "Failed to download package"
+	pkgs_after=$(find_pattern '*.rpm')
 
-	# Provide a link to make the package easy to find
-	ln -s "$(find | grep -F "kmod-drbd-${drbd_version}_")" "$drbd_version.rpm" \
-		|| die "Failed to link package"
+	new_pkg=$(comm -13 <(echo "$pkgs_before") <(echo "$pkgs_after") | grep '^kmod-drbd' | head -n1)
+	# Provide a mapping file to make the package easy to find
+	printf "%s:%s\n" "$drbd_version" "$new_pkg" \
+		>> pkgs.map
 elif command -v apt-get > /dev/null; then
+	pkgs_before=$(find_pattern '*.deb')
 	apt download "drbd-module-$(uname -r)=${drbd_version}-*" || die "Failed to download package"
+	pkgs_after=$(find_pattern '*.deb')
 
-	# Provide a link to make the package easy to find
-	ln -s "$(find | grep -F drbd-module | grep -F "${drbd_version}")" "$drbd_version.deb" \
-		|| die "Failed to link package"
+	new_pkg=$(comm -13 <(echo "$pkgs_before") <(echo "$pkgs_after") | grep '^drbd-module' | head -n1)
+
+	# Provide a mapping file to make the package easy to find
+	printf "%s:%s\n" "$drbd_version" "$new_pkg" \
+		>> pkgs.map
 else
 	die "Unknown package manager"
 fi

@@ -83,10 +83,12 @@ fi
 
 if [ -n "$DRBD_VERSION" ]; then
 	download-drbd-package.sh "$DRBD_VERSION"
-	drbd_package="$download_dir/$DRBD_VERSION"*
+	drbd_package_file=$(grep -F "$DRBD_VERSION:" "$download_dir/pkgs.map" | cut -d':' -f2)
+	drbd_package="$download_dir/$drbd_package_file"
 	packages="$packages $drbd_package"
 fi
 
+echo "installing packages: $packages"
 install-packages.sh $packages
 
 # For convenience, DRBD can be provided as a module rather than a package

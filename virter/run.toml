@@ -61,3 +61,22 @@ DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
 [steps.docker.copy]
 source = "/log"
 dest = "{{.OutDir}}"
+
+[[steps]]
+[steps.shell]
+script = '''
+# gather gcov output files after a test run.
+# loosely based on https://www.kernel.org/doc/html/v6.1/dev-tools/gcov.html
+
+gcov_data=/sys/kernel/debug/gcov
+dest=/gcov.tar.gz
+tempdir=$(mktemp -d)
+
+[ -d $gcov_data ] || { echo "$gcov_data does not exist, not copying gcov data"; exit 0; }
+
+find $gcov_data -type d -exec mkdir -p $tempdir/\{\} \;
+find $gcov_data -name '*.gcda' -exec sh -c 'cat < $0 > '$tempdir'/$0' {} \;
+find $gcov_data -name '*.gcno' -exec sh -c 'cp -d $0 '$tempdir'/$0' {} \;
+tar czf $dest -C $tempdir sys
+rm -rf $tempdir
+'''

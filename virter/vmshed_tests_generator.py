@@ -53,6 +53,7 @@ def main():
     # Write header
     print('test_suite_file = "run.toml"')
     print('test_timeout = "{}"'.format(args.test_timeout))
+    print('artifacts = ["/gcov.tar.gz"]')
     print()
     with open(variants_toml) as f:
         print(f.read().rstrip())

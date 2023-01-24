@@ -137,13 +137,10 @@ def test_case3():
     connac = connections(A, C)
     connbc = connections(B, C)
 
-    my_log('* Blocking A-C')
+    my_log('* Blocking A-C and A-B')
     A.block_path(C, 0)
-    connac.event(r'connection:(NetworkFailure|Timeout)')
-
-    my_log('* Blocking A-B')
     A.block_path(B, 0)
-    connab.event(r'connection:(NetworkFailure|Timeout)')
+    connections(A, to_nodes=[B, C]).event(r'connection:(NetworkFailure|Timeout)')
 
     A.event(r'connection:Unconnected', r'quorum:no') # primary should lose quorum
     B.event(r'connection:Unconnected', no=r'quorum:no') # secondary should not lose quorum
@@ -186,13 +183,10 @@ def test_case3_promote():
     connac = connections(A, C)
     connbc = connections(B, C)
 
-    my_log('* Blocking A-C')
+    my_log('* Blocking A-C and A-B')
     A.block_path(C, 0)
-    connac.event(r'connection:(NetworkFailure|Timeout)')
-
-    my_log('* Blocking A-B')
     A.block_path(B, 0)
-    connab.event(r'connection:(NetworkFailure|Timeout)')
+    connections(A, to_nodes=[B, C]).event(r'connection:(NetworkFailure|Timeout)')
 
     #B.event(r'disk:UpToDate')
 

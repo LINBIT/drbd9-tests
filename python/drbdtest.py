@@ -981,7 +981,7 @@ class Volume(object):
     def meta(self):
         return self.meta_volume.volume_path() if self.meta_volume else None
 
-    def create_md(self, max_peers):
+    def create_md(self, max_peers=None):
         if max_peers is None:
             max_peers = len(self.node.resource.nodes) - 1
             if max_peers < 1:

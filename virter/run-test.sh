@@ -52,6 +52,7 @@ fi
 echo "=== Run vmshed with extra args '${extra_args[*]}'" >&2
 
 vmshed										\
+	--quiet									\
 	--out-dir "$(readlink -f tests-out)"					\
 	--startvm 40								\
 	--nvms "${LINBIT_CI_MAX_CPUS:-20}"						\

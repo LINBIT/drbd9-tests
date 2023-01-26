@@ -190,5 +190,5 @@ test:generic:
     VMSHED_TEST_SELECTION: all
   script:
     - export DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME
-    - run_test --repeats="$DRBD_TEST_COUNT" --error-details=false --quiet $VMSHED_ARGS || true
+    - run_test --repeats="$DRBD_TEST_COUNT" --error-details=false $VMSHED_ARGS || true
     - ./virter/elasticsearch/elasticsearch-insert.sh https://es01.at.linbit.com tests-out/results.json

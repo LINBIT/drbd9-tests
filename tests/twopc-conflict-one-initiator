@@ -1,0 +1,76 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+#
+# This test examines the retry behavior when a TWO-PC needs to be
+# retried. It starts with:
+#
+#     B
+#      \
+#   A   C
+#
+# Then it establishes A-B, but makes sure that the P_TWOPC_COMMIT gets
+# delayed when it travels from B to C.
+# A then quickly establishes the connection to C. The goal of the test
+# is to provoke a conflict on C. C should still execute the previous
+# state change while it already gets the P_TWOPC_PREPARE for the next
+# state change.
+#
+
+import re
+import time
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+state_twopc_regex = re.compile(r'Executing tid: (\d+)')
+
+def twopc_tid(res, node):
+    text = node.run(['cat',
+                     '/sys/kernel/debug/drbd/resources/{}/state_twopc'.format(res.name)],
+                    return_stdout=True)
+    match = state_twopc_regex.search(text)
+    if match:
+        return int(match.group(1))
+
+    return None
+
+def wait_twopc_started(res, node):
+    while True:
+        tid = twopc_tid(res, node)
+        if tid is not None:
+            return tid
+        time.sleep(0.1)
+
+def wait_twopc_completed(res, node, complete_tid):
+    while True:
+        tid = twopc_tid(res, node)
+        if tid != complete_tid:
+            return tid
+        time.sleep(0.1)
+
+resource = drbdtest.setup(nodes=3)
+resource.add_disk('10M')
+resource.nodes.up_unconnected()
+
+A, B, C = resource.nodes
+
+connections(B, C, bidir=True).connect()
+connections(B, C, bidir=True).event(r'connection .* connection:Connected')
+C.block_packet_type(drbdtest.P_TWOPC_COMMIT, from_node=B, volume=0xffff)
+connections(A, B, bidir=True).connect()
+connections(A, B, bidir=True).event(r'connection .* connection:Connected')
+tid1 = wait_twopc_started(resource, C)
+connections(A, C, bidir=True).connect()
+start = time.time()
+tid2 = wait_twopc_started(resource, A)
+C.unblock_packet_type(drbdtest.P_TWOPC_COMMIT, from_node=B, volume=0xffff)
+tid3 = wait_twopc_completed(resource, A, tid2)
+end = time.time()
+connections(A, C, bidir=True).event(r'connection .* connection:Connected')
+log('* It took {:.2f}s to finish. First TID: {}. Second TID: {}, 3rd TID: {}'.format(end-start, tid1, tid2, tid3))
+if tid3 is None:
+    log('* This is a post 9.1.13 (9.2.2) DRBD behaviour [no retry]')
+else:
+    raise Exception('* This a DRBD up to 9.1.13 (9.2.2) [retry]')
+
+resource.down()
+resource.teardown()

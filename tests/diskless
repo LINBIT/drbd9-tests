@@ -60,12 +60,7 @@ for n in reversed(resource.nodes.diskful[1:]):
 # Reintegrate ony by one
 up_so_far=drbdtest.Nodes([resource.nodes.diskful[0]]);
 for n in resource.nodes.diskful[1:]:
-    n.new_resource()
-    n.new_minor()
-    n.new_peer()
-    n.peer_device_options()
-    n.new_path()
-    n.attach()
+    n.up_unconnected()
 
     log('* re-integrating %s' % (n.name))
     # TODO Sometimes to diskles first, sometimes to the others first

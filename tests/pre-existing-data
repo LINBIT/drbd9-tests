@@ -57,12 +57,7 @@ def pre_existing_test(write_between_actions = False):
 
     log('* Connect the remaining server to the server that is already up')
     n = resource.nodes.diskful[0]
-    n.new_resource()
-    n.new_minor()
-    n.new_peer()
-    n.new_path()
-    n.drbdadm(["peer-device-options", "all"])
-    n.attach()
+    n.up_unconnected()
     cs = connections(n, resource.nodes.diskful[1])
     cs.connect()
     cs.event(r'connection .* connection:Connected')

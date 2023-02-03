@@ -427,6 +427,15 @@ class Nodes(Collection):
         self.drbdadm(['new-path', 'all'])
         self.connections.event(r'create path')
 
+    def up_unconnected(self):
+        self.new_resource()
+        self.new_minor()
+        self.new_peer()
+        self.peer_device_options()
+        self.new_path()
+        self.attach()
+        self.volumes.diskful.event(r'device .* disk:(Failed|Inconsistent|Outdated|Consistent|UpToDate)')
+
     def get_diskful(self):
         """ Return nodes that have at least one disk. """
         return Nodes([node for node in self
@@ -1791,6 +1800,9 @@ class Node():
 
     def new_path(self):
         Nodes([self]).new_path()
+
+    def up_unconnected(self):
+        Nodes([self]).up_unconnected()
 
     def event(self, *args, **kwargs):
         return Nodes([self]).event(*args, **kwargs)

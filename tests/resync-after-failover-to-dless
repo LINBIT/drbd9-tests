@@ -52,14 +52,7 @@ def test(write_in_between, crashed_primary):
         diskless_v.write(direct=1)
 
     log('* Reintegrating crashed primary')
-    #target_n.up() But connect to diskless after resync, so open code:
-    target_n.new_resource()
-    target_n.new_minor()
-    target_n.new_peer()
-    target_n.resource_options()
-    target_n.peer_device_options()
-    target_n.new_path()
-    target_n.attach()
+    target_n.up_unconnected()
     target_source_c.connect()
     if write_in_between or crashed_primary:
         source_target_pd.event(r'peer-device .* replication:SyncSource')

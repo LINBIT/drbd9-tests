@@ -29,12 +29,7 @@ node_c.set_gi(node_a.volumes[0], 'CCC', flags_set=flags)
 
 node_a.up()
 node_a.volumes[0].write(size='400M', bs='1M', direct=1)
-node_b.new_resource()
-node_b.new_minor()
-node_b.new_peer()
-node_b.peer_device_options()
-node_b.new_path()
-node_b.attach()
+node_b.up_unconnected()
 node_b.volumes[0].write(size='300M', bs='1M', direct=1)
 
 log('* Testing')

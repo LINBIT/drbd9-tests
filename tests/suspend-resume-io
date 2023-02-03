@@ -88,12 +88,7 @@ def down_up_disconnected(node, down_type):
     if down_type == DownType.CREATE_MD:
         node.drbdadm(['create-md', '--force', resource.name])
 
-    node.new_resource()
-    node.new_minor()
-    node.new_peer()
-    node.peer_device_options()
-    node.new_path()
-    node.attach()
+    node.up_unconnected()
 
 def check_resync(expect_resync_source, running_writer):
     if expect_resync_source == node_c:

@@ -11,7 +11,7 @@
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 10M;'
 resource.net_options = 'verify-alg md5;'
 resource.add_disk('10M')
@@ -39,4 +39,4 @@ peer_device_cb.event(r'peer-device .* replication:Established')
 peer_device_bc.event(r'peer-device .* replication:Established', timeout=10)
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

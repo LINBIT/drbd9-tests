@@ -20,7 +20,7 @@ def my_log(str):
     for node in resource.nodes:
         node.run(["echo", str])
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 750k;'
 resource.add_disk('10M')
 resource.up_wait()
@@ -55,7 +55,7 @@ B.volumes.write(size='1M', bs='1M', direct=1)
 A.block_packet_type(drbdtest.P_UUIDS110, from_node=C)
 from_a.connect()
 
-#A.drbd_version_tuple < (9, 0, 24):
+#A.host.drbd_version_tuple < (9, 0, 24):
 if agreed_pro_versions < (117, 117):
     to_a.event(r'connection:Connected')
 
@@ -70,4 +70,4 @@ c_a_pd.event(r'peer-device .* replication:Established')
 log('* Shut down and clean up.')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

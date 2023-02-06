@@ -20,7 +20,7 @@ def test_writes(fault_type):
     secondary_n.volumes.event(r'device .* disk:Diskless')
     primary_n.peer_devices.event(r'peer-device .* peer-disk:Failed')
     primary_n.peer_devices.event(r'peer-device .* peer-disk:Diskless')
-    if primary_n.drbd_version_tuple < (9, 0, 0):
+    if primary_n.host.drbd_version_tuple < (9, 0, 0):
         time.sleep(1.0)
     primary_n.secondary()
 
@@ -51,7 +51,7 @@ def test_writes(fault_type):
     primary_n.volumes.event(r'device .* disk:Diskless')
     secondary_n.volumes.event(r'peer-device .* peer-disk:Failed')
     secondary_n.volumes.event(r'peer-device .* peer-disk:Diskless')
-    if primary_n.drbd_version_tuple < (9, 0, 0):
+    if primary_n.host.drbd_version_tuple < (9, 0, 0):
         time.sleep(1.0)
     primary_n.secondary()
 
@@ -100,7 +100,7 @@ def test_tracking_writes(mode):
 
 # main
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.add_disk('12M')
 resource.up_wait()
 
@@ -116,7 +116,7 @@ for fault_type in [drbdtest.DF_DATA_WRITE, drbdtest.DF_META_WRITE]:
     test_writes(fault_type)
 
 # For some reason DRBD 8.4 gets stuck in Negotiating
-if primary_n.drbd_version_tuple >= (9, 0, 0):
+if primary_n.host.drbd_version_tuple >= (9, 0, 0):
     test_tracking_writes(M_REATTACH)
     test_tracking_writes(M_RECREATE_MD)
 
@@ -124,4 +124,4 @@ if primary_n.drbd_version_tuple >= (9, 0, 0):
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

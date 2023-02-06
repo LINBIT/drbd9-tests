@@ -8,7 +8,7 @@ from python import drbdtest
 
 sys.argv.extend(['--proxy'])
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 
 resource.nodes.up_wait()
 resource.connections.event(r'connection .* role:Secondary')
@@ -24,4 +24,4 @@ resource.forbidden_patterns.update([
 
 resource.down()
 
-resource.teardown()
+resource.cluster.teardown()

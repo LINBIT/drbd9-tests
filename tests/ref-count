@@ -30,7 +30,7 @@ def expect_drbd(node, drbd, transport):
     ref_count(node, {'drbd': drbd, transport_module: transport})
 
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.up_wait()
 
 node = resource.nodes[0]
@@ -96,4 +96,4 @@ resource.down()
 expect_drbd(node, 1, 0)
 
 
-resource.teardown()
+resource.cluster.teardown()

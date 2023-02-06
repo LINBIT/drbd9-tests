@@ -128,7 +128,7 @@ fio_write_small_args = {
         'size': '4K',
         'randrepeat': 0}
 
-drbd_config_dir_path = '/var/lib/drbd-test/'
+drbd_config_dir = '/var/lib/drbd-test'
 package_download_dir = '/opt/package-download'
 
 silent = False
@@ -359,7 +359,7 @@ class Nodes(Collection):
         return first(self.members).resource
 
     def min_drbd_version_tuple(self):
-        return min([node.drbd_version_tuple for node in self.members])
+        return min([node.host.drbd_version_tuple for node in self.members])
 
     def event(self, *args, **kwargs):
         """ Wait for an event. """
@@ -382,7 +382,7 @@ class Nodes(Collection):
     def up(self, extra_options=[]):
         # the order of disk/connection setup isn't strictly defined.
         # make sure that a defined order is seen, so that event matching works.
-        self.drbdadm(['up', 'all'] + extra_options)
+        self.drbdadm(['up', self.resource().name] + extra_options)
 
         # doesn't work either.
         #   + drbdmeta 1 v08 /dev/scratch/compat-with-84.new-20150504-103023-disk0 internal apply-al
@@ -394,11 +394,11 @@ class Nodes(Collection):
         #self.run(['bash', '-c', 'drbdadm up all -v | grep    " connect " | PATH=/lib/drbd:$PATH bash -x'])
 
         if proxy_enable:
-            self.drbdadm(['proxy-up', 'all'] + extra_options)
+            self.drbdadm(['proxy-up', self.resource().name] + extra_options)
 
     def down(self):
         if proxy_enable:
-            self.drbdadm(['proxy-down', 'all'])
+            self.drbdadm(['proxy-down', self.resource().name])
 
         remove_patterns = []
         for pattern in [r'connection:BrokenPipe', r'connection:NetworkFailure']:
@@ -407,43 +407,43 @@ class Nodes(Collection):
         if r'disk:Failed' in self.resource().forbidden_patterns and self.min_drbd_version_tuple() < (9, 0, 0):
             remove_patterns.append(r'disk:Failed')
         self.resource().forbidden_patterns.difference_update(remove_patterns)
-        self.drbdadm(['down', 'all'])
+        self.drbdadm(['down', self.resource().name])
         self.event(r'destroy resource')
         self.resource().forbidden_patterns.update(remove_patterns)
 
     def attach(self):
-        self.drbdadm(['attach', 'all'])
+        self.drbdadm(['attach', self.resource().name])
         self.volumes.diskful.event(r'device .* disk:Attaching')
 
     def detach(self):
-        self.drbdadm(['detach', 'all'])
+        self.drbdadm(['detach', self.resource().name])
         for node in self.members:
-            if node.drbd_version_tuple < (9, 0, 0):
+            if node.host.drbd_version_tuple < (9, 0, 0):
                 node.volumes.diskful.event(r'device .* disk:Failed')
             else:
                 node.volumes.diskful.event(r'device .* disk:Detaching')
         self.volumes.diskful.event(r'device .* disk:Diskless')
 
     def new_resource(self):
-        self.drbdadm(['new-resource', 'all'])
+        self.drbdadm(['new-resource', self.resource().name])
         self.event(r'create resource')
 
     def new_minor(self):
-        self.drbdadm(['new-minor', 'all'])
+        self.drbdadm(['new-minor', self.resource().name])
         self.volumes.event(r'create device')
 
     def new_peer(self):
-        self.drbdadm(['new-peer', 'all'])
+        self.drbdadm(['new-peer', self.resource().name])
         self.volumes.peer_devices.event(r'create peer-device')
 
     def resource_options(self, opts=[]):
-        self.drbdadm(['resource-options', 'all'] + opts)
+        self.drbdadm(['resource-options', self.resource().name] + opts)
 
     def peer_device_options(self, opts=[]):
-        self.drbdadm(['peer-device-options', 'all'] + opts)
+        self.drbdadm(['peer-device-options', self.resource().name] + opts)
 
     def new_path(self):
-        self.drbdadm(['new-path', 'all'])
+        self.drbdadm(['new-path', self.resource().name])
         self.connections.event(r'create path')
 
     def up_unconnected(self):
@@ -542,7 +542,7 @@ class Connections(Collection):
             for n0, n1 in self.members:
                 if n0.name not in filters:
                     filters[n0.name] = []
-                if n0.drbd_version_tuple >= (9, 0, 0):
+                if n0.host.drbd_version_tuple >= (9, 0, 0):
                     filters[n0.name].append(['peer-node-id:{}'.format(n1.id)])
                 else:
                     filters[n0.name].append([])
@@ -553,8 +553,8 @@ class Connections(Collection):
     def run_drbdadm(self, cmd, state_str, wait=True, options=[]):
         for connection in self:
             node0, node1 = connection.nodes
-            if node0.drbd_version_tuple >= (9, 0, 0):
-                context = '{}:{}'.format(connection.resource.name, node1.hostname)
+            if node0.host.drbd_version_tuple >= (9, 0, 0):
+                context = '{}:{}'.format(connection.resource.name, node1.host.hostname)
             else:
                 context = connection.resource.name
             node0.drbdadm([cmd] + options + [context])
@@ -611,7 +611,7 @@ class PeerDevices(Collection):
                 if n0.name not in filters:
                     filters[n0.name] = []
                 filter = ['volume:{}'.format(volume)]
-                if n0.drbd_version_tuple >= (9, 0, 0):
+                if n0.host.drbd_version_tuple >= (9, 0, 0):
                     filter.append('peer-node-id:{}'.format(n1.id))
                 filters[n0.name].append(filter)
             resource = first(self.members).resource
@@ -622,14 +622,14 @@ class PeerDevices(Collection):
         for pd in self:
             node0, node1 = pd.connection.nodes
             node0.drbdadm(['peer-device-options', '%s:%s' %
-                       (pd.connection.resource.name, node1.hostname), opts])
+                       (pd.connection.resource.name, node1.host.hostname), opts])
 
     def verify(self, wait=True, options=[]):
         for pd in self:
             node0, node1 = pd.connection.nodes
             res = pd.connection.resource.name
             node0.drbdadm(['verify'] + options +
-                      ['%s:%s/%d' % (res, node1.hostname, pd.volume.volume)])
+                      ['%s:%s/%d' % (res, node1.host.hostname, pd.volume.volume)])
         if wait:
             self.event(r'peer-device .* replication:VerifyS')
 
@@ -638,8 +638,130 @@ Nodes.finish()
 Volumes.finish()
 
 
+class Cluster(object):
+    """
+    Container for all hosts and resources.
+
+    In LINSTOR this is roughly equivalent to the "controller".
+    """
+
+    def __init__(self, job, logdir, drbd_version, drbd_version_other, resource_name, rdma=False):
+        self.job = job
+        self.logdir = logdir
+        self.drbd_version = drbd_version
+        self.drbd_version_other = drbd_version_other
+        self.resource_name = resource_name
+        self.rdma = rdma
+        self.hosts = []
+        self.resources = []
+        self.logscan_events = None
+        atexit.register(self.cleanup)
+
+    def cleanup(self):
+        if not skip_cleanup:
+            for host in self.hosts:
+                host.cleanup()
+        for host in self.hosts:
+            host.cleanup_framework()
+
+    def teardown(self, validate_dmesg=True):
+        """
+        Tear down test infrastructure. That is, remove the DRBD module and validate
+        the logs.
+
+        This should be called at the end of a successful test run. General
+        cleanup is performed by functions registered with "atexit".
+        """
+        ok = True
+        for host in self.hosts:
+            host.rmmod()
+            host_ok = host.teardown(validate_dmesg)
+            if not host_ok:
+                ok = False
+        if not ok:
+            sys.exit(3)
+
+    def listen_to_events(self):
+        logscan_inputs = {}
+        for host in self.hosts:
+            logscan_inputs[host.name] = host.listen_to_events()
+
+        self.logscan_events = Logscan(logscan_inputs, timeout=30)
+        self.logscan([r'exists -'],
+                {host.name: [[]] for host in self.hosts},
+                word_boundary=False)
+
+    def logscan(self, yes=[], filters=[], no=[], always_no=[], **kwargs):
+        """ Wait for events to occur. """
+        if isinstance(no, str):
+            no = [no]
+
+        return self.logscan_events.event(
+                yes=yes,
+                no=no,
+                always_no=always_no,
+                filters=filters,
+                wordwise=not 'word_boundary' in kwargs or kwargs['word_boundary'],
+                timeout=kwargs.get('timeout'),
+                verbose_out=logstream)
+
+    def validate_drbd_versions(self):
+        """
+        Check the expected DRBD versions of the cluster hosts. If
+        self.drbd_version_other is set, validate that this version is installed
+        on hosts[0]. If self.drbd_version is set, validate that this version is
+        installed on all other hosts and all git hashes match.
+        """
+
+        git_hashes = set()
+
+        for i, host in enumerate(self.hosts):
+            expect_version = None
+            if self.drbd_version_other and i == 0:
+                expect_version = self.drbd_version_other
+            elif self.drbd_version:
+                expect_version = self.drbd_version
+                git_hashes.add(host.drbd_git_hash)
+
+            if expect_version and host.drbd_version != expect_version:
+                raise RuntimeError("{}: expect DRBD version '{}'; found '{}'".format(host, expect_version, host.drbd_version))
+
+        if len(git_hashes) > 1:
+            raise RuntimeError("Differing git hashes found for DRBD version '{}': {}".format(self.drbd_version, git_hashes))
+
+    def create_resource(self, name=None):
+        resource = Resource(self, self.resource_name if name is None else name,
+                              rdma=self.rdma)
+
+        for host in self.hosts:
+            Node(host, resource, port=host.next_port())
+
+        for node0 in resource.nodes:
+            for node1 in resource.nodes:
+                if node0 != node1:
+                    node0.connections.add(Connection(node0, node1))
+
+        self.resources.append(resource)
+        return resource
+
+    def create_storage_pool(self, thin=False, discard_granularity=None):
+        for host in self.hosts:
+            host.create_storage_pool(thin=thin, discard_granularity=discard_granularity)
+
+    def remove_storage_pool(self):
+        for host in self.hosts:
+            host.remove_storage_pool()
+
+
 class Resource(object):
-    def __init__(self, name, logdir, rdma=False):
+    """
+    A single DRBD resource spanning multiple hosts.
+
+    In LINSTOR this is called a "resource definition".
+    """
+
+    def __init__(self, cluster, name, rdma=False):
+        self.cluster = cluster
         self.name = name
         self._net_options = ""
         self._disk_options = ""
@@ -649,13 +771,14 @@ class Resource(object):
         self._handlers = ""
         self.nodes = Nodes()
         self.num_volumes = 0
-        self.logdir = logdir
         self.rdma = rdma
-        self.drbd_version = ""
-        self.drbd_version_other = ""
-        self.events_cls = None
         self.forbidden_patterns = OrderedSet()
-        self.logscan_events = None
+        self.forbidden_patterns.update([
+            r'connection:Timeout',
+            r'connection:ProtocolError',
+            r'connection:NetworkFailure',
+            r'disk:Failed',
+            r'peer-disk:Failed'])
         atexit.register(self.cleanup)
 
     def __repr__(self):
@@ -666,14 +789,10 @@ class Resource(object):
         self.num_volumes += 1
         return volume
 
-    def create_storage_pool(self, thin=False, discard_granularity=None):
-        for node in self.nodes:
-            node.create_storage_pool(thin=thin, discard_granularity=discard_granularity)
-
     def remove_storage_pool(self):
+        self.nodes.remove_disks()
         self.num_volumes = 0
-        for node in self.nodes:
-            node.remove_storage_pool()
+        self.cluster.remove_storage_pool()
 
     def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, max_peers=None, delay_ms=None):
         """
@@ -750,64 +869,24 @@ class Resource(object):
         if not skip_cleanup:
             for node in self.nodes:
                 node.cleanup()
-        for node in self.nodes:
-            node.cleanup_framework()
 
-    def teardown(self, validate_dmesg=True):
+    def logscan(self, yes, filters, no=[], **kwargs):
         """
-        Tear down a Resource. That is, remove the DRBD module and validate the
-        logs.
+        Wait for events to occur.
 
-        This should be called at the end of a successful test run. General
-        cleanup is performed by functions registered with "atexit".
+        Warning: Resource.forbidden_patterns applies to log lines for all
+        resources.
         """
-        self.rmmod()
-        ok = True
-        for node in self.nodes:
-            node_ok = node.teardown(validate_dmesg)
-            if not node_ok:
-                ok = False
-        if not ok:
-            sys.exit(3)
+        # Only add resource name filter if there is more than one resource to keep the logs clean
+        if len(self.cluster.resources) > 1:
+            filters = {node_name: [[r'name:{}'.format(self.name)] + filter_set for filter_set in node_filters]
+                    for node_name, node_filters in filters.items()}
 
-    def rmmod(self):
-        for n in self.nodes:
-            n.rmmod()
-
-    def listen_to_events(self):
-        logscan_inputs = {}
-        for node in self.nodes:
-            logscan_inputs[node.name] = node.listen_to_events()
-
-        self.logscan_events = Logscan(logscan_inputs, timeout=30)
-        self.nodes.event(r'exists -', word_boundary=False)
-
-    def logscan(self, yes, filters, **kwargs):
-        """ Run logscan to scan / wait for events to occur. """
-        if yes is None:
-            yes = []
-        no = kwargs.get('no', [])
-        if isinstance(no, str):
-            no = [no]
-
-        return self.logscan_events.event(
-                yes=yes,
-                no=no,
-                always_no=self.forbidden_patterns,
-                filters=filters,
-                wordwise=not 'word_boundary' in kwargs or kwargs['word_boundary'],
-                timeout=kwargs.get('timeout'),
-                verbose_out=logstream)
+        return self.cluster.logscan(yes, filters,
+                no, self.forbidden_patterns, **kwargs)
 
     def up(self, extra_options=[]):
         self.nodes.up(extra_options)
-        # Because of "initial packet S crossed" an initial NetworkFailure and/or BrokenPipe is allowed.
-        # Wait for the connections to be established.
-        self.forbidden_patterns.update([
-            r'connection:Timeout',
-            r'connection:ProtocolError',
-            r'disk:Failed',
-            r'peer-disk:Failed'])
 
     def skip_initial_sync(self):
         node = self.nodes.diskful[0]
@@ -840,10 +919,9 @@ class Resource(object):
                         pds.add(PeerDevice(Connection(n1, n2), v))
         pds.event(r'peer-device .* peer-disk:(Inconsistent|Diskless)', timeout=30)
 
-        # Now add that, too.
-        self.forbidden_patterns.update([
-            r'connection:BrokenPipe',
-            r'connection:NetworkFailure'])
+        # This can occur while connecting due to receive timeouts during
+        # two-phase commit resolution. Add it now that the nodes are connected.
+        self.forbidden_patterns.add(r'connection:BrokenPipe')
 
     def down(self, concurrent=False):
         # Avoid spurious test failures,
@@ -886,6 +964,9 @@ class Resource(object):
 
     def rename(self, new_name):
         self.nodes.run(["drbdsetup", "rename-resource", self.name, new_name])
+        # Wait for rename event before changing self.name because event() may
+        # filter by resource name
+        self.nodes.event(r'rename resource name:{} new_name:{}'.format(self.name, new_name))
         self.name = new_name
         self.touch_config()
 
@@ -894,7 +975,7 @@ class Volume(object):
         if volume is None:
             volume = node.resource.next_volume()
         if minor is None:
-            minor = node.next_minor()
+            minor = node.host.next_minor()
         self.volume = volume
         self.minor = minor
         self.node = node
@@ -919,11 +1000,11 @@ class Volume(object):
 
     def create_disks(self, size, meta_size=None, *, max_size=None, delay_ms=None):
         self.disk_lv = '{}-disk{}'.format(self.node.resource.name, self.volume)
-        self.disk_volume = disktools.create_disk(self.node, self.disk_lv,
+        self.disk_volume = disktools.create_disk(self.node.host, self.disk_lv,
                 size, max_size=max_size, delay_ms=delay_ms)
         if meta_size:
             self.meta_lv = '{}-meta{}'.format(self.node.resource.name, self.volume)
-            self.meta_volume = disktools.create_disk(self.node, self.meta_lv,
+            self.meta_volume = disktools.create_disk(self.node.host, self.meta_lv,
                     meta_size, delay_ms=delay_ms)
 
     @property
@@ -970,7 +1051,7 @@ class Volume(object):
         return self.node.fio_file(self.device(), *args, **kwargs)
 
     def dmsetup(self, cmd):
-        dm_name = '%s-%s' % (self.node.volume_group.replace('-', '--'),
+        dm_name = '%s-%s' % (self.node.host.volume_group.replace('-', '--'),
                              self.disk_lv.replace('-', '--'))
         self.node.run(['dmsetup', cmd, dm_name])
 
@@ -1013,7 +1094,7 @@ class Connection(object):
 
     def run_cmd(self, *args):
         self.nodes[0].drbdadm([*args, '%s:%s' %
-                           (self.resource.name, self.nodes[1].hostname)])
+                           (self.resource.name, self.nodes[1].host.hostname)])
 
     def pause_sync(self):
         self.run_cmd(['pause-sync'])
@@ -1066,20 +1147,19 @@ class PeerDevice(object):
 
 class AsPrimary(object):
 
-    def __init__(self, node, res="all", force=False):
+    def __init__(self, node, force=False):
         self.node = node
         self.force = force
-        self.res = res
 
     def __enter__(self):
-        self.node.primary(res=self.res, force=self.force)
+        self.node.primary(force=self.force)
 
     def __exit__(self, *ignore_exception):
         # Let processes detach correctly... eg. fio causes
         #   State change failed: (-12) Device is held open by someone
         # unless /lib/udev/rules.d/{13,60_persistent_storage}*
         # are patched to exclude DRBD from blkid
-        self.node.secondary(self.res)
+        self.node.secondary()
 
 
 class ConfigBlock(object):
@@ -1142,12 +1222,18 @@ class ConfigBlock(object):
         self.write_no_indent(content)
 
 
-class Node():
-    def __init__(self, resource, name, volume_group, storage_backend, backing_device,
-                 addr=None, port=7789, multi_paths=None, netns=None):
-        self._fencing_mode = ""
-        self.resource = resource
+class Host():
+    """
+    A host system where DRBD runs.
+
+    In LINSTOR this is called a "node".
+    """
+
+    def __init__(self, cluster, name, volume_group, storage_backend, backing_device,
+                 first_port=7789, addr=None, multi_paths=None, netns=None):
+        self.cluster = cluster
         self.name = name
+        self.port = first_port
         self.netns = None
         try:
             self.addr = addr if addr else socket.gethostbyname(name)
@@ -1161,36 +1247,29 @@ class Node():
             raise e
 
         self.events_file = None
-        self.port = port
-        self.disks = []  # by volume
-        self.id = len(self.resource.nodes)
         self.fio_count = 0
-        self.resource.nodes.add(self)
         self.minors = 0
-        self.config_changed = True
         self.storage_pool = None
         self.volume_group = volume_group
         self.storage_backend = storage_backend
         self.backing_device = backing_device
-        self.connections = Connections()
         self.read_drbd_version()
 
         if self.drbd_version_tuple < (9, 0, 0):
             hostname_cmd = ['hostname']
         else:
             hostname_cmd = ['hostname', '-f']
-        self.hostname = self.run(hostname_cmd, return_stdout=True,
-                                 update_config=False)
+        self.hostname = self.run(hostname_cmd, return_stdout=True)
 
         self.os_id, self.os_version_id = self.run(
                 ['bash', '-c', '. /etc/os-release ; echo $ID ; echo $VERSION_ID'],
-                update_config=False, return_stdout=True).splitlines()
-        log("node {} is running '{}' version '{}'".format(name, self.os_id, self.os_version_id))
+                return_stdout=True).splitlines()
+        log("host {} is running '{}' version '{}'".format(name, self.os_id, self.os_version_id))
 
         self.addrs = [self.addr]
         self.netdevs = {}
 
-        addresses = self.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True, update_config=False)
+        addresses = self.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True)
         log("got all addresses %s", addresses)
         for line in addresses.splitlines():
             m = re.search(r'^\s*\d+:\s+(\w+)\s+inet\s+([\d\.]+)/(\d+)', line)
@@ -1220,7 +1299,7 @@ class Node():
                 raise RuntimeError("%s is missing additional netdevs to namespace", self)
 
             self.addrs = []
-            self.run(['ip', 'netns', 'add', netns], update_config=False)
+            self.run(['ip', 'netns', 'add', netns])
             for address_info in self.netdevs.values():
                 self.addrs.append(address_info['address'])
 
@@ -1228,32 +1307,28 @@ class Node():
                 raise RuntimeError("%s has namespaced address", self)
 
             # Also configure IPTABLES in the init_net namespace, some tests might use both
-            self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'], update_config=False)
-            self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'],
-                     update_config=False)
-            self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"], update_config=False)
-            self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"], update_config=False)
+            self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'])
+            self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'])
+            self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"])
+            self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"])
 
             # From now on, all run() commands run in <netns> namespace, unless explicitly excluded
             self.netns = netns
             # Now ensure all netdevs are moved to the right namespace
             self.ensure_netdev(netns=netns)
 
-        self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'], update_config=False)
-        self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'], update_config=False)
-        self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"], update_config=False)
-        self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"], update_config=False)
+        self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'])
+        self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'])
+        self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"])
+        self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"])
 
         self.start_dmesg()
 
-        self.run(['mkdir', '-p', drbd_config_dir_path], update_config=False)
-        global_config = 'global { usage-count no; }\n' + 'include "{}";\n'.format(
-                self.drbd_config_file_path())
+        self.run(['mkdir', '-p', drbd_config_dir])
+        global_config = 'global { usage-count no; }\n' + 'include "{}/{}*";\n'.format(
+                drbd_config_dir, cluster.job)
         self.run(['bash', '-c', "cat > " + self.drbd_global_config_file_path()],
-                stdin=StringIO(global_config), update_config=False)
-
-        # Ensure that added nodes will be reflected in the DRBD configuration file.
-        self.config_changed = True
+                stdin=StringIO(global_config))
 
     def ensure_netdev(self, netns=None):
         """
@@ -1264,22 +1339,22 @@ class Node():
         for devname, address_info in self.netdevs.items():
             base = ['ip']
             if netns:
-                self.run(['ip', 'link', 'set', 'dev', devname, 'netns', netns], update_config=False, ignore_netns=True)
+                self.run(['ip', 'link', 'set', 'dev', devname, 'netns', netns], ignore_netns=True)
                 base = ['ip', '-netns', netns]
 
             try:
                 self.run(base + [
                     'addr', 'add', '{}/{}'.format(address_info['address'], address_info['prefix']), 'dev', devname
-                ], update_config=False, ignore_netns=True)
+                ], ignore_netns=True)
             except CalledProcessError:
                 # The command fails if the address is already configured
                 pass
 
-            self.run(base + ['link', 'set', 'dev', devname, 'up'], update_config=False, ignore_netns=True)
+            self.run(base + ['link', 'set', 'dev', devname, 'up'], ignore_netns=True)
 
     def read_drbd_version(self):
-        self.run(['bash', '-c', '[ -e /proc/drbd ] || modprobe drbd'], update_config=False)
-        proc_drbd_lines = self.run(['cat', '/proc/drbd'], return_stdout=True, update_config=False).splitlines()
+        self.run(['bash', '-c', '[ -e /proc/drbd ] || modprobe drbd'])
+        proc_drbd_lines = self.run(['cat', '/proc/drbd'], return_stdout=True).splitlines()
         version_line = proc_drbd_lines[0]
         git_hash_line = proc_drbd_lines[1]
 
@@ -1294,17 +1369,11 @@ class Node():
         hash_match = re.match(r'(?:srcversion|GIT-hash): ([0-9A-Fa-f]+).*', git_hash_line)
         self.drbd_git_hash = hash_match.group(1).lower()
 
-    def addr_port(self, net_num=0):
-        return '%s:%s' % (self.addrs[net_num], self.port)
-
     def cleanup(self):
         """
         Clean up resource artifacts. This may or may not be run depending on
         the command line argument "cleanup".
         """
-        self.run(['bash', '-c',
-            '! [ -e /proc/drbd ] || drbdsetup down {}'.format(self.resource.name)],
-            update_config=False)
         if self.storage_pool:
             self.remove_storage_pool()
 
@@ -1321,7 +1390,6 @@ class Node():
         self.run(["bash", "-c", 'iptables -F drbd-test-input && iptables -X drbd-test-input || true'])
         self.run(["bash", "-c", 'iptables -F drbd-test-output && iptables -X drbd-test-output || true'])
 
-        self.config_changed = False
         if hasattr(self, 'events'):
             self.events.terminate()
 
@@ -1334,7 +1402,7 @@ class Node():
     def start_dmesg(self):
         self.dmesg_out_stream = io.StringIO()
 
-        out_path = os.path.join(self.resource.logdir, 'dmesg-{}'.format(self.name))
+        out_path = os.path.join(self.cluster.logdir, 'dmesg-{}'.format(self.name))
         self.dmesg_out_file = open(out_path, 'w', encoding='utf-8')
 
         self.dmesg_out_tee = Tee()
@@ -1404,13 +1472,13 @@ class Node():
             helper = f.read()
             self.run(['bash', '-c',
                 'cat > {0} && chmod +x {0}'.format(target_path)],
-                stdin=StringIO(helper), update_config=False)
+                stdin=StringIO(helper))
 
     def run_helper(self, helper_name, args=[], timeout=None):
         """ Run a target helper script. """
         target_path = '/tmp/' + helper_name
         self.install_helper(helper_name, target_path)
-        self.run([target_path, *args], update_config=False, timeout=timeout)
+        self.run([target_path, *args], timeout=timeout)
 
     def rmmod(self):
         if no_rmmod:
@@ -1418,15 +1486,15 @@ class Node():
         if self.drbd_version_tuple >= (9, 0, 0):
             # might not even be loaded
             try:
-                self.run(['rmmod', 'drbd_transport_tcp'], update_config=False)
+                self.run(['rmmod', 'drbd_transport_tcp'])
             except:
                 pass
             try:
-                self.run(['rmmod', 'drbd_transport_rdma'], update_config=False)
+                self.run(['rmmod', 'drbd_transport_rdma'])
             except:
                 pass
         try:
-            self.run(['rmmod', 'drbd'], update_config=False)
+            self.run(['rmmod', 'drbd'])
         except:
             pass
 
@@ -1439,6 +1507,11 @@ class Node():
         self.minors += 1
         return self.minors
 
+    def next_port(self):
+        port = self.port
+        self.port += 1
+        return port
+
     def create_storage_pool(self, thin=False, discard_granularity=None):
         if self.storage_pool:
             raise RuntimeError('storage pool already created')
@@ -1449,199 +1522,16 @@ class Node():
         if not self.storage_pool:
             raise RuntimeError('no storage pool to remove')
 
-        for volume in self.disks:
-            if volume.disk_volume:
-                volume.disk_volume.remove()
-            if volume.meta_volume:
-                volume.meta_volume.remove()
-
-        self.disks = []
         self.storage_pool.remove()
         self.storage_pool = None
-        self.config_changed = True
-
-    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None, delay_ms=None):
-        """
-        Keyword arguments:
-        volume_number -- volume number of the new disk
-        size -- size of the data device or None for a diskless node
-        meta_size -- size of the meta-data device
-        max_size -- maximum we expect this disk to be resized to
-        thin -- whether to create a thin provisioned disk
-        """
-
-        # Create storage pool if not yet created
-        if not self.storage_pool:
-            self.storage_pool = disktools.create_storage_pool(self, self.storage_backend, self.backing_device)
-
-        if volume_number >= len(self.disks):
-            minor = None
-        else:
-            minor = self.disks[volume_number].minor
-        volume = Volume(self, volume_number, minor=minor)
-        if size is not None:
-            volume.create_disks(size, meta_size, max_size=max_size, delay_ms=delay_ms)
-        if volume_number >= len(self.disks):
-            self.disks.append(volume)
-        else:
-            self.disks[volume_number] = volume
-        self.config_changed = True
-        return volume
-
-    @property
-    def fencing_mode(self):
-        return self._fencing_mode
-
-    @fencing_mode.setter
-    def fencing_mode(self, value):
-        self._fencing_mode = value
-        self.config_changed = True
-
-    def _config_conns_84(self):
-        # no explicit connections for 8.4
-        # done via "address" in "on <host>" section
-        pass
-
-    def _config_one_host_addr(self, node, block, i):
-        block.write("host %s address %s:%d;" %
-                    (node.name,
-                     node.addrs[i],
-                     node.port))
-
-    def _config_one_connection(self, n1, n2):
-        with ConfigBlock(t="connection"):
-            port_inside = self.port
-            port_outside = self.port
-
-            if proxy_enable:
-                with ConfigBlock(t='host %s address 127.0.0.1:%s via proxy on %s'
-                        % (n1.name, n1.port, n1.name)) as N1:
-                    N1.write("inside 127.0.0.2:%s;" % port_inside)
-                    N1.write("outside ipv4 %s:%s;"% (n1.addrs[0], port_outside))
-                with ConfigBlock(t='host %s address 127.0.0.1:%s via proxy on %s'
-                        % (n2.name, n2.port, n2.name)) as N2:
-                    N2.write("inside 127.0.0.2:%s;" % port_inside)
-                    N2.write("outside ipv4 %s:%s;"% (n2.addrs[0], port_outside))
-                with ConfigBlock(t='net') as NET_OPTS:
-                    NET_OPTS.write("protocol A;")
-            else:
-                with ConfigBlock(t='net'):
-                    pass
-
-                for i, a1, a2 in zip(range(len(n1.addr)), n1.addrs, n2.addrs):
-                    with ConfigBlock(t='path') as path:
-                        self._config_one_host_addr(n1, path, i)
-                        self._config_one_host_addr(n2, path, i)
-
-    def _config_conns_9(self):
-        for start, n1 in enumerate(self.resource.nodes):
-            for n2 in self.resource.nodes[start + 1:]:
-                self._config_one_connection(n1, n2)
-
-    def config_host(self, node):
-        resource = self.resource
-
-        with ConfigBlock(t='on %s' % node.hostname) as N:
-            if self.drbd_version_tuple >= (9, 0, 0):
-                N.write("node-id %d;" % node.id)
-            else:
-                # 8.4 compat
-                N.write("address %s:%d;" % (node.addr, node.port))
-
-            for index, disk in enumerate(node.disks):
-                with ConfigBlock(t='volume %d' % index) as V:
-                    V.write("device %s;" % disk.device())
-                    V.write("disk %s;" % (disk.disk or "none"))
-                    if disk.disk:
-                        V.write("meta-disk %s;" % (disk.meta or "internal"))
-
-    def config(self):
-        text = []
-
-        resource = self.resource
-        with ConfigBlock(dest_fn=lambda x: text.append(x),
-                         t="resource %s" % resource.name):
-
-            with ConfigBlock(t='handlers') as handlers:
-                handlers.write(resource._handlers)
-
-            with ConfigBlock(t='options') as res_options:
-                res_options.write(resource._resource_options)
-
-            with ConfigBlock(t='disk') as disk:
-                disk.write("disk-flushes no;")
-                disk.write("md-flushes no;")
-                if 'c-min-rate' not in resource._disk_options and self.os_id == 'ubuntu' and self.os_version_id == '18.04':
-                    # Work around issue on Ubuntu Bionic.
-                    # Application IO activity is detected when there is none, causing c-min-rate throttling to be applied.
-                    disk.write("c-min-rate 0;")
-                if self._fencing_mode and self.drbd_version_tuple < (9, 0, 0):
-                    disk.write('fencing {};'.format(self._fencing_mode))
-                disk.write(resource._disk_options)
-
-            with ConfigBlock(t='net') as net:
-                if resource.rdma:
-                    net.write("transport rdma;")
-                if self._fencing_mode and self.drbd_version_tuple >= (9, 0, 0):
-                    net.write('fencing {};'.format(self._fencing_mode))
-                net.write(resource._net_options)
-
-            # NOTE: (wap) W/ drbd9/LINSTOR, separate proxy stanza not needed
-            #       for proxy but only for proxy options like compressions
-            with ConfigBlock(t='proxy') as proxy:
-                if proxy_enable:
-                    if lz4_enable:
-                        with ConfigBlock(t='plugin') as proxy_plugin:
-                            proxy_plugin.write("lz4;")
-                    elif zstd_enable:
-                        with ConfigBlock(t='plugin') as proxy_plugin:
-                            proxy_plugin.write("zstd levels %d;" % zstd_enable)
-
-                    try:
-                        if memlimit:
-                            proxy.write("memlimit %d;" % memlimit)
-                    except:
-                        pass
-
-            for n in resource.nodes:
-                self.config_host(n)
-
-            if self.drbd_version_tuple >= (9, 0, 0):
-                self._config_conns_9()
-            else:
-                self._config_conns_84()
-
-
-        return "".join(text)
-
-    def drbd_config_file_path(self):
-        return drbd_config_dir_path + self.resource.job + '.res'
 
     def drbd_global_config_file_path(self):
-        return drbd_config_dir_path + self.resource.job + '.conf'
-
-    def update_config(self):
-        """ Create or update the configuration file on the node when needed. """
-
-        if self.config_changed:
-            self.config_changed = False
-            config = self.config()
-            file = open(os.path.join(self.resource.logdir,
-                                     'drbd.conf-%s' % self.name), 'w')
-            file.write(config)
-            file.close
-            self.run(['bash', '-c', 'cat > ' + self.drbd_config_file_path()],
-                    stdin=StringIO(config), update_config=False)
-
-    def config_proxy(self):
-        """ Update DRBD proxy options in the configuration file. """
-        # TODO: (wap) Implement adding proxy options
-        pass
+        return '{}/{}.conf'.format(drbd_config_dir, self.cluster.job)
 
     def listen_to_events(self):
         if self.events_file:
             self.events_file.close()
-        self.events_file = open(os.path.join(self.resource.logdir, 'events-' + self.name), 'a')
+        self.events_file = open(os.path.join(self.cluster.logdir, 'events-' + self.name), 'a')
 
         try:
             if self.events:
@@ -1652,12 +1542,11 @@ class Node():
         self.events = self.ssh.Popen('drbdsetup events2 all --statistics --timestamps')
         return InputStream(self.events.stdout, tee_out=self.events_file)
 
-    def run(self, cmd, update_config=True, quote=True, catch=False, return_stdout=False, stdin=None, stdout=None, stderr=None, env={}, timeout=None, ignore_netns=False):
+    def run(self, cmd, quote=True, catch=False, return_stdout=False, stdin=None, stdout=None, stderr=None, env={}, timeout=None, ignore_netns=False):
         """
         Run a command via SSH on the target node.
 
         :param cmd: the command as a list of strings
-        :param update_config: whether or not to update the DRBD config file before running
         :param quote: use shell quoting to prevent environment variable substitution in commands
         :param catch: report command failures on stderr rather than raising an exception
         :param return_stdout: return the stdout returned by the command instead of printing it
@@ -1670,9 +1559,6 @@ class Node():
         :returns: nothing, or a string if return_stdout is True
         :raise CalledProcessError: when the command fails (unless catch is True)
         """
-        if update_config:
-            self.update_config()
-
         stdout = stdout or logstream
         stderr = stderr or logstream
         stdin = stdin or False # False means no stdin
@@ -1699,15 +1585,290 @@ class Node():
         if return_stdout:
             return stdout.getvalue().strip()
 
+    def fio_file(self, filename, base_args={}, **kwargs):
+        """
+        Run fio on a given file.
+
+        base_args is a dict mapping fio parameter keys to their values
+
+        The remaining keyword arguments also specify fio parameters. These
+        parameters override the base_args.
+        """
+        arg_dict = {'filename': filename, **base_args, **kwargs}
+        fio_args = ['--{}={}'.format(key, value) for (key, value) in arg_dict.items()]
+
+        cmd = ['fio',
+                '--output-format=json',
+                # reduce the amount of memory which fio tries to allocate
+                '--max-jobs=16',
+                '--name=test',
+                *fio_args]
+
+        result = self.run(cmd, return_stdout=True)
+
+        output_filename = 'fio-{}-{}.json'.format(self.name, self.fio_count)
+        log('write fio output to {}'.format(output_filename))
+        with open(os.path.join(self.cluster.logdir, output_filename), 'w') as output_file:
+            output_file.write(result)
+
+        fio_output = json.loads(result)
+
+        job = fio_output['jobs'][0]
+        log('fio results: read={}KiB, write={}KiB, time={}s'.format(
+            job['read']['io_kbytes'],
+            job['write']['io_kbytes'],
+            job['elapsed']))
+
+        self.fio_count = self.fio_count + 1
+        return fio_output
+
+    def net_device_to_peer(self, peer_host, net_num=0):
+        """Returns the network device this peer is reachable via."""
+        lines = self.run(['ip', '-o', 'route', 'get', peer_host.addrs[net_num]],
+                         return_stdout=True)
+        fields = lines.split(' ')
+        dev = fields[2]
+        return dev
+
+
+class Node():
+    """
+    A single DRBD resource on a single host.
+
+    In LINSTOR this is called a "resource".
+    """
+
+    def __init__(self, host, resource, port):
+        self._fencing_mode = ""
+        self.host = host
+        self.resource = resource
+        self.name = host.name
+
+        self.port = port
+        self.disks = []  # by volume
+        self.id = len(self.resource.nodes)
+        self.resource.nodes.add(self)
+        self.config_changed = True
+        self.connections = Connections()
+
+    def cleanup(self):
+        """
+        Clean up resource artifacts. This may or may not be run depending on
+        the command line argument "cleanup".
+        """
+        self.run(['bash', '-c',
+            '! [ -e /proc/drbd ] || drbdsetup down {}'.format(self.resource.name)],
+            update_config=False)
+
+        self.remove_disks()
+
+    def __repr__(self):
+        return '{}:{}'.format(self.resource, self.name)
+
+    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None, delay_ms=None):
+        """
+        Keyword arguments:
+        volume_number -- volume number of the new disk
+        size -- size of the data device or None for a diskless node
+        meta_size -- size of the meta-data device
+        max_size -- maximum we expect this disk to be resized to
+        thin -- whether to create a thin provisioned disk
+        """
+
+        # Create storage pool if not yet created
+        if not self.host.storage_pool:
+            self.host.create_storage_pool()
+
+        if volume_number >= len(self.disks):
+            minor = None
+        else:
+            minor = self.disks[volume_number].minor
+        volume = Volume(self, volume_number, minor=minor)
+        if size is not None:
+            volume.create_disks(size, meta_size, max_size=max_size, delay_ms=delay_ms)
+        if volume_number >= len(self.disks):
+            self.disks.append(volume)
+        else:
+            self.disks[volume_number] = volume
+        self.config_changed = True
+        return volume
+
+    def remove_disks(self):
+        for volume in self.disks:
+            if volume.disk_volume:
+                volume.disk_volume.remove()
+            if volume.meta_volume:
+                volume.meta_volume.remove()
+
+        self.disks = []
+
+    @property
+    def fencing_mode(self):
+        return self._fencing_mode
+
+    @fencing_mode.setter
+    def fencing_mode(self, value):
+        self._fencing_mode = value
+        self.config_changed = True
+
+    def _config_conns_84(self):
+        # no explicit connections for 8.4
+        # done via "address" in "on <host>" section
+        pass
+
+    def _config_one_host_addr(self, node, block, i):
+        block.write("host %s address %s:%d;" %
+                    (node.name,
+                     node.host.addrs[i],
+                     node.port))
+
+    def _config_one_connection(self, n1, n2):
+        with ConfigBlock(t="connection"):
+            port_inside = self.port
+            port_outside = self.port
+
+            if proxy_enable:
+                with ConfigBlock(t='host %s address 127.0.0.1:%s via proxy on %s'
+                        % (n1.name, n1.port, n1.name)) as N1:
+                    N1.write("inside 127.0.0.2:%s;" % port_inside)
+                    N1.write("outside ipv4 %s:%s;"% (n1.host.addrs[0], port_outside))
+                with ConfigBlock(t='host %s address 127.0.0.1:%s via proxy on %s'
+                        % (n2.name, n2.port, n2.name)) as N2:
+                    N2.write("inside 127.0.0.2:%s;" % port_inside)
+                    N2.write("outside ipv4 %s:%s;"% (n2.host.addrs[0], port_outside))
+                with ConfigBlock(t='net') as NET_OPTS:
+                    NET_OPTS.write("protocol A;")
+            else:
+                with ConfigBlock(t='net'):
+                    pass
+
+                for i, a1, a2 in zip(range(len(n1.host.addr)), n1.host.addrs, n2.host.addrs):
+                    with ConfigBlock(t='path') as path:
+                        self._config_one_host_addr(n1, path, i)
+                        self._config_one_host_addr(n2, path, i)
+
+    def _config_conns_9(self):
+        for start, n1 in enumerate(self.resource.nodes):
+            for n2 in self.resource.nodes[start + 1:]:
+                self._config_one_connection(n1, n2)
+
+    def config_host(self, node):
+        with ConfigBlock(t='on %s' % node.host.hostname) as N:
+            if self.host.drbd_version_tuple >= (9, 0, 0):
+                N.write("node-id %d;" % node.id)
+            else:
+                # 8.4 compat
+                N.write("address %s:%d;" % (node.host.addr, node.port))
+
+            for index, disk in enumerate(node.disks):
+                with ConfigBlock(t='volume %d' % index) as V:
+                    V.write("device %s;" % disk.device())
+                    V.write("disk %s;" % (disk.disk or "none"))
+                    if disk.disk:
+                        V.write("meta-disk %s;" % (disk.meta or "internal"))
+
+    def config(self):
+        text = []
+
+        resource = self.resource
+        with ConfigBlock(dest_fn=lambda x: text.append(x),
+                         t="resource %s" % resource.name):
+
+            with ConfigBlock(t='handlers') as handlers:
+                handlers.write(resource._handlers)
+
+            with ConfigBlock(t='options') as res_options:
+                res_options.write(resource._resource_options)
+
+            with ConfigBlock(t='disk') as disk:
+                disk.write("disk-flushes no;")
+                disk.write("md-flushes no;")
+                if 'c-min-rate' not in resource._disk_options and self.host.os_id == 'ubuntu' and self.host.os_version_id == '18.04':
+                    # Work around issue on Ubuntu Bionic.
+                    # Application IO activity is detected when there is none, causing c-min-rate throttling to be applied.
+                    disk.write("c-min-rate 0;")
+                if self._fencing_mode and self.host.drbd_version_tuple < (9, 0, 0):
+                    disk.write('fencing {};'.format(self._fencing_mode))
+                disk.write(resource._disk_options)
+
+            with ConfigBlock(t='net') as net:
+                if resource.rdma:
+                    net.write("transport rdma;")
+                if self._fencing_mode and self.host.drbd_version_tuple >= (9, 0, 0):
+                    net.write('fencing {};'.format(self._fencing_mode))
+                net.write(resource._net_options)
+
+            # NOTE: (wap) W/ drbd9/LINSTOR, separate proxy stanza not needed
+            #       for proxy but only for proxy options like compressions
+            with ConfigBlock(t='proxy') as proxy:
+                if proxy_enable:
+                    if lz4_enable:
+                        with ConfigBlock(t='plugin') as proxy_plugin:
+                            proxy_plugin.write("lz4;")
+                    elif zstd_enable:
+                        with ConfigBlock(t='plugin') as proxy_plugin:
+                            proxy_plugin.write("zstd levels %d;" % zstd_enable)
+
+                    try:
+                        if memlimit:
+                            proxy.write("memlimit %d;" % memlimit)
+                    except:
+                        pass
+
+            for n in resource.nodes:
+                self.config_host(n)
+
+            if self.host.drbd_version_tuple >= (9, 0, 0):
+                self._config_conns_9()
+            else:
+                self._config_conns_84()
+
+
+        return "".join(text)
+
+    def drbd_config_file_path(self):
+        return '{}/{}-{}.res'.format(drbd_config_dir, self.resource.cluster.job, self.resource.name)
+
+    def update_config(self):
+        """ Create or update the configuration file on the node when needed. """
+
+        if self.config_changed:
+            self.config_changed = False
+            config = self.config()
+            file = open(os.path.join(self.resource.cluster.logdir,
+                                     'drbd.conf-{}-{}'.format(self.resource.name.replace('/', '_'), self.name)), 'w')
+            file.write(config)
+            file.close
+            self.run(['bash', '-c', 'cat > ' + self.drbd_config_file_path()],
+                    stdin=StringIO(config), update_config=False)
+
+    def config_proxy(self):
+        """ Update DRBD proxy options in the configuration file. """
+        # TODO: (wap) Implement adding proxy options
+        pass
+
+    def run(self, *args, update_config=True, **kwargs):
+        """
+        Run a command via SSH on the target node. Arguments are passed to Host.run.
+
+        :param update_config: whether or not to update the DRBD config file before running
+        """
+        if update_config:
+            self.update_config()
+
+        return self.host.run(*args, **kwargs)
+
+    def fio_file(self, *args, **kwargs):
+        self.host.fio_file(*args, **kwargs)
 
     def drbdadm(self, cmd, **kwargs):
-        self.run(['drbdadm', '-c', self.drbd_global_config_file_path(), '-v'] + cmd, **kwargs)
+        self.run(['drbdadm', '-c', self.host.drbd_global_config_file_path(), '-v'] + cmd, **kwargs)
 
     # dump the drbd metadata to a file on the target node
     def dump_md_to_file(self, filename):
         self.run(['/bin/bash', '-c',
             'drbdadm -c {} dump-md {} > {}'.format(
-                self.drbd_global_config_file_path(), self.resource.name, filename
+                self.host.drbd_global_config_file_path(), self.resource.name, filename
             )])
 
     def get_volumes(self):
@@ -1724,7 +1885,7 @@ class Node():
 
     def adjust(self):
         self.update_config()
-        self.drbdadm(['adjust', 'all'])
+        self.drbdadm(['adjust', self.resource.name])
 
     def up(self, extra_options=[]):
         Nodes([self]).up(extra_options)
@@ -1769,9 +1930,9 @@ class Node():
     def asPrimary(self, **kwargs):
         return AsPrimary(self, **kwargs)
 
-    def primary(self, res="all", force=False, wait=True):
+    def primary(self, force=False, wait=True):
         if force:
-            self.drbdadm(['primary', '--force', res])
+            self.drbdadm(['primary', '--force', self.resource.name])
             ev = []
             if self.volumes.diskful:
                 ev.append(r'device .* disk:UpToDate')
@@ -1779,12 +1940,12 @@ class Node():
                 ev.append(r'resource .* role:Primary')
             self.event(*ev)
         else:
-            self.drbdadm(['primary', res])
+            self.drbdadm(['primary', self.resource.name])
             if wait:
                 self.event(r'resource .* role:Primary')
 
-    def secondary(self, res="all", wait=True):
-        self.drbdadm(['secondary', res])
+    def secondary(self, wait=True):
+        self.drbdadm(['secondary', self.resource.name])
         if wait:
             self.event(r'resource .* role:Secondary')
 
@@ -1843,51 +2004,6 @@ class Node():
         for v in self.volumes:
             self.fio_file(v.device(), *args, **kwargs)
 
-    def fio_file(self, filename, base_args={}, **kwargs):
-        """
-        Run fio on a given file.
-
-        base_args is a dict mapping fio parameter keys to their values
-
-        The remaining keyword arguments also specify fio parameters. These
-        parameters override the base_args.
-        """
-        arg_dict = {'filename': filename, **base_args, **kwargs}
-        fio_args = ['--{}={}'.format(key, value) for (key, value) in arg_dict.items()]
-
-        cmd = ['fio',
-                '--output-format=json',
-                # reduce the amount of memory which fio tries to allocate
-                '--max-jobs=16',
-                '--name=test',
-                *fio_args]
-
-        result = self.run(cmd, return_stdout=True)
-
-        output_filename = 'fio-{}-{}.json'.format(self.name, self.fio_count)
-        log('write fio output to {}'.format(output_filename))
-        with open(os.path.join(self.resource.logdir, output_filename), 'w') as output_file:
-            output_file.write(result)
-
-        fio_output = json.loads(result)
-
-        job = fio_output['jobs'][0]
-        log('fio results: read={}KiB, write={}KiB, time={}s'.format(
-            job['read']['io_kbytes'],
-            job['write']['io_kbytes'],
-            job['elapsed']))
-
-        self.fio_count = self.fio_count + 1
-        return fio_output
-
-    def net_device_to_peer(self, peer, net_num=0):
-        """Returns the network device this peer is reachable via."""
-        lines = self.run(['ip', '-o', 'route', 'get', peer.addrs[net_num]],
-                         return_stdout=True)
-        fields = lines.split(' ')
-        dev = fields[2]
-        return dev
-
     @staticmethod
     def _iptables_cmd_1(chain, sa, sp, da, dp, jump, add_remove, udp_tcp, additional_filter=[]):
         r = ['iptables',
@@ -1907,14 +2023,14 @@ class Node():
         r = []
         rdma = self.resource.rdma
         if rdma:
-            r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr], None, node2.addrs[path_nr], 4791, jump, add_remove, 'udp'))
-            r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr], None,  self.addrs[path_nr], 4791, jump, add_remove, 'udp'))
+            r.append(Node._iptables_cmd_1('drbd-test-output',  self.host.addrs[path_nr], None, node2.host.addrs[path_nr], 4791, jump, add_remove, 'udp'))
+            r.append(Node._iptables_cmd_1('drbd-test-input',  node2.host.addrs[path_nr], None,  self.host.addrs[path_nr], 4791, jump, add_remove, 'udp'))
             return r
 
-        r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],  self.port, node2.addrs[path_nr],       None, jump, add_remove, 'tcp'))
-        r.append(Node._iptables_cmd_1('drbd-test-output',  self.addrs[path_nr],       None, node2.addrs[path_nr], node2.port, jump, add_remove, 'tcp'))
-        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr],       None,  self.addrs[path_nr],  self.port, jump, add_remove, 'tcp'))
-        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.addrs[path_nr], node2.port,  self.addrs[path_nr],       None, jump, add_remove, 'tcp'))
+        r.append(Node._iptables_cmd_1('drbd-test-output',  self.host.addrs[path_nr],  self.port, node2.host.addrs[path_nr],       None, jump, add_remove, 'tcp'))
+        r.append(Node._iptables_cmd_1('drbd-test-output',  self.host.addrs[path_nr],       None, node2.host.addrs[path_nr], node2.port, jump, add_remove, 'tcp'))
+        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.host.addrs[path_nr],       None,  self.host.addrs[path_nr],  self.port, jump, add_remove, 'tcp'))
+        r.append(Node._iptables_cmd_1('drbd-test-input',  node2.host.addrs[path_nr], node2.port,  self.host.addrs[path_nr],       None, jump, add_remove, 'tcp'))
         return r
 
     def block_path(self, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
@@ -1935,26 +2051,31 @@ class Node():
         cmdline = ['iptables', op, 'drbd-test-input', '-p']
         cmdline.append('udp' if self.resource.rdma else 'tcp')
         if from_node is not None:
-            cmdline += ['-s', from_node.addrs[0]]
+            cmdline += ['-s', from_node.host.addrs[0]]
         cmdline += [ '-m', 'string', '--algo', 'bm', '--from', '0',
                      '--hex-string', '|8620ec20 %04X %04X 0000|' % (volume, packet)]
         for ipt_target in ['LOG', 'DROP']:
             self.run(cmdline + ['-j', ipt_target])
 
     def block_packet_type(self, packet, from_node=None, volume=0):
+        """
+        Block a specific DRBD packet from being received on this node.
+
+        Warning: The packet will be blocked for all resources.
+        """
         self._block_packet_type(packet, '-A', from_node, volume)
 
     def unblock_packet_type(self, packet, from_node=None, volume=0):
         self._block_packet_type(packet, '-D', from_node, volume)
 
     def set_fault_injection(self, volume, faults):
-        self.run_helper('enable-faults',
+        self.host.run_helper('enable-faults',
                 ['--faults=%d' % (faults),
                     '--rate=100',
                     '--devs=%d' % (1 << volume.minor)])
 
     def disable_fault_injection(self, volume):
-        self.run_helper('disable-faults', ['--devs=%d' % (1 << volume.minor)])
+        self.host.run_helper('disable-faults', ['--devs=%d' % (1 << volume.minor)])
 
 
 def skip_test(text):
@@ -1962,40 +2083,20 @@ def skip_test(text):
     sys.exit(100)
 
 
-def validate_drbd_versions(nodes):
+def setup_resource(*args, **kwargs):
     """
-    Check the expected DRBD versions of given nodes. If
-    resource.drbd_version_other is set, validate that this version is installed
-    on nodes[0]. If resource.drbd_version is set, validate that this version is
-    installed on all other nodes and all git hashes match.
+    Test setup.  Returns a resource object.
 
-    :param nodes: Nodes to validate.
+    The arguments are the same as those to setup().
     """
 
-    git_hashes = set()
-
-    resource = nodes[0].resource
-    drbd_version = resource.drbd_version
-    drbd_version_other = resource.drbd_version_other
-
-    for i, node in enumerate(nodes):
-        expect_version = None
-        if drbd_version_other and i == 0:
-            expect_version = drbd_version_other
-        elif drbd_version:
-            expect_version = drbd_version
-            git_hashes.add(node.drbd_git_hash)
-
-        if expect_version and node.drbd_version != expect_version:
-            raise RuntimeError("{}: expect DRBD version '{}'; found '{}'".format(node, expect_version, node.drbd_version))
-
-    if len(git_hashes) > 1:
-        raise RuntimeError("Differing git hashes found for DRBD version '{}': {}".format(drbd_version, git_hashes))
+    cluster = setup(*args, **kwargs)
+    return cluster.create_resource()
 
 
 def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None):
     """
-    Test setup.  Returns a resource object.
+    Test setup.  Returns a cluster object.
 
     Keyword arguments:
       nodes, min_nodes, max_nodes
@@ -2005,7 +2106,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
       netns     -- set up network namespaces
     """
     parser=argparse.ArgumentParser()
-    parser.add_argument('node', nargs='*')
+    parser.add_argument('host', nargs='*')
     parser.add_argument('--job')
     parser.add_argument('--resource')
     parser.add_argument('--logdir')
@@ -2040,11 +2141,11 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
         sys.exit(0)
 
     if max_nodes is not None and min_nodes == max_nodes and \
-       len(args.node) != min_nodes:
+       len(args.host) != min_nodes:
         skip_test('Test case requires %s nodes' % min_nodes)
-    if len(args.node) < min_nodes:
+    if len(args.host) < min_nodes:
         skip_test('Test case requires %s or more nodes' % min_nodes)
-    if max_nodes is not None and len(args.node) > max_nodes and not args.override_max:
+    if max_nodes is not None and len(args.host) > max_nodes and not args.override_max:
         skip_test('Test case requires %s or fewer nodes; user --override-max if really meant.' % max_nodes)
 
     global silent
@@ -2109,32 +2210,16 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
         memlimit = args.memlimit
 
     Cleanup(args.cleanup)
-    resource = Resource(args.resource,
-                          logdir=args.logdir,
-                          rdma=args.rdma)
-
-    resource.job = args.job
-    resource.drbd_version = args.drbd_version
-    resource.drbd_version_other = args.drbd_version_other
-
-    for node in args.node:
-        Node(resource, node, args.volume_group, args.storage_backend, args.backing_device,
-                    multi_paths=multi_paths, netns=netns)
-
-    for node0 in resource.nodes:
-        for node1 in resource.nodes:
-            if node0 != node1:
-                node0.connections.add(Connection(node0, node1))
 
     if args.vconsole:
-        for node in args.node:
-            logfile = 'console-%s' % node
+        for host in args.host:
+            logfile = 'console-%s' % host
 
-            # Check if a virtual machine called "$node" exists -- otherwise we
+            # Check if a virtual machine called "$host" exists -- otherwise we
             # would loop forever below.
-            subprocess.check_call(['virsh', 'domid', node], stdout=devnull)
+            subprocess.check_call(['virsh', 'domid', host], stdout=devnull)
             subprocess.check_call(['screen', '-S', logfile, '-d',
-                                   '-m', 'virsh', 'console', node])
+                                   '-m', 'virsh', 'console', host])
 
             # Wait until screen has started up and is ready
             while True:
@@ -2149,10 +2234,10 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
             subprocess.check_call(['screen', '-S', logfile, '-p',
                                    '0', '-X', 'logfile',
                                    os.path.join(args.logdir,
-                                                'console-%s.log' % node)])
+                                                'console-%s.log' % host)])
             subprocess.check_call(['screen', '-S', logfile, '-p',
                                    '0', '-X', 'log', 'on'])
-            log("%s: capturing console" % node, level=2)
+            log("%s: capturing console" % host, level=2)
 
             def close_logfile(logfile):
                 def func():
@@ -2161,17 +2246,31 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
                 return func
             atexit.register(close_logfile(logfile))
 
+    cluster = Cluster(
+            job=args.job,
+            logdir=args.logdir,
+            drbd_version=args.drbd_version,
+            drbd_version_other=args.drbd_version_other,
+            resource_name=args.resource,
+            rdma=args.rdma)
+
+    for host_name in args.host:
+        cluster.hosts.append(Host(cluster, host_name,
+            args.volume_group, args.storage_backend, args.backing_device,
+            multi_paths=multi_paths, netns=netns))
+
     if args.drbd_version_other:
-        # Automatically install other version on the first node
-        resource.nodes[0].install_drbd(args.drbd_version_other)
+        # Automatically install other version on the first host
+        cluster.hosts[0].install_drbd(args.drbd_version_other)
 
-    validate_drbd_versions(resource.nodes)
+    cluster.validate_drbd_versions()
 
-    resource.listen_to_events()
+    cluster.listen_to_events()
 
-    for node in resource.nodes:
-        node.run_helper('disable-faults')
-    return resource
+    for host in cluster.hosts:
+        host.run_helper('disable-faults')
+
+    return cluster
 
 
 def connections(from_node=None, to_node=None, *, from_nodes=None, to_nodes=None, bidir=False):

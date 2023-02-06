@@ -14,7 +14,7 @@ import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=5)
+resource = drbdtest.setup_resource(min_nodes=3, max_nodes=5)
 diskless_n = resource.nodes[0]
 diskful_nodes = resource.nodes.difference([diskless_n])
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
@@ -107,5 +107,5 @@ for i in range(0, 20):
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()
 

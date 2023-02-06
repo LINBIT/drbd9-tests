@@ -37,7 +37,7 @@ def test_io_errors():
     primary_n.down()
     primary_n.up()
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('10M')
 resource.add_disk('10M')
 resource.resource_options = 'auto-promote no; quorum majority; on-no-quorum io-error; twopc-timeout 100;'
@@ -59,4 +59,4 @@ test_io_errors()
 log('* Shut down and clean up.')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

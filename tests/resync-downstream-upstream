@@ -25,7 +25,7 @@ def wait_sync(node_source, node_target):
 
 
 # main
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('10M')
 resource.up_wait()
 
@@ -60,4 +60,4 @@ connect_and_check(node_a, node_c)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

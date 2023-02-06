@@ -24,7 +24,7 @@ def read_from_node(node):
         node.run(['dd', 'if={0}'.format(v.device()), 'of=/dev/null', 'bs=4096',
                   'seek=5120', 'count=2048'])
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 primary_n = resource.nodes[0]
 no_reads_n = resource.nodes[1]
@@ -70,4 +70,4 @@ time.sleep(5)
 log('* Shut down and clean up.')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

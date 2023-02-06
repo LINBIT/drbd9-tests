@@ -7,7 +7,7 @@ import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 node_primary, node_secondary = resource.nodes
 
 resource.add_disk('8M')
@@ -26,7 +26,7 @@ for initial_sync in False, True:
         log('*** Test initial_sync:{} initial_write:{}'.format(initial_sync, initial_write))
 
         for node in resource.nodes:
-            if node.drbd_version_tuple < (9, 0, 0):
+            if node.host.drbd_version_tuple < (9, 0, 0):
                 node.drbdadm(['create-md', '--force', resource.name])
             else:
                 node.drbdadm(['create-md', '--force', '--max-peers=2', resource.name])
@@ -50,7 +50,7 @@ for initial_sync in False, True:
 
         node_secondary.up()
         connection_primary_secondary.event(r'connection .* connection:Connected')
-        if node_primary.drbd_version_tuple < (9, 0, 0):
+        if node_primary.host.drbd_version_tuple < (9, 0, 0):
             time.sleep(1.0)
 
         log('* Start new data generations')
@@ -70,4 +70,4 @@ for initial_sync in False, True:
 
         resource.down()
 
-resource.teardown()
+resource.cluster.teardown()

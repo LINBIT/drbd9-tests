@@ -97,7 +97,7 @@ def test_escape(nr, escape_opt, restore_opt):
     primary_n.run(['drbdsetup', 'resource-options', resource.name, restore_opt])
 
 
-resource = drbdtest.setup(nodes=4)
+resource = drbdtest.setup_resource(nodes=4)
 resource.resource_options = 'quorum majority; on-no-quorum suspend-io;'
 resource.net_options = 'timeout 20; ko-count 1; verify-alg md5;'
 # timeout 20 (2 seconds) * ko-count (1) = 2 seconds is the time the primary
@@ -151,4 +151,4 @@ test_escape(4, '--quorum=off', '--quorum=majority')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

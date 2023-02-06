@@ -47,7 +47,7 @@ def wait_twopc_completed(res, node, complete_tid):
             return tid
         time.sleep(0.1)
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('10M')
 resource.nodes.up_unconnected()
 
@@ -73,4 +73,4 @@ else:
     raise Exception('* This a DRBD up to 9.1.13 (9.2.2) [retry]')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

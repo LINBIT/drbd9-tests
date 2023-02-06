@@ -13,7 +13,7 @@ from python.drbdtest import connections, log, peer_devices
 
 MB = 1024*1024
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.disk_options = 'c-max-rate 5M;'
 resource.add_disk('10M')
 resource.up_wait()
@@ -55,4 +55,4 @@ forward_pd.event(r'peer-device .* replication:Established')
 backward_pd.event(r'peer-device .* replication:Established')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

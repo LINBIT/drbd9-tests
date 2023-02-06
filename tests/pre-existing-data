@@ -24,7 +24,7 @@ from python import drbdtest
 from python.drbdtest import MetadataFlag, connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 
 diskful_nodes = resource.nodes[:2]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
@@ -83,4 +83,4 @@ def pre_existing_test(write_between_actions = False):
 pre_existing_test(write_between_actions = True)
 pre_existing_test(write_between_actions = False)
 
-resource.teardown()
+resource.cluster.teardown()

@@ -13,7 +13,7 @@
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('10M')
 resource.resource_options = 'quorum 2; on-no-quorum io-error;'
 resource.up_wait()
@@ -85,4 +85,4 @@ test(method='invalidate', src_method='outdate')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

@@ -5,7 +5,7 @@
 
 from python import drbdtest
 
-resource = drbdtest.setup(max_nodes=2, multi_paths=True)
+resource = drbdtest.setup_resource(max_nodes=2, multi_paths=True)
 resource.add_disk('4M')
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
 
@@ -61,4 +61,4 @@ for i in range(3):
 
 resource.down()
 
-resource.teardown()
+resource.cluster.teardown()

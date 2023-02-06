@@ -7,7 +7,7 @@
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 500k;'
 diskful_nodes = resource.nodes[1:]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
@@ -86,4 +86,4 @@ test(do_resync=True)
 test(do_resync=False)
 
 log('* Shut down and clean up.')
-resource.teardown()
+resource.cluster.teardown()

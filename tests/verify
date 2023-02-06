@@ -11,7 +11,7 @@ from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 from io import StringIO
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 
 resource.add_disk('17M')
 resource.net_options = 'verify-alg md5;'
@@ -123,7 +123,7 @@ def GetDifferenceFromDmesg(node, dmesg_text):
 
 
 def RemoveCapture(node, dmesg_stream):
-    node.remove_dmesg_capture(dmesg_stream)
+    node.host.remove_dmesg_capture(dmesg_stream)
     dmesg_stream.seek(0)
     return dmesg_stream.read()
 
@@ -131,8 +131,8 @@ def RemoveCapture(node, dmesg_stream):
 def DoVerify(src_node, dst_node, expected):
     src_dmesg = StringIO()
     dst_dmesg = StringIO()
-    src_node.add_dmesg_capture(src_dmesg)
-    dst_node.add_dmesg_capture(dst_dmesg)
+    src_node.host.add_dmesg_capture(src_dmesg)
+    dst_node.host.add_dmesg_capture(dst_dmesg)
 
     src_node.drbdadm(['verify', resource.name])
 
@@ -197,4 +197,4 @@ for with_changes in (0, 1):
     #     CheckContent(n, changed)
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

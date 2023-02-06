@@ -21,7 +21,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from python import trafficcontrol
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
 primary, fast, slow = resource.nodes
 
@@ -58,4 +58,4 @@ log('* Shut down and clean up.')
 fast.down()
 slow.down()
 primary_tc.reset()
-resource.teardown()
+resource.cluster.teardown()

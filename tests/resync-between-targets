@@ -29,7 +29,7 @@
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 512K;'
 # make the disk large enough that a full sync would cause a timeout
 resource.add_disk('32M')
@@ -156,4 +156,4 @@ verify_data([node_b, node_c])
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

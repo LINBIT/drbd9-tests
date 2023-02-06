@@ -33,7 +33,7 @@ def do_test(resource):
     # wait for any two-phase commit to time out in this situation
     conn_c_b.event(r'connection:Connected', timeout=15)
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.net_options = 'ping-int 1;'
 resource.resource_options = 'twopc-timeout 300;'
 resource.add_disk('10M')
@@ -57,4 +57,4 @@ conn_a_c.connect()
 conn_a_c.event(r'connection:Connected')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

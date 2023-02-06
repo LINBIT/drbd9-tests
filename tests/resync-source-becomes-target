@@ -85,7 +85,7 @@ def do_test(variant):
 # main
 megs = 100
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 60M;'
 resource.add_disk('%dM' % (megs))
 resource.up_wait()
@@ -107,4 +107,4 @@ node_primary.run(['wipefs', dev_name])
 resource.down()
 # An assertion sometimes fails when running this test. Disable validation until
 # the issue is fixed in DRBD.
-resource.teardown(validate_dmesg=False)
+resource.cluster.teardown(validate_dmesg=False)

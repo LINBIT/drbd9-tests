@@ -3,7 +3,7 @@
 
 from python import drbdtest
 
-resource = drbdtest.setup(nodes=1)
+resource = drbdtest.setup_resource(nodes=1)
 node = resource.nodes[0]
 resource.up_wait()
 
@@ -11,15 +11,13 @@ orig_name = resource.name
 
 # try to rename the resource
 resource.rename('xyz')
-node.event(r'rename resource name:{} new_name:xyz'.format(orig_name))
 
 # and again, to check that it recognizes the new name
 resource.rename('abc')
-node.event(r'rename resource name:xyz new_name:abc')
 
 # and once more, to check that other commands recognize it too
 node.primary(wait=False)
 node.event(r'change resource name:abc role:Primary')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

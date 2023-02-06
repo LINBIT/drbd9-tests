@@ -23,7 +23,7 @@ def up_expect_fail(resource):
         raise RuntimeError("drbdadm should have failed!")
 
 # 0. sanity check: regular resource name
-resource = drbdtest.setup(nodes=1)
+resource = drbdtest.setup_resource(nodes=1)
 resource.up_wait()
 resource.down()
 
@@ -39,7 +39,7 @@ up_expect_fail(resource)
 
 # 3. must not contain spaces
 # drbd 9.0.x actually allows spaces; only test for >=9.1.0
-if resource.nodes[0].drbd_version_tuple >= (9, 1, 0):
+if resource.nodes[0].host.drbd_version_tuple >= (9, 1, 0):
     resource.name = '\"contains space\"'
     resource.touch_config()
     up_expect_fail(resource)
@@ -51,4 +51,4 @@ resource.name = '\"contains\x04control\"'
 resource.touch_config()
 up_expect_fail(resource)
 
-resource.teardown()
+resource.cluster.teardown()

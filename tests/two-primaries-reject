@@ -22,7 +22,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('10M')
 resource.up_wait()
 log('* Make up-to-date data available.')
@@ -162,4 +162,4 @@ for node_p1, node_s, node_p2 in permutations(resource.nodes):
     scenario_retry_p2_ahead()
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

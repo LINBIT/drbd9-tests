@@ -7,7 +7,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=5)
+resource = drbdtest.setup_resource(min_nodes=3, max_nodes=5)
 
 diskful_nodes = resource.nodes[1:]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
@@ -153,4 +153,4 @@ log('* Shut down and clean up.')
 resource.down()
 # An assertion fails when running this test with 5 nodes. Disable validation
 # until the issue is fixed in DRBD.
-resource.teardown(validate_dmesg=False)
+resource.cluster.teardown(validate_dmesg=False)

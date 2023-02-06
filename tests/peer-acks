@@ -60,7 +60,7 @@ def do_test(mode):
 
 # main
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 diskless_n, target_n, other_n = resource.nodes
 diskful_nodes = drbdtest.Nodes([target_n, other_n])
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
@@ -94,4 +94,4 @@ connections(to_node=diskless_n).event(r'connection .* role:Secondary')
 
 diskless_n.down()
 diskful_nodes.down()
-resource.teardown(validate_dmesg=False)
+resource.cluster.teardown(validate_dmesg=False)

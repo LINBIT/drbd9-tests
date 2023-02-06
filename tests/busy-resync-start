@@ -13,7 +13,7 @@ from python import datatools
 from python import trafficcontrol
 
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 writing_n, target_n, other_n = resource.nodes
 writing_target_c = connections(writing_n, target_n)
 target_writing_c = connections(target_n, writing_n)
@@ -58,4 +58,4 @@ datatools.verify_data(resource.nodes, size_mb=30, backing_disk=True)
 log('* Shut down and clean up.')
 resource.down()
 writing_tc.reset()
-resource.teardown()
+resource.cluster.teardown()

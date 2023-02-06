@@ -31,7 +31,7 @@ def my_log(str):
     for node in resource.nodes:
         node.run(["echo", str])
 
-resource = drbdtest.setup(min_nodes=3, max_nodes=5)
+resource = drbdtest.setup_resource(min_nodes=3, max_nodes=5)
 resource.add_disk('10M')
 resource.resource_options = 'quorum majority; on-no-quorum io-error; twopc-timeout 100;'
 
@@ -228,4 +228,4 @@ try:
 except:
     pass
 
-resource.teardown()
+resource.cluster.teardown()

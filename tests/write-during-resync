@@ -27,7 +27,7 @@ from python import trafficcontrol
 def write_on_node(node):
     node.volumes.write(size='100M', offset='10M', end_fsync=1)
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.net_options = 'connect-int 1;'
 
 a = resource.nodes[0]
@@ -74,4 +74,4 @@ log('* Shut down and clean up.')
 resource.down()
 a_tc.reset()
 b_tc.reset()
-resource.teardown()
+resource.cluster.teardown()

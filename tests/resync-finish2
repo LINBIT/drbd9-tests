@@ -14,7 +14,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from lbpytest.logscan import NegativeMatchException
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('50M')
 
 source_n = resource.nodes[0]
@@ -56,4 +56,4 @@ def test():
 for x in range(0, 40):
     test()
 
-resource.teardown()
+resource.cluster.teardown()

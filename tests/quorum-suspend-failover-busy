@@ -31,7 +31,7 @@ from python import busywrite
 from python import datatools
 from python import trafficcontrol
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.resource_options = 'quorum majority; on-no-quorum suspend-io; on-no-data-accessible suspend-io; on-suspended-primary-outdated force-secondary;'
 resource.net_options = 'rr-conflict retry-connect;'
 resource.add_disk('40M')
@@ -105,4 +105,4 @@ test_failover(disconnect_write_busy)
 log('* Shut down and clean up.')
 resource.down()
 a_tc.reset()
-resource.teardown()
+resource.cluster.teardown()

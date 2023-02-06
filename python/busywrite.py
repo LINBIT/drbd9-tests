@@ -1,6 +1,7 @@
 import json
 import os
 
+
 class BusyWrite(object):
     """ Keep DRBD device busy using 'fio'. """
 
@@ -25,7 +26,7 @@ class BusyWrite(object):
         Keyword arguments:
         fio_arg_str -- extra arguments to pass to fio
         """
-        self._output_filename = 'fio-{}-{}-async.json'.format(self._node.name, self._node.fio_count)
+        self._output_filename = 'fio-{}-{}-async.json'.format(self._node.name, self._node.host.fio_count)
 
         # run fio in background
         fio_cmd = ['setsid', 'bash', '-c',
@@ -37,7 +38,7 @@ class BusyWrite(object):
                 ' < /dev/null > /tmp/{} 2> /dev/null & echo $!'.format(self._output_filename)]
         self._fio_pid = self._node.run(fio_cmd, return_stdout=True)
 
-        self._node.fio_count = self._node.fio_count + 1
+        self._node.host.fio_count += 1
 
     def is_running(self):
         if self._fio_pid is None:
@@ -60,7 +61,7 @@ class BusyWrite(object):
         self._fio_out_str = self._node.run(['cat', '/tmp/{}'.format(self._output_filename)], return_stdout=True)
         # Some fio versions write non-json messages before the json output
         self._fio_out_str = self._fio_out_str[self._fio_out_str.find('{'):]
-        with open(os.path.join(self._node.resource.logdir, self._output_filename), 'w') as output_file:
+        with open(os.path.join(self._node.resource.cluster.logdir, self._output_filename), 'w') as output_file:
             output_file.write(self._fio_out_str)
 
     def stop(self):

@@ -9,7 +9,7 @@ from python.drbdtest import MetadataFlag, connections, log, peer_devices
 from python import datatools
 
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 node_a, node_b = resource.nodes
 
 def choose_data_pattern(data_is_clean, write, spare_bitmap_slot):
@@ -116,4 +116,4 @@ test(data_is_clean=True, write=True, spare_bitmap_slot=False)
 test(data_is_clean=True, write=True, spare_bitmap_slot=True)
 
 log('* Clean up.')
-resource.teardown()
+resource.cluster.teardown()

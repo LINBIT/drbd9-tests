@@ -65,7 +65,7 @@ def verify_quorumless_propagates(isolated_n, other_n, diskless_n):
     connections(diskless_n, isolated_n).event(r'connection .* connection:Connected')
 
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.resource_options = 'quorum majority;'
 resource.net_options = 'ping-int 1;'
 A, B, C = resource.nodes
@@ -95,4 +95,4 @@ log('* isolate secondary B and check remaining A has quorum')
 isolate_secondary(B, A, C)
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

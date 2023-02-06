@@ -227,7 +227,7 @@ def test_case3_promote():
     resource.forbidden_patterns.add(r'connection:BrokenPipe')
     resource.forbidden_patterns.add(r'connection:Timeout')
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
@@ -263,4 +263,4 @@ try:
 except:
     pass
 
-resource.teardown()
+resource.cluster.teardown()

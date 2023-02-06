@@ -12,7 +12,7 @@ def alarm_handler(signum, frame):
 
 # main
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+resource = drbdtest.setup_resource(min_nodes=2, max_nodes=5)
 resource.disk_options = 'al-extents 67;'
 
 diskless_n = resource.nodes[0]
@@ -32,7 +32,7 @@ for i in range(1, 5):
     try:
         old_sig = signal.signal(signal.SIGALRM, alarm_handler)
         signal.alarm(2) # seconds
-        diskless_n.run_helper('stress-al.py', [resource.volumes[0].device(), '127'])
+        diskless_n.host.run_helper('stress-al.py', [resource.volumes[0].device(), '127'])
         signal.alarm(0) #disarm
         signal.signal(signal.SIGALRM, old_sig)
     except Exception as e:
@@ -53,7 +53,8 @@ for i in range(1, 5):
         diskless_n.secondary()
         resource.down()
         time.sleep(2)
-        resource.rmmod()
+        for host in drbdtest.hosts:
+            host.rmmod()
         exit(10)
 
 diskless_n.secondary()
@@ -62,4 +63,4 @@ time.sleep(1)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

@@ -8,7 +8,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+resource = drbdtest.setup_resource(min_nodes=2, max_nodes=5)
 
 resource.add_disk('4M')
 
@@ -59,4 +59,4 @@ first.secondary()
 log('* Shut down and clean up.')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

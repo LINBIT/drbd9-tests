@@ -5,7 +5,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 diskless_n, source_n, target_n = resource.nodes
 
 resource.disk_options = 'c-max-rate 20M;'
@@ -57,4 +57,4 @@ target_n.volumes[0].event(r'disk:UpToDate')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

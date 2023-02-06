@@ -18,7 +18,7 @@ In the end, the data on volume 1 is checked, so that it is ensured that all 'A's
 were actually synced.
 """
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 
 # create two disks
 A = resource.nodes[0]
@@ -68,4 +68,4 @@ try:
 except:
     pass
 
-resource.teardown()
+resource.cluster.teardown()

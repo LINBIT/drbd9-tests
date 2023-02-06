@@ -23,7 +23,7 @@ def expect_no_quorum(node):
         raise RuntimeError('Quorum not lost')
 
 
-resource = drbdtest.setup(nodes=4)
+resource = drbdtest.setup_resource(nodes=4)
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
 A, B, C, D = resource.nodes
@@ -237,4 +237,4 @@ test_3()
 test_4()
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

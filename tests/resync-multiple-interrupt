@@ -9,7 +9,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from python import datatools
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 2M;'
 resource.add_disk('16M')
 
@@ -71,4 +71,4 @@ datatools.verify_data(resource.nodes, 8)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

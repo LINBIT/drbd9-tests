@@ -32,7 +32,7 @@ def verify_size(size_mb = 0):
                                    (common_size, size_bytes, n.name))
 
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+resource = drbdtest.setup_resource(min_nodes=2, max_nodes=5)
 
 # Node sets
 client_nodes = []
@@ -199,4 +199,4 @@ else:
     log('* Shut down and clean up.')
     resource.down()
 
-resource.teardown()
+resource.cluster.teardown()

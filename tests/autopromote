@@ -21,7 +21,7 @@ def test_open(node, mode, expect):
 
 ###
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 node_a, node_b = resource.nodes
 resource.add_disk('10M')
 
@@ -55,4 +55,4 @@ resource.peer_devices.event(r'peer-device .* replication:Established')
 log('* Shut down and clean up.')
 node_b.secondary()
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

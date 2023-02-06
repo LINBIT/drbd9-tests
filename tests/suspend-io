@@ -11,7 +11,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 import time
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.set_fencing_mode('resource-and-stonith')
 # "1" is not a valid exit code for a fence handler.
 # This simulates a broken fence peer script.
@@ -47,4 +47,4 @@ if ev_a_b[0][0] != 'Established' or ev_b_a[0][0] != 'Established':
     raise Exception('Uhh, looks like the write while IO suspended created a new current UUID!')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

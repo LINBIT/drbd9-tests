@@ -5,7 +5,7 @@ import subprocess
 
 from python import drbdtest
 
-resource = drbdtest.setup(nodes=2, netns='drbdtest')
+resource = drbdtest.setup_resource(nodes=2, netns='drbdtest')
 resource.net_options = 'ping-int 1;'
 resource.nodes.up_wait()
 resource.connections.event(r'connection .* connection:Connected')
@@ -35,4 +35,4 @@ node_a.adjust()
 resource.connections.event(r'connection .* connection:Connected')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

@@ -16,7 +16,7 @@ def my_log(str):
     for node in resource.nodes:
         node.run(["echo", str])
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.add_disk('10M')
 resource.up_wait()
 
@@ -53,4 +53,4 @@ A.run(["tail", "--pid={}".format(dd_pid), "-f", "/dev/null"])
 log('* Shut down and clean up.')
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

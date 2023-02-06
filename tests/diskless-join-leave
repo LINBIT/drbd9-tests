@@ -9,7 +9,7 @@ import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=4)
+resource = drbdtest.setup_resource(nodes=4)
 primary_n, other_n, late_diskless_n, early_diskless_n = resource.nodes
 diskful_nodes = drbdtest.Nodes([primary_n, other_n])
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
@@ -52,4 +52,4 @@ l_connections.event(r'connection .* connection:Connecting')
 
 log('* Shut down and clean up.')
 diskful_nodes.down()
-resource.teardown()
+resource.cluster.teardown()

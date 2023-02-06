@@ -23,7 +23,7 @@ def check_readable(node):
     node.run(['dd', 'if={}'.format(node.volumes[0].device()),
         'of=/dev/null', 'bs=4K', 'count=1', 'iflag=direct'])
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 diskful_nodes = resource.nodes[:2]
 # Use external metadata so that some test makes use of this feature
 resource.add_disk('10M', meta_size='4M', diskful_nodes=diskful_nodes, max_size='20M')
@@ -69,4 +69,4 @@ node_c.secondary()
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

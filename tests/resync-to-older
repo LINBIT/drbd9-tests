@@ -14,7 +14,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.disk_options = 'c-max-rate 250k;'
 resource.add_disk('10M')
@@ -56,4 +56,4 @@ node_b.volumes.event(r'device .* disk:UpToDate')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

@@ -10,7 +10,7 @@
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 1M;'
 resource.add_disk('10M')
 resource.up_wait()
@@ -60,4 +60,4 @@ peer_device_ca.event(r'peer-device .* replication:Established')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

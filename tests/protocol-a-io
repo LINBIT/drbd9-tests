@@ -12,7 +12,7 @@ from python import busywrite
 from python import datatools
 
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 writing_n, target_n = resource.nodes
 target_writing_c = connections(target_n, writing_n)
 resource.disk_options = 'c-min-rate 0;'
@@ -41,4 +41,4 @@ for i in range(5):
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

@@ -11,7 +11,7 @@ from python import drbdtest
 from python.drbdtest import MetadataFlag, connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 diskful_nodes = resource.nodes[:2]
 node_a, node_b = diskful_nodes
 resource.add_disk('100M', max_peers=3, diskful_nodes=diskful_nodes) # That is one spare to keep day0 bitmap
@@ -45,4 +45,4 @@ node_b.volumes.event(r'device .* disk:UpToDate')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

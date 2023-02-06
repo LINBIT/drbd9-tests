@@ -33,7 +33,7 @@ def verify_size(size_mb = 0):
                                    (common_size, size_bytes, n.name))
 
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 
 # Node sets
 client_nodes = []
@@ -206,4 +206,4 @@ else:
     except:
         pass
 
-resource.teardown()
+resource.cluster.teardown()

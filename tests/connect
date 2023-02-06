@@ -5,7 +5,7 @@
 
 from python import drbdtest
 
-resource = drbdtest.setup(max_nodes=5)
+resource = drbdtest.setup_resource(max_nodes=5)
 
 resource.nodes.up_wait()
 resource.connections.event(r'connection .* role:Secondary')
@@ -21,4 +21,4 @@ resource.forbidden_patterns.update([
 
 resource.down()
 
-resource.teardown()
+resource.cluster.teardown()

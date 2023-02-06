@@ -1,0 +1,47 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "8.4" }
+
+import json
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+cluster = drbdtest.setup(nodes=2)
+
+resource_before = cluster.create_resource(cluster.resource_name + '_before')
+before_a, before_b = resource_before.nodes
+
+resource_after = cluster.create_resource(cluster.resource_name + '_after')
+after_a, after_b = resource_after.nodes
+
+resource_before.disk_options = 'c-max-rate 6M;'
+resource_after.disk_options = 'c-max-rate 12M; resync-after {};'.format(resource_before.name)
+
+resource_before.add_disk('12M')
+resource_after.add_disk('12M')
+
+resource_after.up()
+connections(after_a, after_b).event(r'connection .* connection:Connected')
+
+resource_before.up()
+connections(before_a, before_b).event(r'connection .* connection:Connected')
+
+before_a.drbdadm(['primary', '--force', resource_after.name, resource_before.name])
+
+peer_devices(before_a, before_b).event(r'peer-device .* replication:Established')
+peer_devices(before_b, before_a).event(r'peer-device .* replication:Established')
+
+result = after_b.run(['drbdsetup', 'status', resource_after.name, '--json'], return_stdout=True)
+status = json.loads(result)[0]
+disk_state = status['devices'][0]['disk-state']
+drbdtest.ensure('Inconsistent', disk_state, 'Expect "after" resource to still be Inconsistent')
+
+peer_devices(after_a, after_b).event(r'peer-device .* replication:SyncSource', timeout=5)
+peer_devices(after_b, after_a).event(r'peer-device .* replication:SyncTarget', timeout=5)
+peer_devices(after_a, after_b).event(r'peer-device .* replication:Established')
+peer_devices(after_b, after_a).event(r'peer-device .* replication:Established')
+
+log('* Shut down and clean up.')
+resource_before.down()
+resource_after.down()
+cluster.teardown()

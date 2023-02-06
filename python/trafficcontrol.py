@@ -3,7 +3,11 @@ from .drbdtest import log
 
 
 class TrafficControl(object):
-    """ Delay and throttle connections using 'tc'. """
+    """
+    Delay and throttle connections using 'tc'.
+
+    Warning: The delays apply to all resources.
+    """
 
     def __init__(self, source_node, nodes):
         """ Prepare source_node for traffic control. """
@@ -28,7 +32,7 @@ class TrafficControl(object):
                 'priomap'] + [str(self.source_node.id)] * 16)
 
             for node in nodes:
-                ip = node.addr
+                ip = node.host.addr
                 log('Traffic control from {0} to {1} uses {2} ({3})'
                         .format(self.source_node, node, dev, ip))
 
@@ -46,7 +50,7 @@ class TrafficControl(object):
             self.source_node.run(['tc', 'qdisc', 'del', 'dev', dev, 'root'])
 
     def slow_down(self, to_node, speed='', delay=''):
-        dev = self.source_node.net_device_to_peer(to_node)
+        dev = self.source_node.host.net_device_to_peer(to_node.host)
         log('Slowing down connection from {0} to {1}'.format(self.source_node, to_node))
 
         netem_args = []
@@ -62,7 +66,7 @@ class TrafficControl(object):
             'netem'] + netem_args)
 
     def remove_slow_down(self, to_node):
-        dev = self.source_node.net_device_to_peer(to_node)
+        dev = self.source_node.host.net_device_to_peer(to_node.host)
         self.source_node.run(['tc', 'qdisc', 'del', 'dev', dev,
             'parent', self._node_to_class(to_node),
             'handle', self._node_to_handle(to_node)])
@@ -71,7 +75,7 @@ class TrafficControl(object):
         nodes_by_dev = {}
         for node in self.nodes:
             if node != self.source_node:
-                dev = self.source_node.net_device_to_peer(node)
+                dev = self.source_node.host.net_device_to_peer(node.host)
                 if not dev in nodes_by_dev:
                     nodes_by_dev[dev] = []
                 nodes_by_dev[dev].append(node)

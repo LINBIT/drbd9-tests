@@ -11,7 +11,7 @@ from python.drbdtest import connections, log, peer_devices
 
 sys.argv.extend(['--proxy'])
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 
 resource.add_disk('4M')
 
@@ -60,4 +60,4 @@ try:
     resource.down()
 except:
     pass
-resource.teardown()
+resource.cluster.teardown()

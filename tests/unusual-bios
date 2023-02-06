@@ -7,10 +7,10 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(max_nodes=2)
+resource = drbdtest.setup_resource(max_nodes=2)
 first_node, other_node = resource.nodes
 
-resource.create_storage_pool(thin=True, discard_granularity='64K')
+resource.cluster.create_storage_pool(thin=True, discard_granularity='64K')
 resource.add_disk('10M')
 
 log('* Bring up the first node, make it primary, and write defined data onto all volumes.')
@@ -19,19 +19,19 @@ resource.skip_initial_sync()
 
 dev_name = '/dev/drbd%d' % first_node.disks[0].minor
 with first_node.asPrimary():
-    first_node.run_helper('misaligned_bio.py', [dev_name, 'write'])
-    first_node.run_helper('misaligned_bio.py', [dev_name, 'verify'])
+    first_node.host.run_helper('misaligned_bio.py', [dev_name, 'write'])
+    first_node.host.run_helper('misaligned_bio.py', [dev_name, 'verify'])
 with other_node.asPrimary():
-    other_node.run_helper('misaligned_bio.py', [dev_name, 'verify'])
+    other_node.host.run_helper('misaligned_bio.py', [dev_name, 'verify'])
 
 # That is BLKZEROOUT, BLKDISCARD and BLKSECDISCARD
 with first_node.asPrimary():
-    first_node.run_helper('unusual_bios.py', [dev_name])
+    first_node.host.run_helper('unusual_bios.py', [dev_name])
 
     # Try again without the peer, in case the success of the remote request is
     # masking a local error.
     connections(first_node, other_node).disconnect()
-    first_node.run_helper('unusual_bios.py', [dev_name])
+    first_node.host.run_helper('unusual_bios.py', [dev_name])
 
 # Test that reading from debugfs does not cause a crash. This is unrelated to
 # the rest of the test, but it should be tested somewhere and doesn't require a
@@ -51,9 +51,9 @@ log('* Shut down and clean up.')
 resource.down()
 # An assertion sometimes fails when running this test. Disable validation until
 # the issue is fixed in DRBD.
-resource.teardown(validate_dmesg=False)
+resource.cluster.teardown(validate_dmesg=False)
 
 # Explicitly remove the LVs. In case drbd failed to close the backing LVs
 # we get an exception here.
 # Python fails to set the exit code from exceptions in atexit callbacks
-resource.remove_storage_pool()
+resource.nodes.remove_disks()

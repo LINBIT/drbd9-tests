@@ -5,7 +5,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from python import trafficcontrol
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 
 resource.add_disk('64M')
 resource.net_options = 'on-congestion pull-ahead; congestion-fill 10k; protocol A;'
@@ -34,4 +34,4 @@ with primary_n.asPrimary():
 log('* Shut down and clean up.')
 resource.down()
 primary_tc.reset()
-resource.teardown()
+resource.cluster.teardown()

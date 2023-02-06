@@ -21,7 +21,7 @@ DURING_RESYNC = 3
 data_amount = 128
 
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('10M')
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
 resource.net_options = 'ping-int 2;'
@@ -150,4 +150,4 @@ do_test(with_promote=LATE)
 do_test(with_promote=DURING_RESYNC)
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

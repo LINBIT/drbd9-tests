@@ -93,7 +93,7 @@ class RandomConnection:
 
 random.seed()
 
-resource = drbdtest.setup()
+resource = drbdtest.setup_resource()
 resource.resource_options = 'twopc-timeout 300;'
 resource.net_options = 'timeout 10; ping-timeout 10; ping-int 2; connect-int 2;'
 resource.disk_options = 'c-max-rate 32M;'
@@ -171,7 +171,7 @@ def step_primary(executor, node_id):
 
 def primary(node_id):
     random_node = random_nodes[node_id]
-    drbdtest.Nodes([resource.nodes[node_id]]).drbdadm(['primary', 'all', '-v'], catch=True)
+    drbdtest.Nodes([resource.nodes[node_id]]).drbdadm(['primary', resource.name, '-v'], catch=True)
     random_node.role_command_state = None
 
 def step_secondary(executor, node_id):
@@ -339,4 +339,4 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=node_count) as executor:
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

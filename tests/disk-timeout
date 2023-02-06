@@ -21,7 +21,7 @@ def wait_for_sync_progress(target_source_pd):
         if float(done[0][0]) > 10.0:
             break
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.disk_options = 'c-max-rate 5M; disk-timeout 20; # 2 seconds'
 A, B = resource.nodes
 
@@ -123,4 +123,4 @@ B.volumes.event(r'device .* disk:UpToDate')
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

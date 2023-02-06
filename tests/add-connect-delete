@@ -8,7 +8,7 @@ import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.add_disk('4M')
 
 # need the second node only to get a network config etc.
@@ -20,14 +20,14 @@ connections(node, other).event(r'connection .* connection:Connecting')
 
 # try del-path; VM must not crash
 try:
-    node.drbdadm(['del-path', 'all'])
+    node.drbdadm(['del-path', resource.name])
     raise RuntimeError("drbdadm del-path should have returned an error code")
 except:
     pass
 
 node.adjust()
 try:
-    node.drbdadm(['del-peer', 'all'])
+    node.drbdadm(['del-peer', resource.name])
     raise RuntimeError("drbdadm del-peer should have returned an error code")
 except:
     pass
@@ -37,4 +37,4 @@ except:
 node.primary(force=True, wait=True)
 
 node.down()
-resource.teardown()
+resource.cluster.teardown()

@@ -6,18 +6,18 @@ from python.drbdtest import connections, log, peer_devices
 from python import busywrite
 from python import datatools
 
-resource = drbdtest.setup(min_nodes=2)
+resource = drbdtest.setup_resource(min_nodes=2)
 first, second, *others = resource.nodes
 
 def upgrade(node, primary):
     log('* Upgrade {}, expecting resync from {}'.format(node, primary))
     node.down()
     # Only need to upgrade if we actually downgraded
-    if resource.drbd_version_other:
-        version_tuple_before = node.drbd_version_tuple
+    if resource.cluster.drbd_version_other:
+        version_tuple_before = node.host.drbd_version_tuple
 
-        node.install_drbd(resource.drbd_version)
-        resource.listen_to_events()
+        node.host.install_drbd(resource.cluster.drbd_version)
+        resource.cluster.listen_to_events()
 
         # If we are upgrading from 8.4, we need to convert the metadata.
         # We must not run "create-md" if we are already running DRBD 9, because
@@ -30,14 +30,14 @@ def upgrade(node, primary):
     peer_devices(primary, node).event(r'peer-device .* replication:Established')
     peer_devices(node, primary).event(r'peer-device .* replication:Established')
 
-if not resource.drbd_version:
+if not resource.cluster.drbd_version:
     raise RuntimeError('No version specified to upgrade to')
 
-if resource.drbd_version_other:
-    log('* Downgrade remaining nodes to {}'.format(resource.drbd_version_other))
+if resource.cluster.drbd_version_other:
+    log('* Downgrade remaining nodes to {}'.format(resource.cluster.drbd_version_other))
     for node in [second, *others]:
-        node.install_drbd(resource.drbd_version_other)
-    resource.listen_to_events()
+        node.host.install_drbd(resource.cluster.drbd_version_other)
+    resource.cluster.listen_to_events()
 else:
     log('* No version to downgrade to, just testing failovers')
 
@@ -77,4 +77,4 @@ second.secondary()
 log('* Shut down and clean up.')
 resource.down()
 datatools.verify_data(resource.nodes, size_mb=90, backing_disk=True)
-resource.teardown()
+resource.cluster.teardown()

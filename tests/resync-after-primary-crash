@@ -14,7 +14,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.resource_options = 'quorum majority;'
 resource.add_disk('10M')
 resource.up_wait()
@@ -98,6 +98,6 @@ for i in range(10):
         break
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()
 
 log(" * Verified that resync from primary happens. It took %d runs." % (i+1))

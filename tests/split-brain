@@ -9,7 +9,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
 RUNS=10
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.add_disk('10M')
 resource.up_wait()
 log('* Make up-to-date data available.')
@@ -51,4 +51,4 @@ for i in range(RUNS):
     test()
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

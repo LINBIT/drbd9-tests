@@ -3,7 +3,7 @@
 
 from python import drbdtest, endurance
 
-resource = drbdtest.setup(min_nodes=2)
+resource = drbdtest.setup_resource(min_nodes=2)
 
 config = endurance.EnduranceConfig()
 config.protocol = 'A'

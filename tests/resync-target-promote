@@ -15,7 +15,7 @@ from python.drbdtest import connections, log, peer_devices
 from python import datatools
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 2M;'
 resource.add_disk('10M')
 
@@ -56,4 +56,4 @@ target_pds.event(r'peer-device .* replication:Established')
 datatools.verify_data(resource.nodes)
 
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

@@ -14,7 +14,7 @@ from python import drbdtest
 from python.drbdtest import MetadataFlag, connections, log, peer_devices
 import time
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 diskful_nodes = resource.nodes[:2]
 resource.disk_options = 'c-max-rate 2M;'
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
@@ -74,4 +74,4 @@ test(write_in_between=True, crashed_primary=False)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

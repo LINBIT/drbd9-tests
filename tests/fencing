@@ -18,7 +18,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
-resource = drbdtest.setup(min_nodes=2, max_nodes=5)
+resource = drbdtest.setup_resource(min_nodes=2, max_nodes=5)
 
 resource.add_disk('10M')
 resource.up_wait()
@@ -252,7 +252,7 @@ def execute_test_cases(test_func):
 #log('* Shut down and clean up.')
 #time.sleep(0.1)
 #resource.down()
-#resource.teardown()
+#resource.cluster.teardown()
 #exit(0)
 
 execute_test_cases(fencing_test1)
@@ -263,4 +263,4 @@ log('%d times the self-outdate of the disconnected node was quicker' % peer_self
 log('* Shut down and clean up.')
 time.sleep(0.1)
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

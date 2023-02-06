@@ -8,7 +8,7 @@ import subprocess
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 resource.add_disk('4M')
 
 # need the second node only to get a network config etc.
@@ -21,13 +21,13 @@ node.event(r'connection .* connection:Connecting')
 # run these commands again; VM must not crash.
 # drbdadm is expected to report an error.
 try:
-    node.drbdadm(['new-path', 'all'])
+    node.drbdadm(['new-path', resource.name])
     raise RuntimeError("drbdadm new-path should have returned an error code")
 except subprocess.CalledProcessError:
     pass
 
 try:
-    node.drbdadm(['new-peer', 'all'])
+    node.drbdadm(['new-peer', resource.name])
     raise RuntimeError("drbdadm new-peer should have returned an error code")
 except subprocess.CalledProcessError:
     pass
@@ -37,4 +37,4 @@ except subprocess.CalledProcessError:
 node.primary(force=True, wait=True)
 
 node.down()
-resource.teardown()
+resource.cluster.teardown()

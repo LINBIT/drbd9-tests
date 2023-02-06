@@ -33,7 +33,7 @@ class DownType(Enum):
     CREATE_MD = 1
 
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.resource_options = 'quorum 2; quorum-minimum-redundancy 2; on-no-quorum suspend-io; on-no-data-accessible suspend-io;'
 resource.net_options = 'ping-int 3; connect-int 2; timeout 10; ko-count 7;'
 resource.add_disk('20M')
@@ -251,4 +251,4 @@ test_connection_loss(AllowAcks.BARRIER_ACK_C, down_type=DownType.DOWN_UP)
 log('* Shut down and clean up.')
 resource.down()
 log('* Tear down.')
-resource.teardown()
+resource.cluster.teardown()

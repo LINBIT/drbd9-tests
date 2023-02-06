@@ -157,4 +157,4 @@ def teardown(resource, primary_n, diskful_nodes):
 
     log('* Shut down and clean up.')
     resource.down()
-    resource.teardown()
+    resource.cluster.teardown()

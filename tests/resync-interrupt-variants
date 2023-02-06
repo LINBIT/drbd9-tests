@@ -187,7 +187,7 @@ def test_variant(primary_n, disconnect_type, resync_type):
         # Work around a DRBD bug which often causes both disks to become
         # Outdated in this situation. This bug is demonstrated by the test
         # "resync-target-promote-interrupt".
-        source_n.drbdadm(['primary', '--force', 'all'])
+        source_n.drbdadm(['primary', '--force', resource.name])
         source_n.event(r'resource .* role:Primary')
         source_n.secondary()
     elif writer is not None:
@@ -220,7 +220,7 @@ def test_verify_variant(primary_n, disconnect_type):
     validate_status_inactive(busy=False)
 
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 diskless_n, source_n, target_n = resource.nodes
 
 source_tc = trafficcontrol.TrafficControl(source_n, resource.nodes)
@@ -230,7 +230,7 @@ resource.net_options = net_options
 # Use a thin backing volume so that the discard is definitely reported as being
 # supported. This is necessary for VariantType.THIN to actually test thin
 # resync.
-resource.create_storage_pool(thin=True)
+resource.cluster.create_storage_pool(thin=True)
 resource.add_disk('100M', diskful_nodes=[source_n, target_n])
 resource.up_wait()
 
@@ -267,4 +267,4 @@ test_verify_variant(target_n, VariantDisconnect.NORMAL)
 log('* Shut down and clean up.')
 resource.down()
 source_tc.reset()
-resource.teardown()
+resource.cluster.teardown()

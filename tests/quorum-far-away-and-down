@@ -24,7 +24,7 @@
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 A, B, C = resource.nodes
 resource.add_disk('10M', diskful_nodes=[A, C])
 resource.resource_options = 'quorum majority;'
@@ -76,4 +76,4 @@ A.secondary()
 A.drbdadm(['del-peer', '%s:%s' % (resource.name, C.name)])
 A.primary()
 
-resource.teardown()
+resource.cluster.teardown()

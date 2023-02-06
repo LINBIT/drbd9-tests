@@ -38,9 +38,9 @@ def test(resource, discard_granularity):
                         .format(data_percent_a, data_percent_b))
 
 
-resource = drbdtest.setup(nodes=2)
+resource = drbdtest.setup_resource(nodes=2)
 
-if any(node.drbd_version_tuple < (9, 2, 0) for node in resource.nodes):
+if any(node.host.drbd_version_tuple < (9, 2, 0) for node in resource.nodes):
     # 9.1 can not deal with discard granularity > 1M. Since it lacks the discard merging, we need to test
     # with a volume 100 times smaller, to finish in acceptable time.
     discard_granularities = [1<<16]
@@ -58,7 +58,7 @@ else:
 for discard_granularity in discard_granularities:
     drbd_rs_discard_granularity = min(discard_granularity, 1<<20)
     resource.disk_options = 'discard-zeroes-if-aligned yes; rs-discard-granularity {};'.format(drbd_rs_discard_granularity)
-    resource.create_storage_pool(thin=True, discard_granularity=discard_granularity)
+    resource.cluster.create_storage_pool(thin=True, discard_granularity=discard_granularity)
     resource.add_disk(disk_size)
 
     resource.up_wait()
@@ -66,8 +66,9 @@ for discard_granularity in discard_granularities:
     test(resource, discard_granularity)
 
     resource.down()
+    resource.nodes.remove_disks()
     resource.remove_storage_pool()
 
 
 log('* Shut down and clean up.')
-resource.teardown()
+resource.cluster.teardown()

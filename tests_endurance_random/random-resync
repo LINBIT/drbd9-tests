@@ -6,7 +6,7 @@
 import random
 from python import drbdtest, endurance
 
-resource = drbdtest.setup(min_nodes=3)
+resource = drbdtest.setup_resource(min_nodes=3)
 
 random.seed()
 

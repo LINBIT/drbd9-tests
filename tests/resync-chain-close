@@ -11,7 +11,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from python import datatools
 
-resource = drbdtest.setup(nodes=3)
+resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 3M;'
 resource.add_disk('12M')
 
@@ -19,7 +19,7 @@ log('* Pre-fill backing disks with the same data on each node')
 # This helps with debugging
 for n in resource.nodes:
     byte_count = n.run(['blockdev', '--getsize64', n.volumes[0].disk], return_stdout=True)
-    n.install_helper('data_generator.py', '/tmp/data_generator.py')
+    n.host.install_helper('data_generator.py', '/tmp/data_generator.py')
     n.run(['/bin/bash', '-c',
         'set -o pipefail ; /tmp/data_generator.py --label "initial " --bytes {} | dd iflag=fullblock of={} bs=1M oflag=direct'
         .format(byte_count, n.volumes[0].disk)])
@@ -62,4 +62,4 @@ datatools.verify_data(resource.nodes)
 
 log('* Shut down and clean up.')
 resource.down()
-resource.teardown()
+resource.cluster.teardown()

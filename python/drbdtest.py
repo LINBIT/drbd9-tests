@@ -1448,11 +1448,11 @@ class Node():
                 'cat > {0} && chmod +x {0}'.format(target_path)],
                 stdin=StringIO(helper), update_config=False)
 
-    def run_helper(self, helper_name, args=[]):
+    def run_helper(self, helper_name, args=[], timeout=None):
         """ Run a target helper script. """
         target_path = '/tmp/' + helper_name
         self.install_helper(helper_name, target_path)
-        self.run([target_path, *args], update_config=False)
+        self.run([target_path, *args], update_config=False, timeout=timeout)
 
     def rmmod(self):
         if no_rmmod:
@@ -1474,7 +1474,7 @@ class Node():
 
     def install_drbd(self, version):
         self.rmmod()
-        self.run_helper('install-drbd', [package_download_dir, version])
+        self.run_helper('install-drbd', [package_download_dir, version], timeout=90)
         self.read_drbd_version()
 
     def next_minor(self):

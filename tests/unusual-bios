@@ -32,6 +32,11 @@ with first_node.asPrimary():
     connections(first_node, other_node).disconnect()
     first_node.run_helper('unusual_bios.py', [dev_name])
 
+# Test that reading from debugfs does not cause a crash. This is unrelated to
+# the rest of the test, but it should be tested somewhere and doesn't require a
+# whole test of its own. So here it is.
+first_node.run(['grep', '-r', '$', '/sys/kernel/debug/drbd'], return_stdout=True)
+
 log('* Shut down and clean up.')
 resource.down()
 # An assertion sometimes fails when running this test. Disable validation until

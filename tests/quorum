@@ -127,9 +127,11 @@ while len(partition_b) < len(partition_a):
         r'connection:Timeout'
     ])
 
-    moving.block_paths(jump_to="REJECT")
+    for n in resource.nodes.difference([moving]):
+        moving.block_path(n, jump_to="REJECT")
     connections_to_cut.disconnect(wait = False, force = True)
-    moving.unblock_paths(jump_to="REJECT")
+    for n in resource.nodes.difference([moving]):
+        moving.unblock_path(n, jump_to="REJECT")
 
     try:
         write_on_node(primary_a)

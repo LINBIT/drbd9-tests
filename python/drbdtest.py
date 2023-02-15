@@ -1916,20 +1916,12 @@ class Node():
         for c in cmds:
             self.run(c)
 
-    def block_paths(self, net_number=0, jump_to="DROP"):
-        for n in self.resource.nodes.difference([self]):
-            self.block_path(n, net_number=net_number, jump_to=jump_to)
-
     def unblock_path(self, other_node, net_number=0, jump_to="DROP"):
         """Uses iptables to unblock one network path."""
         log("Unblocking path #%d from %s to %s" % (net_number, self, other_node))
         cmds = self._iptables_cmd(other_node, jump_to, net_number, "-D")
         for c in cmds:
             self.run(c)
-
-    def unblock_paths(self, net_number=0, jump_to="DROP"):
-        for n in self.resource.nodes.difference([self]):
-            self.unblock_path(n, net_number=net_number, jump_to=jump_to)
 
     def _block_packet_type(self, packet, op, from_node, volume):
         cmdline = ['iptables', op, 'drbd-test-input', '-p']

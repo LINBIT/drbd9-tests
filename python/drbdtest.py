@@ -2045,21 +2045,18 @@ def validate_drbd_versions(nodes):
         raise RuntimeError("Differing git hashes found for DRBD version '{}': {}".format(drbd_version, git_hashes))
 
 
-def setup(parser=argparse.ArgumentParser(),
-          _node_class=Node, _res_class=Resource,
-          nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None):
+def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None):
     """
     Test setup.  Returns a resource object.
 
     Keyword arguments:
-      parser    -- command line argument parser to use
-                   (for recognizing additional arguments)
       nodes, min_nodes, max_nodes
                 -- exact, minimum, and maximum number of test nodes required
-      proxy     -- enables proxy connection between two test nodes
-      lz4, zstd -- enables compression plugins with DRBD proxy
-      memlimit  -- sets memlimit value for DRBD proxy
+      multi_paths
+                -- set up addresses for multi-path testing
+      netns     -- set up network namespaces
     """
+    parser=argparse.ArgumentParser()
     parser.add_argument('node', nargs='*')
     parser.add_argument('--job')
     parser.add_argument('--resource')
@@ -2164,7 +2161,7 @@ def setup(parser=argparse.ArgumentParser(),
         memlimit = args.memlimit
 
     Cleanup(args.cleanup)
-    resource = _res_class(args.resource,
+    resource = Resource(args.resource,
                           logdir=args.logdir,
                           rdma=args.rdma)
 
@@ -2173,7 +2170,7 @@ def setup(parser=argparse.ArgumentParser(),
     resource.drbd_version_other = args.drbd_version_other
 
     for node in args.node:
-        _node_class(resource, node, args.volume_group, args.storage_backend, args.backing_device,
+        Node(resource, node, args.volume_group, args.storage_backend, args.backing_device,
                     multi_paths=multi_paths, netns=netns)
 
     for node0 in resource.nodes:

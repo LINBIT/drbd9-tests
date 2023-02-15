@@ -2293,28 +2293,3 @@ def ensure(want, have, explanation=None):
         if explanation:
             log("%s\n" % explanation)
         raise RuntimeError('assert trigger')
-
-
-def ensure_subset(smaller, bigger, explanation=None):
-    """compares two dictionaries"""
-    if not all([smaller[k] == bigger[k] for k in smaller.keys()]):
-        log("Wanted '%s', but got '%s'.\n" % (repr(smaller), repr(bigger)))
-        if explanation:
-            log("%s\n" % explanation)
-        raise RuntimeError('assert trigger')
-
-
-def ensure_not(want, have, explanation=None):
-    if want == have:
-        log("Wanted something but '%s', got '%s'.\n" % (repr(want), repr(have)))
-        if explanation:
-            log("%s\n" % explanation)
-        raise RuntimeError('assert trigger')
-
-
-def ensure_not_in_set(search, data, explanation=None):
-    if search in data:
-        log("Wanted something but '%s', got '%s'.\n" % (repr(search), repr(data)))
-        if explanation:
-            log("%s\n" % explanation)
-        raise RuntimeError('assert trigger')

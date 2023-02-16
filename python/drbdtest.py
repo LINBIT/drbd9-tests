@@ -28,6 +28,8 @@ import io
 from io import StringIO
 
 from lbpytest.controlmaster import SSH
+from lbpytest.logscan import Logscan, InputStream
+
 
 #Contants for set_fault_injection
 DF_META_WRITE = 1
@@ -363,14 +365,9 @@ class Nodes(Collection):
         """ Wait for an event. """
 
         if self.members:
-            where = \
-                [_ for node in self.members
-                 for _ in ['events-%s' % node.name,
-                           '--label', node.name,
-                           '-p', '.events.pos']
-                 ]
-            return self.resource().logscan(self, where, *args, **kwargs)
-        return None
+            filters = {node.name: [[]] for node in self.members}
+            return self.resource().logscan(args, filters, **kwargs)
+        return []
 
     def run(self, *args, **kwargs):
         """ Run command on all our nodes. """
@@ -490,18 +487,16 @@ class Volumes(Collection):
         """ Wait for an event. """
 
         if self.members:
-            where = \
-                [__ for node, volume in
-                 [(_.node, _.volume) for _ in self.members]
-                 for __ in ['events-%s' % node.name,
-                            '--label', '%s:%s' % (node.name, volume),
-                            '-p', '.events-volume-%s.pos' % volume,
-                            '-f', 'volume:%s' % volume]
-                 ]
+            filters = {}
+            for volume in self.members:
+                node = volume.node
+                volume_number = volume.volume
+                if node.name not in filters:
+                    filters[node.name] = []
+                filters[node.name].append(['volume:{}'.format(volume_number)])
             resource = first(self.members).resource
-            return resource.logscan(self, where, *args, **kwargs)
-
-        return None
+            return resource.logscan(args, filters, **kwargs)
+        return []
 
     def get_diskful(self):
         """ Return volumes that have a disk. """
@@ -542,18 +537,18 @@ class Connections(Collection):
     def event(self, *args, **kwargs):
         """ Wait for an event. """
 
-        results = []
         if self.members:
-            where = []
+            filters = {}
             for n0, n1 in self.members:
-                where.extend(['events-%s' % n0.name,
-                    '--label', '%s:%s' % (n0.name, n1.name),
-                    '-p', '.events-connection-%s.pos' % n1.name])
+                if n0.name not in filters:
+                    filters[n0.name] = []
                 if n0.drbd_version_tuple >= (9, 0, 0):
-                    where.extend(['-f', 'peer-node-id:%d' % n1.id])
+                    filters[n0.name].append(['peer-node-id:{}'.format(n1.id)])
+                else:
+                    filters[n0.name].append([])
             resource = first(self.members).resource
-            results = resource.logscan(self, where, *args, **kwargs)
-        return results
+            return resource.logscan(args, filters, **kwargs)
+        return []
 
     def run_drbdadm(self, cmd, state_str, wait=True, options=[]):
         for connection in self:
@@ -609,18 +604,19 @@ class PeerDevices(Collection):
         """ Wait for an event. """
 
         if self.members:
-            where = []
+            filters = {}
             for peer_device in self.members:
                 n0, n1 = peer_device.connection
                 volume = peer_device.volume.volume
-                where.extend(['events-%s' % n0.name,
-                    '--label', '%s:%s:%s' % (n0.name, n1.name, volume),
-                    '-p', '.events-peer-device-%s:%s.pos' % (n1.name, volume),
-                    '-f', 'volume:%s' % volume])
+                if n0.name not in filters:
+                    filters[n0.name] = []
+                filter = ['volume:{}'.format(volume)]
                 if n0.drbd_version_tuple >= (9, 0, 0):
-                    where.extend(['-f', 'peer-node-id:%d' % n1.id])
+                    filter.append('peer-node-id:{}'.format(n1.id))
+                filters[n0.name].append(filter)
             resource = first(self.members).resource
-            return resource.logscan(self, where, *args, **kwargs)
+            return resource.logscan(args, filters, **kwargs)
+        return []
 
     def peer_device_options(self, opts=[]):
         for pd in self:
@@ -659,7 +655,7 @@ class Resource(object):
         self.drbd_version_other = ""
         self.events_cls = None
         self.forbidden_patterns = OrderedSet()
-        self.add_new_posfile('.events.pos')
+        self.logscan_events = None
         atexit.register(self.cleanup)
 
     def __repr__(self):
@@ -667,7 +663,6 @@ class Resource(object):
 
     def next_volume(self):
         volume = self.num_volumes
-        self.posfiles_add_volume(volume)
         self.num_volumes += 1
         return volume
 
@@ -779,103 +774,22 @@ class Resource(object):
         for n in self.nodes:
             n.rmmod()
 
-    def logscan(self, collection, where, *args, **kwargs):
+    def logscan(self, yes, filters, **kwargs):
         """ Run logscan to scan / wait for events to occur. """
-        if args is None:
-            args = []
+        if yes is None:
+            yes = []
         no = kwargs.get('no', [])
         if isinstance(no, str):
             no = [no]
 
-        self.sync_events(collection.__class__)
-
-        log('Waiting for event ' + ' '.join(
-            [str(_) for _ in collection] +
-            ['-y ' + _ for _ in args] +
-            ['-n ' + _ for _ in no]))
-
-        cmd = ['logscan', '-d', self.logdir]
-        if not 'word_boundary' in kwargs or kwargs['word_boundary']:
-            cmd.append('-w')
-        if silent:
-            cmd.append('--silent')
-        cmd.append('--verbose')
-        if 'timeout' in kwargs:
-            cmd.extend(['--timeout', str(kwargs['timeout'])])
-        for expr in self.forbidden_patterns:
-            cmd.extend(['-N', expr])
-        for expr in args:
-            cmd.extend(['-y', expr])
-        for expr in no:
-            cmd.extend(['-n', expr])
-        debug('# ' + ' '.join(pipes.quote(_) for _ in cmd + where))
-
-        result_bytes = subprocess.check_output(cmd + where, stderr=subprocess.STDOUT)
-        result = result_bytes.decode(encoding='utf-8', errors='backslashreplace')
-        log(result)
-
-        lines = result.split("\n")
-        match_results = []
-        for l in lines:
-            g = re.match('^Pattern .*? matches .*?; (\[.*)', l)
-            if g:
-                match_results.append([g for g in json.loads(str(g.group(1))) if g != ' '])
-
-        return match_results
-
-    def posfiles(self, nodes=None):
-        """ List of all logscan position tracking files. """
-
-        if nodes is None:
-            nodes = self.nodes
-        return \
-            ['.events.pos'] + \
-            ['.events-volume-%s.pos' % volume
-             for volume in range(self.num_volumes)] + \
-            ['.events-connection-%s.pos' % node.name
-             for node in nodes] + \
-            ['.events-peer-device-%s:%s.pos' % (node.name, volume)
-             for node in nodes
-             for volume in range(self.num_volumes)]
-
-    def add_new_posfile(self, posfile):
-        data = ''.join(['1 0 events-%s\n' % node.name for node in self.nodes])
-        fd = os.open(os.path.join(self.logdir, posfile),
-                     os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o666)
-        # | os.O_EXCL
-        os.write(fd, data.encode())
-        os.close(fd)
-
-    def append_to_posfile(self, posfile, node):
-        data = '1 0 events-%s\n' % node.name
-        pathname = os.path.join(self.logdir, posfile)
-        fd = os.open(pathname, os.O_WRONLY | os.O_APPEND)
-        os.write(fd, data.encode())
-        os.close(fd)
-
-    def posfiles_add_node(self, node):
-        nodes = [x for x in self.nodes if x is not node]
-        for posfile in self.posfiles(nodes=nodes):
-            self.append_to_posfile(posfile, node)
-        self.add_new_posfile('.events-connection-%s.pos' % node.name)
-        for volume in range(self.num_volumes):
-            self.add_new_posfile('.events-peer-device-%s:%s.pos' %
-                                 (node.name, volume))
-
-    def posfiles_add_volume(self, volume):
-        self.add_new_posfile('.events-volume-%s.pos' % volume)
-        for node in self.nodes:
-            self.add_new_posfile('.events-peer-device-%s:%s.pos' %
-                                 (node.name, volume))
-
-    def sync_events(self, events_cls):
-        """ Synchronize logcan position tracking files. """
-        if self.events_cls is not events_cls:
-            self.events_cls = events_cls
-            cmd = ['logscan', '-d', self.logdir, '--sync'] + \
-                self.posfiles()
-            debug('# ' + ' '.join(pipes.quote(_) for _ in cmd))
-            subprocess.check_call(cmd)
+        return self.logscan_events.event(
+                yes=yes,
+                no=no,
+                always_no=self.forbidden_patterns,
+                filters=filters,
+                wordwise=not 'word_boundary' in kwargs or kwargs['word_boundary'],
+                timeout=kwargs.get('timeout'),
+                verbose_out=logstream)
 
     def up(self, extra_options=[]):
         self.nodes.up(extra_options)
@@ -917,8 +831,6 @@ class Resource(object):
                     for v in self.nodes[0].volumes:
                         pds.add(PeerDevice(Connection(n1, n2), v))
         pds.event(r'peer-device .* peer-disk:(Inconsistent|Diskless)', timeout=30)
-
-        self.sync_events(self)
 
         # Now add that, too.
         self.forbidden_patterns.update([
@@ -1234,14 +1146,18 @@ class Node():
         except:
             raise RuntimeError('Could not determine IP for host %s' % name)
 
-        self.ssh = SSH(self.addr, timeout=30)
+        try:
+            self.ssh = SSH(self.addr, timeout=30)
+        except subprocess.CalledProcessError as e:
+            print(e.stderr.decode('utf-8'), file=sys.stderr)
+            raise e
 
+        self.events_file = None
         self.port = port
         self.disks = []  # by volume
         self.id = len(self.resource.nodes)
         self.fio_count = 0
         self.resource.nodes.add(self)
-        self.resource.posfiles_add_node(self)
         self.minors = 0
         self.config_changed = True
         self.storage_pool = None
@@ -1400,6 +1316,9 @@ class Node():
         self.config_changed = False
         if hasattr(self, 'events'):
             self.events.terminate()
+
+        if self.events_file:
+            self.events_file.close()
 
         log('{}: Closing connection to {}'.format(self.name, self.ssh.host))
         self.ssh.close()
@@ -1712,19 +1631,18 @@ class Node():
         pass
 
     def listen_to_events(self):
-        f = open(os.path.join(self.resource.logdir, 'events-%s' % self.name), 'ab')
+        if self.events_file:
+            self.events_file.close()
+        self.events_file = open(os.path.join(self.resource.logdir, 'events-' + self.name), 'a')
+
         try:
             if self.events:
                 self.events.terminate()
                 self.events.wait()
         except:
             pass
-        devnull = open('/dev/null', 'r')
-        self.events = subprocess.Popen(
-            ['ssh', '-q', '-l', 'root', self.name,
-             'drbdsetup', 'events2', 'all', '--statistics', '--timestamps'],
-            stdout=f, stderr=subprocess.STDOUT, stdin=devnull, close_fds=True)
-        self.event(r'exists -', word_boundary=False)
+        self.events = self.ssh.Popen('drbdsetup events2 all --statistics --timestamps')
+        return InputStream(self.events.stdout, tee_out=self.events_file)
 
     def run(self, cmd, update_config=True, quote=True, catch=False, return_stdout=False, stdin=None, stdout=None, stderr=None, env={}, timeout=None, ignore_netns=False):
         """
@@ -2304,8 +2222,14 @@ def setup(parser=argparse.ArgumentParser(),
 
     validate_drbd_versions(resource.nodes)
 
+    logscan_inputs = {}
     for node in resource.nodes:
-        node.listen_to_events()
+        logscan_inputs[node.name] = node.listen_to_events()
+
+    resource.logscan_events = Logscan(logscan_inputs, timeout=30)
+    resource.nodes.event(r'exists -', word_boundary=False)
+
+    for node in resource.nodes:
         node.run_helper('disable-faults')
     return resource
 

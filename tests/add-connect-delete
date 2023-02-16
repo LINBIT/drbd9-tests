@@ -12,11 +12,11 @@ resource = drbdtest.setup(nodes=2)
 resource.add_disk('4M')
 
 # need the second node only to get a network config etc.
-node = resource.nodes[0]
+node, other = resource.nodes
 node.up()
 
 # wait for the initialization to be done
-node.event(r'connection .* connection:Connecting')
+connections(node, other).event(r'connection .* connection:Connecting')
 
 # try del-path; VM must not crash
 try:

@@ -12,7 +12,7 @@ import re
 import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
-from subprocess import CalledProcessError
+from lbpytest.logscan import NegativeMatchException
 
 resource = drbdtest.setup(nodes=3)
 resource.add_disk('50M')
@@ -37,12 +37,14 @@ def test():
     source_pds = peer_devices(source_n)
     target_pds = peer_devices(to_node=source_n)
     try:
-        source_pds.event(r'peer-device .* replication:SyncSource')
+        # One peer device may reach Established before the other reaches
+        # SyncSource. Match both the SyncSource and Established events in the
+        # same event call.
+        source_pds.event(r'peer-device .* replication:SyncSource',
+                r'peer-device .* replication:Established peer-disk:UpToDate')
         target_pds.event(r'peer-device .* replication:SyncTarget')
-
-        source_pds.event(r'peer-device .* replication:Established peer-disk:UpToDate')
         target_pds.event(r'peer-device .* replication:Established')
-    except CalledProcessError:
+    except NegativeMatchException:
         time.sleep(2)
         for n in resource.nodes:
             status_str = n.run(['drbdsetup', 'status', resource.name], return_stdout=True)

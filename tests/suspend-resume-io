@@ -152,8 +152,7 @@ def test_connection_loss(allow_acks, detach_node=None,
     log('* Validate disconnected state')
     packet_filter(allow_acks, block=False)
 
-    connection_ab.event(r'connection .* connection:Connecting')
-    connection_ac.event(r'connection .* connection:Connecting')
+    connections(node_a).event(r'connection .* connection:Connecting')
 
     if allow_acks == AllowAcks.BARRIER_ACK_C:
         ensure_write_success(writer)

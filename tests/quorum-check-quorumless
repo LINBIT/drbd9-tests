@@ -61,8 +61,7 @@ def verify_quorumless_propagates(isolated_n, other_n, diskless_n):
     connections(diskless_n, other_n).connect()
     connections(isolated_n, diskless_n).connect()
     connections(isolated_n, other_n).connect()
-    connections(other_n, diskless_n).event(r'connection .* connection:Connected')
-    connections(other_n, isolated_n).event(r'connection .* connection:Connected')
+    connections(other_n, to_nodes=[diskless_n, isolated_n]).event(r'connection .* connection:Connected')
     connections(diskless_n, isolated_n).event(r'connection .* connection:Connected')
 
 

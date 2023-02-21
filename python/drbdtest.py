@@ -179,6 +179,28 @@ class Tee(object):
             stream.flush()
 
 
+class FirstWriteTrap(object):
+    """
+    Captures the first write and passes subsequent writes through.
+    """
+
+    def __init__(self, target, condition):
+        self.target = target
+        self.condition = condition
+        self.first_message = None
+
+    def write(self, message):
+        if self.first_message is None:
+            with self.condition:
+                self.first_message = message
+                self.condition.notify()
+        else:
+            self.target.write(message)
+
+    def flush(self):
+        self.target.flush()
+
+
 def log(*args, **kwargs):
     """ Print message to stderr """
     print(*args, file=logstream)
@@ -1392,15 +1414,24 @@ class Node():
         self.dmesg_out_tee.add(self.dmesg_out_stream)
         self.dmesg_out_tee.add(self.dmesg_out_file)
 
-        self.dmesg_process = self.ssh.Popen('dmesg --follow')
+        condition = threading.Condition()
+        self.dmesg_pid_trap = FirstWriteTrap(self.dmesg_out_tee, condition)
+
+        self.dmesg_process = self.ssh.Popen('echo $$ ; dmesg --follow')
         def dmesg_pipe():
-            self.ssh.pipeIO(self.dmesg_process, stdout=self.dmesg_out_tee)
+            self.ssh.pipeIO(self.dmesg_process, stdout=self.dmesg_pid_trap)
 
         self.dmesg_thread = threading.Thread(target=dmesg_pipe, daemon=True)
         self.dmesg_thread.start()
+        with condition:
+            # Capture the remote process ID before stop_dmesg() is called
+            condition.wait()
 
     def stop_dmesg(self):
         if self.dmesg_process:
+            # Kill entire remote session
+            self.run(['bash', '-c', 'kill $(ps -s {} -o pid=)'.format(
+                self.dmesg_pid_trap.first_message.strip())])
             self.dmesg_process.terminate()
             self.dmesg_process.wait()
             self.dmesg_process = None

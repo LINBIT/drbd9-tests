@@ -5,6 +5,7 @@
 
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from subprocess import CalledProcessError
 
 resource = drbdtest.setup(max_nodes=2)
 first_node, other_node = resource.nodes
@@ -37,8 +38,22 @@ with first_node.asPrimary():
 # whole test of its own. So here it is.
 first_node.run(['grep', '-r', '$', '/sys/kernel/debug/drbd'], return_stdout=True)
 
+# Test the error path of detach. Again, something unrelated.
+with first_node.asPrimary():
+    try:
+        first_node.detach()
+    except CalledProcessError:
+        pass
+    else:
+        raise RuntimeError("detach should be forbidden here")
+
 log('* Shut down and clean up.')
 resource.down()
 # An assertion sometimes fails when running this test. Disable validation until
 # the issue is fixed in DRBD.
 resource.teardown(validate_dmesg=False)
+
+# Explicitly remove the LVs. In case drbd failed to close the backing LVs
+# we get an exception here.
+# Python fails to set the exit code from exceptions in atexit callbacks
+resource.remove_storage_pool()

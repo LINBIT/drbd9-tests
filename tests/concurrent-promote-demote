@@ -1,0 +1,60 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+
+import time
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a, node_b, node_c = resource.nodes
+
+# Disable auto-promote so that the write is only allowed if the promote in the
+# background was actually successful.
+resource.resource_options = 'auto-promote no;'
+
+resource.net_options = 'ping-timeout 20;'
+
+resource.add_disk('16M')
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+log('* Promote one node')
+node_a.primary()
+node_a.write(direct=1)
+
+log('* Start promoting another node and let the primary command start waiting')
+# Start promoting in the background. Due to the other primary node, it will
+# wait for 2s (ping-timeout).
+pid = node_c.run(['setsid', 'bash', '-c',
+    'drbdadm primary {} < /dev/null &> /dev/null & echo $!'.format(resource.name)], return_stdout=True)
+
+time.sleep(1.0)
+
+log('* Remove the old primary so that the other promotion can succeed')
+node_a.secondary()
+connections(node_a, node_c).disconnect()
+connections(node_a, node_b).disconnect()
+node_a.down()
+
+log('* Wait for the primary command to terminate')
+node_c.run(['tail', '--pid={}'.format(pid), '-f', '/dev/null'])
+node_c.write(direct=1)
+
+log('* Resync the old primary from the new primary')
+node_a.up_unconnected()
+connections(node_a, node_c).connect()
+peer_devices(node_a, node_c).event(r'peer-device .* replication:SyncTarget')
+peer_devices(node_a, node_c).event(r'peer-device .* replication:Established')
+connections(node_a, node_b).connect()
+
+log('* Ensure that the old primary can connect to the secondary node')
+# With DRBD 9.1.13 this fails with "Unrelated data, aborting"
+peer_devices(node_a, node_b).event(r'peer-device .* replication:Established', timeout=5)
+
+node_c.secondary()
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

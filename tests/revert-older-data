@@ -3,6 +3,7 @@
 
 # Tests that we sync after reverting to a snapshot.
 
+import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
@@ -49,6 +50,8 @@ for initial_sync in False, True:
 
         node_secondary.up()
         connection_primary_secondary.event(r'connection .* connection:Connected')
+        if node_primary.drbd_version_tuple < (9, 0, 0):
+            time.sleep(1.0)
 
         log('* Start new data generations')
         write_disconnected()

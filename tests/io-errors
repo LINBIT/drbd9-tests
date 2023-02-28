@@ -20,6 +20,8 @@ def test_writes(fault_type):
     secondary_n.volumes.event(r'device .* disk:Diskless')
     primary_n.peer_devices.event(r'peer-device .* peer-disk:Failed')
     primary_n.peer_devices.event(r'peer-device .* peer-disk:Diskless')
+    if primary_n.drbd_version_tuple < (9, 0, 0):
+        time.sleep(1.0)
     primary_n.secondary()
 
     log('* down/up secondary, check resync')
@@ -49,6 +51,8 @@ def test_writes(fault_type):
     primary_n.volumes.event(r'device .* disk:Diskless')
     secondary_n.volumes.event(r'peer-device .* peer-disk:Failed')
     secondary_n.volumes.event(r'peer-device .* peer-disk:Diskless')
+    if primary_n.drbd_version_tuple < (9, 0, 0):
+        time.sleep(1.0)
     primary_n.secondary()
 
     log('* down/up primary, check resync')

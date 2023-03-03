@@ -17,7 +17,7 @@ def upgrade(node, primary):
         version_tuple_before = node.drbd_version_tuple
 
         node.install_drbd(resource.drbd_version)
-        node.listen_to_events()
+        resource.listen_to_events()
 
         # If we are upgrading from 8.4, we need to convert the metadata.
         # We must not run "create-md" if we are already running DRBD 9, because
@@ -37,7 +37,7 @@ if resource.drbd_version_other:
     log('* Downgrade remaining nodes to {}'.format(resource.drbd_version_other))
     for node in [second, *others]:
         node.install_drbd(resource.drbd_version_other)
-        node.listen_to_events()
+    resource.listen_to_events()
 else:
     log('* No version to downgrade to, just testing failovers')
 

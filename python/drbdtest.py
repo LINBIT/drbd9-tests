@@ -774,6 +774,14 @@ class Resource(object):
         for n in self.nodes:
             n.rmmod()
 
+    def listen_to_events(self):
+        logscan_inputs = {}
+        for node in self.nodes:
+            logscan_inputs[node.name] = node.listen_to_events()
+
+        self.logscan_events = Logscan(logscan_inputs, timeout=30)
+        self.nodes.event(r'exists -', word_boundary=False)
+
     def logscan(self, yes, filters, **kwargs):
         """ Run logscan to scan / wait for events to occur. """
         if yes is None:
@@ -2159,12 +2167,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
 
     validate_drbd_versions(resource.nodes)
 
-    logscan_inputs = {}
-    for node in resource.nodes:
-        logscan_inputs[node.name] = node.listen_to_events()
-
-    resource.logscan_events = Logscan(logscan_inputs, timeout=30)
-    resource.nodes.event(r'exists -', word_boundary=False)
+    resource.listen_to_events()
 
     for node in resource.nodes:
         node.run_helper('disable-faults')

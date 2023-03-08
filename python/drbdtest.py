@@ -776,7 +776,6 @@ class Resource(object):
         self.forbidden_patterns.update([
             r'connection:Timeout',
             r'connection:ProtocolError',
-            r'connection:NetworkFailure',
             r'disk:Failed',
             r'peer-disk:Failed'])
         atexit.register(self.cleanup)
@@ -922,6 +921,8 @@ class Resource(object):
         # This can occur while connecting due to receive timeouts during
         # two-phase commit resolution. Add it now that the nodes are connected.
         self.forbidden_patterns.add(r'connection:BrokenPipe')
+        # Similarly, this can occur while connecting with DRBD 9.2+.
+        self.forbidden_patterns.add(r'connection:NetworkFailure')
 
     def down(self, concurrent=False):
         # Avoid spurious test failures,

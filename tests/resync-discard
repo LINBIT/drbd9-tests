@@ -45,7 +45,7 @@ if any(node.host.drbd_version_tuple < (9, 2, 0) for node in resource.nodes):
     # with a volume 100 times smaller, to finish in acceptable time.
     discard_granularities = [1<<16]
     disk_size = '11M'
-elif any(node.storage_backend == 'zfs' for node in resource.nodes):
+elif any(node.host.storage_backend == 'zfs' for node in resource.nodes):
     # With ZFS, we can only control the discard granularity by setting
     # 'volblocksize', which has a maximum of 1MiB. Note that this also changes
     # MIN-IO, PHY-SEC etc.

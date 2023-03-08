@@ -14,22 +14,23 @@ drbdtest.log('Adding paths from a different namespace as established paths shoul
 node_a, node_b = resource.nodes  # type: drbdtest.Node, drbdtest.Node
 try:
     # for netns tests: .addr is the init_net (ssh access) address, .addrs are the addresses in the namespace
-    assert node_a.addr not in node_a.addrs
+    assert node_a.host.addr not in node_a.host.addrs
     # The path obviously makes no sense, but it should fail to add the path from the wrong namespace in any case
-    node_a.run(['drbdsetup', 'new-path', resource.name, node_b.id, node_a.addr, node_b.addrs[0]], ignore_netns=True)
+    node_a.run(['drbdsetup', 'new-path', resource.name, node_b.id, node_a.host.addr, node_b.host.addrs[0]],
+            ignore_netns=True)
 except subprocess.CalledProcessError:
     drbdtest.log('Adding paths from a different namespace as established paths should fail: got expected error')
 else:
     raise RuntimeError('"drbdsetup new-path" should have failed from wrong namespace')
 
 drbdtest.log('Deleting a namespace disconnects and destroys all connections assigned to that namespace')
-node_a.netns = None
+node_a.host.netns = None
 node_a.run(['ip', 'netns', 'del', 'drbdtest'])
 node_a.event('connection .* connection:StandAlone', 'destroy path')
 
 drbdtest.log('Running adjust again should re-establish the connection, now from another namespace')
 # Ensure the netdev + addresses where all moved to the initial namespace as expected
-node_a.ensure_netdev()
+node_a.host.ensure_netdev()
 
 node_a.adjust()
 resource.connections.event(r'connection .* connection:Connected')

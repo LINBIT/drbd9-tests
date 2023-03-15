@@ -1,11 +1,5 @@
 #! /usr/bin/env python3
 ### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0" }
-#
-# This test examines how DRBD behaves when the loss of a connection leads
-# to a two-phase-commit can not complete. It does that by blocking the
-# P_TWO_PC yes and then completely blocking the connection.
-#
-# Up to (including) 9.0.24 this was broken in DRBD.
 
 import re
 import time
@@ -13,11 +7,45 @@ from operator import attrgetter
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-def do_test(resource):
-    node_a, node_b, node_c = resource.nodes
 
+# This test exercises a two-phase-commit aborting another one
+# and verifying that the DRBD function abort_local_transaction() does
+# what it is supposed to do. The node_b <-> node_c connection has a
+# higher initiator node-id than the node_a <-> node_b connection. It
+# has to yield to the former one.
+def do_test1(resource):
+    node_a, node_b, node_c = resource.nodes
+    conn_a_b = connections(node_a, node_b)
+    conn_b_c = connections(node_b, node_c)
+    conn_c_a = connections(node_c, node_a)
+
+    log('* test1')
+    conn_a_b.disconnect()
+    conn_b_c.disconnect()
+    conn_c_a.disconnect()
+
+    node_b.block_packet_type(drbdtest.P_TWOPC_YES, from_node=node_c, volume=0xffff)
+    conn_b_c.connect()
+    time.sleep(1)
+    conn_a_b.connect()
+    conn_a_b.event(r'connection:Connected', timeout=15)
+    node_b.unblock_packet_type(drbdtest.P_TWOPC_YES, from_node=node_c, volume=0xffff)
+    conn_b_c.event(r'connection:Connected', timeout=15)
+
+    conn_c_a.connect()
+    conn_c_a.event(r'connection:Connected')
+
+
+# This test examines how DRBD behaves when the loss of a connection leads
+# to a two-phase-commit can not complete. It does that by blocking the
+# P_TWO_PC yes and then completely blocking the connection.
+#
+# Up to (including) 9.0.24 this was broken in DRBD.
+def do_test2(resource):
+    node_a, node_b, node_c = resource.nodes
     assert node_a.id < node_b.id and node_b.id < node_c.id
 
+    log('* test2')
     conn_a_b = connections(node_a, node_b)
     conn_c_b = connections(node_c, node_b)
     conn_a_b.disconnect()
@@ -32,6 +60,7 @@ def do_test(resource):
     # Timeout less than the twopc-timeout of 30s because we should not need to
     # wait for any two-phase commit to time out in this situation
     conn_c_b.event(r'connection:Connected', timeout=15)
+
 
 resource = drbdtest.setup_resource(nodes=3)
 resource.net_options = 'ping-int 1;'
@@ -48,11 +77,13 @@ resource.forbidden_patterns.difference_update([
     r'connection:Timeout',
 ])
 node_a, node_b, node_c = resource.nodes
-conn_a_c = connections(node_a, node_c)
 
-do_test(resource)
+do_test1(resource)
+
+conn_a_c = connections(node_a, node_c)
+do_test2(resource)
 conn_a_c.disconnect()
-do_test(resource)
+do_test2(resource)
 conn_a_c.connect()
 conn_a_c.event(r'connection:Connected')
 

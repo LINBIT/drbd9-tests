@@ -14,12 +14,12 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
 def do_test(resource):
-    [node_a, node_b, node_c] = list(resource.nodes)
+    node_a, node_b, node_c = resource.nodes
 
     assert node_a.id < node_b.id and node_b.id < node_c.id
 
-    conn_a_b = connections(node_a, node_b)[0]
-    conn_c_b = connections(node_c, node_b)[0]
+    conn_a_b = connections(node_a, node_b)
+    conn_c_b = connections(node_c, node_b)
     conn_a_b.disconnect()
     conn_c_b.disconnect()
 
@@ -47,8 +47,8 @@ resource.forbidden_patterns.difference_update([
     r'connection:BrokenPipe',
     r'connection:Timeout',
 ])
-[node_a, node_b, node_c] = list(resource.nodes)
-conn_a_c = connections(node_a, node_c)[0]
+node_a, node_b, node_c = resource.nodes
+conn_a_c = connections(node_a, node_c)
 
 do_test(resource)
 conn_a_c.disconnect()

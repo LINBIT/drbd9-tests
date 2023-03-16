@@ -26,13 +26,14 @@ def create_storage_pool(host, backend, backing_device, thin=False, discard_granu
     return pool
 
 
-def create_disk(host, name, size, *, max_size=None, delay_ms=None):
-    storage_volume = host.storage_pool.create_disk(name, size, max_size=max_size)
+def create_disk(host, name, size, *, max_size=None, delay_ms=None, logical_block_size=None):
+    disk_volume = host.storage_pool.create_disk(name, size, max_size=max_size)
 
     if delay_ms is not None:
-        disk_volume = DelayVolume(host, name, storage_volume, delay_ms=delay_ms)
-    else:
-        disk_volume = storage_volume
+        disk_volume = DelayVolume(host, name, disk_volume, delay_ms=delay_ms)
+
+    if logical_block_size is not None:
+        disk_volume = EmulatedBlockSizeVolume(host, name, disk_volume, logical_block_size=logical_block_size)
 
     return disk_volume
 
@@ -195,18 +196,19 @@ class ZfsVolume(object):
         return used / volsize
 
 
-class DelayVolume(object):
-    def __init__(self, host, name, backing_volume, *, delay_ms):
+class DeviceMapperTarget(object):
+    def __init__(self, host, name, backing_volume, *, dm_type):
         self._host = host
         self._backing_volume = backing_volume
-        self._device_name = '{}-delay'.format(name)
+        self._dm_type = dm_type
+        self._device_name = '{}-{}'.format(name, dm_type)
         self._device_path = '/dev/mapper/{}'.format(self._device_name)
 
         self._sectors = self._host.run(['blockdev', '--getsz', self._backing_volume.volume_path()],
                 return_stdout=True)
 
         self._host.run(['dmsetup', 'create', self._device_name],
-                stdin=StringIO(self._table(delay_ms)))
+                stdin=StringIO(self._table()))
 
     def volume_path(self):
         return self._device_path
@@ -221,11 +223,29 @@ class DelayVolume(object):
     def fill_percentage(self):
         return self._backing_volume.fill_percentage()
 
+    def _table_start(self):
+        return '0 {} {}'.format(self._sectors, self._dm_type)
+
+class DelayVolume(DeviceMapperTarget):
+    def __init__(self, host, name, backing_volume, *, delay_ms):
+        self._delay_ms = delay_ms
+        super().__init__(host, name, backing_volume, dm_type = 'delay')
+
     def set_delay_ms(self, delay_ms):
+        self._delay_ms = delay_ms
         self._host.run(['dmsetup', 'reload', self._device_name],
-                stdin=StringIO(self._table(delay_ms)))
+                stdin=StringIO(self._table()))
         self._host.run(['dmsetup', 'suspend', self._device_name])
         self._host.run(['dmsetup', 'resume', self._device_name])
 
-    def _table(self, delay_ms):
-        return '0 {} delay {} 0 {}'.format(self._sectors, self._backing_volume.volume_path(), delay_ms)
+    def _table(self):
+        return '{} {} 0 {}'.format(self._table_start(), self._backing_volume.volume_path(), self._delay_ms)
+
+class EmulatedBlockSizeVolume(DeviceMapperTarget):
+    def __init__(self, host, name, backing_volume, *, logical_block_size):
+        self._logical_block_size = logical_block_size
+        super().__init__(host, name, backing_volume, dm_type = 'ebs') # EBS = emulated block size
+
+    def _table(self):
+        print('{} {} 0 {}'.format(self._table_start(), self._backing_volume.volume_path(), int(self._logical_block_size/512)))
+        return '{} {} 0 {}'.format(self._table_start(), self._backing_volume.volume_path(), int(self._logical_block_size/512))

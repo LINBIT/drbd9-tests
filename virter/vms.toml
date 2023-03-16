@@ -157,7 +157,7 @@ base_image = "ubuntu-jammy-drbd-k25"
 vcpus = 2
 memory = "1G"
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat", "zfs" ]
+vm_tags = [ "discard-stat", "zfs", "dm-ebs" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-jammy/"

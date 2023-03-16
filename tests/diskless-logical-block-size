@@ -1,0 +1,57 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "vm_tags": ["dm-ebs"], "drbd_version_min": "9.1" }
+
+# Pass this script a list of host names to use as the test nodes.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+def queue_data_ioctl(node, volume):
+    return [int(node.run(['blockdev', '--getpbsz', volume.device()], return_stdout=True)),
+            int(node.run(['blockdev', '--getiomin', volume.device()], return_stdout=True)),
+            int(node.run(['blockdev', '--getss', volume.device()], return_stdout=True))]
+
+def queue_data_sysfs(node, volume):
+    output = node.run(['lsblk', '-rno', 'PHY-SEC,MIN-IO,LOG-SEC',volume.device()], return_stdout=True)
+    return [int(n) for n in output.split()]
+
+resource = drbdtest.setup_resource(nodes=3)
+
+diskless_node = resource.nodes.diskless[0]
+diskful_nodes = resource.nodes[1:]
+
+diskful_volumes = []
+diskful_volumes.append(diskful_nodes[0].add_disk(0, '10M', logical_block_size=2048))
+diskful_volumes.append(diskful_nodes[1].add_disk(0, '10M', logical_block_size=4096))
+diskless_node.add_disk(0)
+
+for volume in diskful_volumes:
+    volume.create_md(1)
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+#
+# The EBS device mapper targets accepts BIOs smaller than its logical_block_size
+# And finishes them without delivering an I/O error :(
+#
+# diskless_node.volumes.write(bs='512', size='512', direct=1)
+#
+# Does __not__ produce spectacular IO errors on the node with backing disk.
+#
+with diskless_node.asPrimary():
+    assert queue_data_ioctl(diskless_node, resource.volumes[0]) == [4096, 4096, 4096]
+    assert queue_data_sysfs(diskless_node, resource.volumes[0]) == [4096, 4096, 4096]
+
+    connections(diskful_nodes[1], diskless_node).disconnect() # The 4K server
+    connections(diskless_node, diskful_nodes[1]).event(r'connection:Connecting')
+
+    assert queue_data_ioctl(diskless_node, resource.volumes[0]) == [2048, 2048, 2048]
+    assert queue_data_sysfs(diskless_node, resource.volumes[0]) == [2048, 2048, 2048]
+
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

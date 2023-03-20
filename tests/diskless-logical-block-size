@@ -51,6 +51,21 @@ with diskless_node.asPrimary():
     assert queue_data_ioctl(diskless_node, resource.volumes[0]) == [2048, 2048, 2048]
     assert queue_data_sysfs(diskless_node, resource.volumes[0]) == [2048, 2048, 2048]
 
+diskless_node.down()
+resource.disk_options = 'block-size 4096;'
+diskless_node.update_config()
+diskless_node.new_resource()
+diskless_node.new_minor()
+diskless_node.new_peer()
+diskless_node.peer_device_options()
+diskless_node.new_path()
+
+connections(diskless_node, diskful_nodes[0]).connect() # The 2K server
+connections(diskful_nodes[0], diskless_node).event(r'connection:Connected')
+
+with diskless_node.asPrimary():
+    assert queue_data_ioctl(diskless_node, resource.volumes[0]) == [4096, 4096, 4096]
+    assert queue_data_sysfs(diskless_node, resource.volumes[0]) == [4096, 4096, 4096]
 
 log('* Shut down and clean up.')
 resource.down()

@@ -16,6 +16,14 @@
 #
 # DRBD-9.1.13 and 9.2.2 are the first releases that do that.
 #
+#
+# verify_double_promote() is independent from the other aspects of this
+# test, it just fits in here very nicely.
+# This fails with 9.1.7 - 9.1.13 and 9.2.0 - 9.2.2!
+# Got fixed with
+# https://github.com/LINBIT/drbd/commit/057d17f455e909a75827948cd1fa932e58793a66
+#
+
 import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
@@ -64,6 +72,18 @@ def verify_quorumless_propagates(isolated_n, other_n, diskless_n):
     connections(other_n, to_nodes=[diskless_n, isolated_n]).event(r'connection .* connection:Connected')
     connections(diskless_n, isolated_n).event(r'connection .* connection:Connected')
 
+def verify_double_promote(A, B, C):
+    A.primary()
+    connections(to_node=A).event(r'connection .* role:Primary')
+    connections(A, B).disconnect(wait=False) # wait=False -> 'peer-disk:Outdated' observable:
+    peer_devices(A, B).event(r'peer-device .* peer-disk:Outdated')
+    connections(A, C).disconnect()
+    try:
+        B.primary()
+    except:
+        pass
+    else:
+        raise RuntimeError('B promoted!')
 
 resource = drbdtest.setup_resource(nodes=3)
 resource.resource_options = 'quorum majority;'
@@ -93,6 +113,9 @@ log('* isolate secondary A and check remaining B has quorum')
 isolate_secondary(A, B, C)
 log('* isolate secondary B and check remaining A has quorum')
 isolate_secondary(B, A, C)
+
+log('* Check double promote is not allowed')
+verify_double_promote(A, B, C)
 
 resource.down()
 resource.cluster.teardown()

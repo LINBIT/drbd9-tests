@@ -1,0 +1,57 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "8.4" }
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+from python import trafficcontrol
+
+resource = drbdtest.setup_resource(nodes=2)
+
+resource.add_disk('60M')
+resource.net_options = 'csums-alg md5;'
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+def test(source_n, target_n):
+    log('*** Test with source={} target={}'.format(source_n, target_n))
+
+    source_target_c = connections(source_n, target_n)
+    source_target_pd = peer_devices(source_n, target_n)
+    target_source_pd = peer_devices(target_n, source_n)
+
+    source_tc = trafficcontrol.TrafficControl(source_n, resource.nodes)
+
+    source_n.primary()
+    source_n.fio({}, rw='write', ioengine='libaio', size='48M', offset='1M', bs='1M', direct=1, buffer_pattern='"a"')
+
+    log('* Write new data on only the source node')
+    source_target_c.disconnect()
+    source_n.write(size='50M', bs='1M', direct=1)
+    # Make most of the data the same, but not all - we want to also check that differing blocks are synced
+    source_n.fio({}, rw='write', ioengine='libaio', size='48M', offset='1M', bs='1M', direct=1, buffer_pattern='"a"')
+
+    log('* Reconnect and let sync')
+    # Throttle so that resync will time out if checksumming is not effective
+    source_tc.slow_down(target_n, speed='8mbit')
+    source_target_c.connect()
+
+    source_target_pd.event(r'peer-device .* replication:SyncSource')
+    target_source_pd.event(r'peer-device .* replication:SyncTarget')
+    source_target_pd.event(r'peer-device .* replication:Established')
+    target_source_pd.event(r'peer-device .* replication:Established')
+
+    source_tc.reset()
+    source_n.secondary()
+    datatools.verify_data(resource.nodes)
+
+# Test in both directions for the sake of compatibility testing
+test(resource.nodes[0], resource.nodes[1])
+test(resource.nodes[1], resource.nodes[0])
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

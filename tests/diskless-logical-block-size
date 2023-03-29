@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": null, "vm_tags": ["dm-ebs"], "drbd_version_min": "9.1" }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "vm_tags": ["dm-ebs"], "drbd_version_min": "9.1" }
 
 # Pass this script a list of host names to use as the test nodes.
 

@@ -1503,6 +1503,8 @@ class Host():
         self.rmmod()
         self.run_helper('install-drbd', [package_download_dir, version], timeout=90)
         self.read_drbd_version()
+        for resource in self.cluster.resources:
+            resource.touch_config()
 
     def next_minor(self):
         self.minors += 1

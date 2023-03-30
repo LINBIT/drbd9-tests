@@ -30,10 +30,10 @@ def upgrade(node, primary):
     peer_devices(primary, node).event(r'peer-device .* replication:Established')
     peer_devices(node, primary).event(r'peer-device .* replication:Established')
 
-if not resource.cluster.drbd_version:
-    raise RuntimeError('No version specified to upgrade to')
-
 if resource.cluster.drbd_version_other:
+    if not resource.cluster.drbd_version:
+        raise RuntimeError('No version specified to upgrade to')
+
     log('* Downgrade remaining nodes to {}'.format(resource.cluster.drbd_version_other))
     for node in [second, *others]:
         node.host.install_drbd(resource.cluster.drbd_version_other)

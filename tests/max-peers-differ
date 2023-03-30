@@ -1,0 +1,80 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+
+from subprocess import CalledProcessError
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+resource = drbdtest.setup_resource(nodes=3)
+
+node_a, node_b, node_c = resource.nodes
+
+volume_number = resource.next_volume()
+volume_a = node_a.add_disk(volume_number, '20M')
+volume_b = node_b.add_disk(volume_number, '20M')
+volume_c = node_c.add_disk(volume_number, '20M')
+volume_a.create_md(max_peers=2)
+volume_b.create_md(max_peers=1)
+volume_c.create_md(max_peers=1)
+
+for node in resource.nodes:
+    node.new_resource()
+    node.new_minor()
+    # When there are fewer bitmap slots than peers in the configuration,
+    # "new-peer" followed by "attach" fails. DRBD (9.1.13) refuses to attach.
+    # However, "attach" followed by "new-peer" succeeds.
+    node.attach()
+    node.volumes.diskful.event(r'device .* disk:(Failed|Inconsistent|Outdated|Consistent|UpToDate)')
+    node.new_peer()
+    node.peer_device_options()
+    node.new_path()
+
+connections(node_a, node_b, bidir=True).connect()
+connections(node_a, node_b, bidir=True).event(r'connection .* connection:Connected')
+
+connections(node_a, node_c, bidir=True).connect()
+connections(node_a, node_c, bidir=True).event(r'connection .* connection:Connected')
+
+log('* Trigger initial resync from the middle of the chain')
+node_a.primary(force=True)
+node_a.secondary()
+peer_devices(to_node=node_a).event(r'peer-device .* replication:SyncTarget')
+peer_devices(to_node=node_a).event(r'peer-device .* replication:Established')
+
+log('* Write in the middle of the chain')
+node_a.write(direct=1)
+
+log('* Break the chain and write at one end')
+connections(node_a).disconnect()
+
+node_b.primary()
+node_b.write(direct=1, offset='1M')
+
+connections(node_a, node_c).connect()
+connections(node_a, node_c, bidir=True).event(r'connection .* connection:Connected')
+
+log('* Connect and let resyncs propagate')
+connections(node_a, node_b).connect()
+peer_devices(node_a, node_b).event(r'peer-device .* replication:SyncTarget')
+peer_devices(node_a, node_b).event(r'peer-device .* replication:Established')
+
+node_b.secondary()
+
+peer_devices(node_c, node_a).event(r'peer-device .* replication:SyncTarget')
+peer_devices(node_c, node_a).event(r'peer-device .* replication:Established')
+
+log('* Ensure that nodes with too few bitmap slots cannot connect')
+try:
+    connections(node_b, node_c).connect()
+except CalledProcessError:
+    # Fails with "res: Failure: (162) Invalid configuration request"
+    pass
+else:
+    raise RuntimeError("connect should be forbidden here")
+
+log('* Shut down and clean up.')
+resource.down()
+datatools.verify_data(resource.nodes, size_mb=16, backing_disk=True)
+resource.cluster.teardown()

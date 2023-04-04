@@ -30,8 +30,10 @@ def main():
     elif drbd_version is None:
         drbd_version_lower = drbd_version_other
     else:
-        # Naive element by element comparison is good enough here
-        drbd_version_lower = min(drbd_version, drbd_version_other)
+        if is_lower(drbd_version, drbd_version_other):
+            drbd_version_lower = drbd_version
+        else:
+            drbd_version_lower = drbd_version_other
 
     # Read test files
     test_configs = []
@@ -76,8 +78,7 @@ def main():
         drbd_version_min_str = vmshed_config.get('drbd_version_min')
         if drbd_version_lower is not None and drbd_version_min_str is not None:
             drbd_version_min = parse_version(drbd_version_min_str)
-            # Naive element by element comparison is good enough here
-            if drbd_version_lower < drbd_version_min:
+            if is_lower(drbd_version_lower, drbd_version_min):
                 continue
 
         print('[tests.{}]'.format(name))
@@ -102,6 +103,21 @@ def main():
             print('dhcp = {}'.format('true' if network.get('dhcp') else 'false'))
 
         print()
+
+
+def is_lower(version, min_version):
+    for i, _ in enumerate(min_version):
+        if i >= len(version):
+            # a longer list is always "greater" than a shorter one (if all elements so far are equal)
+            return True
+        if version[i] == '*':
+            return False
+        if version[i] < min_version[i]:
+            return True
+        elif version[i] > min_version[i]:
+            return False
+    return len(version) < len(min_version)
+
 
 # Naive version parsing handling dot separated elements which are either integers or strings
 def parse_version(version_str):

@@ -24,6 +24,7 @@ import atexit
 from .ordered_set import OrderedSet
 from . import disktools
 import io
+import fnmatch
 
 from io import StringIO
 
@@ -711,6 +712,9 @@ class Cluster(object):
         self.drbd_version_other is set, validate that this version is installed
         on hosts[0]. If self.drbd_version is set, validate that this version is
         installed on all other hosts and all git hashes match.
+
+        Both drbd_version and drbd_version_other may contain wildcards, as in
+        "9.2.*".
         """
 
         git_hashes = set()
@@ -723,7 +727,7 @@ class Cluster(object):
                 expect_version = self.drbd_version
                 git_hashes.add(host.drbd_git_hash)
 
-            if expect_version and host.drbd_version != expect_version:
+            if expect_version and not fnmatch.fnmatchcase(host.drbd_version, expect_version):
                 raise RuntimeError("{}: expect DRBD version '{}'; found '{}'".format(host, expect_version, host.drbd_version))
 
         if len(git_hashes) > 1:

@@ -768,6 +768,17 @@ class Cluster(object):
         if len(git_hashes) > 1:
             raise RuntimeError("Differing git hashes found for DRBD version '{}': {}".format(self.drbd_version, git_hashes))
 
+    def write_drbd_versions_meta(self, f):
+        data = {}
+        for i, host in enumerate(self.hosts):
+            pkg = host.run_helper('installed-drbd-package', return_stdout=True)
+            data[host.name] = {
+                'version': host.drbd_version,
+                'git_hash': host.drbd_git_hash,
+                'package': pkg,
+            }
+        json.dump(data, f)
+
     def create_resource(self, name=None):
         resource = Resource(self, self.resource_name if name is None else name,
                               rdma=self.rdma)
@@ -1540,11 +1551,11 @@ class Host():
                 'cat > {0} && chmod +x {0}'.format(target_path)],
                 stdin=StringIO(helper))
 
-    def run_helper(self, helper_name, args=[], timeout=None):
+    def run_helper(self, helper_name, args=[], timeout=None, return_stdout=False):
         """ Run a target helper script. """
         target_path = '/tmp/' + helper_name
         self.install_helper(helper_name, target_path)
-        self.run([target_path, *args], timeout=timeout)
+        return self.run([target_path, *args], timeout=timeout, return_stdout=return_stdout)
 
     def rmmod(self):
         if no_rmmod:
@@ -2347,6 +2358,10 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
         cluster.hosts[0].install_drbd(args.drbd_version_other)
 
     cluster.validate_drbd_versions()
+
+    drbd_versions_meta_path = os.path.join(args.logdir, 'drbd-versions.json')
+    with open(drbd_versions_meta_path, 'w') as f:
+        cluster.write_drbd_versions_meta(f)
 
     cluster.listen_to_events()
 

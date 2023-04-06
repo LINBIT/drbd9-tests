@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Print the name of the currently installed DRBD package
+
+die() { >&2 printf "\nError: %s\n" "$*"; exit 1; }
+
+if command -v rpm > /dev/null; then
+	rpm --query --all | grep -E 'kmod-drbd-.*'
+elif command -v dpkg > /dev/null; then
+	dpkg-query --show --showformat='${Package}_${Version}\n' | grep -E 'drbd.?-module'
+else
+	die "Unknown package manager"
+fi

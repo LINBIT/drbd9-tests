@@ -538,6 +538,10 @@ class Volumes(Collection):
         for v in self:
             v.detach()
 
+    def new_current_uuid(self):
+        for v in self:
+            v.new_current_uuid()
+
 
 class Connections(Collection):
     def __init__(self, members=[]):
@@ -1081,6 +1085,9 @@ class Volume(object):
     def detach(self):
         self.node.drbdadm(['detach', '{}/{}'.format(self.node.resource.name, self.volume)])
         self.event(r'device .* disk:Diskless')
+
+    def new_current_uuid(self):
+        self.node.drbdadm(['new-current-uuid', '{}/{}'.format(self.node.resource.name, self.volume)])
 
 class Connection(object):
     def __init__(self, node1, node2):

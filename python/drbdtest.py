@@ -530,6 +530,14 @@ class Volumes(Collection):
         for v in self:
             v.resume()
 
+    def attach(self):
+        for v in self:
+            v.attach()
+
+    def detach(self):
+        for v in self:
+            v.detach()
+
 
 class Connections(Collection):
     def __init__(self, members=[]):
@@ -1065,6 +1073,14 @@ class Volume(object):
 
     def resume(self):
         self.dmsetup('resume')
+
+    def attach(self):
+        self.node.drbdadm(['attach', '{}/{}'.format(self.node.resource.name, self.volume)])
+        self.event(r'device .* disk:Attaching')
+
+    def detach(self):
+        self.node.drbdadm(['detach', '{}/{}'.format(self.node.resource.name, self.volume)])
+        self.event(r'device .* disk:Diskless')
 
 class Connection(object):
     def __init__(self, node1, node2):

@@ -47,6 +47,12 @@ with first_node.asPrimary():
     else:
         raise RuntimeError("detach should be forbidden here")
 
+# Another unrelated micro-test: Check that a single `new-minor` does
+# not block following detach
+first_node.run(['drbdsetup', 'new-minor', resource.name, '10', '10'])
+first_node.volumes[0].detach() # does this call return?
+first_node.volumes[0].attach()
+
 log('* Shut down and clean up.')
 resource.down()
 # An assertion sometimes fails when running this test. Disable validation until

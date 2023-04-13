@@ -413,17 +413,10 @@ class Nodes(Collection):
         self.resource().forbidden_patterns.update(remove_patterns)
 
     def attach(self):
-        self.drbdadm(['attach', self.resource().name])
-        self.volumes.diskful.event(r'device .* disk:Attaching')
+        self.volumes.attach()
 
     def detach(self):
-        self.drbdadm(['detach', self.resource().name])
-        for node in self.members:
-            if node.host.drbd_version_tuple < (9, 0, 0):
-                node.volumes.diskful.event(r'device .* disk:Failed')
-            else:
-                node.volumes.diskful.event(r'device .* disk:Detaching')
-        self.volumes.diskful.event(r'device .* disk:Diskless')
+        self.volumes.detach()
 
     def new_resource(self):
         self.drbdadm(['new-resource', self.resource().name])
@@ -532,11 +525,24 @@ class Volumes(Collection):
 
     def attach(self):
         for v in self:
-            v.attach()
+            v.node.drbdadm(['attach', '{}/{}'.format(v.resource.name, v.volume)])
+        self.event(r'device .* disk:Attaching')
 
     def detach(self):
+        if not self.members:
+            return
+
+        resource = list(self.members)[0].resource
+        remove_patterns = []
+        if r'disk:Failed' in resource.forbidden_patterns and resource.nodes.min_drbd_version_tuple() < (9, 0, 0):
+            remove_patterns.append(r'disk:Failed')
+
+        resource.forbidden_patterns.difference_update(remove_patterns)
         for v in self:
-            v.detach()
+            v.node.drbdadm(['detach', '{}/{}'.format(v.resource.name, v.volume)])
+        self.event(r'device .* disk:(Failed|Detaching)')
+        self.event(r'device .* disk:Diskless')
+        resource.forbidden_patterns.update(remove_patterns)
 
     def new_current_uuid(self):
         for v in self:
@@ -1079,12 +1085,10 @@ class Volume(object):
         self.dmsetup('resume')
 
     def attach(self):
-        self.node.drbdadm(['attach', '{}/{}'.format(self.node.resource.name, self.volume)])
-        self.event(r'device .* disk:Attaching')
+        Volumes([self]).attach()
 
     def detach(self):
-        self.node.drbdadm(['detach', '{}/{}'.format(self.node.resource.name, self.volume)])
-        self.event(r'device .* disk:Diskless')
+        Volumes([self]).detach()
 
     def new_current_uuid(self):
         self.node.drbdadm(['new-current-uuid', '{}/{}'.format(self.node.resource.name, self.volume)])
@@ -1928,10 +1932,10 @@ class Node():
         Nodes([self]).down()
 
     def attach(self):
-        Nodes([self]).attach()
+        self.volumes.attach()
 
     def detach(self):
-        Nodes([self]).detach()
+        self.volumes.detach()
 
     def new_resource(self):
         Nodes([self]).new_resource()

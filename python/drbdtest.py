@@ -109,6 +109,16 @@ P_TWOPC_COMMIT        = 0x47
 P_TWOPC_RETRY         = 0x48
 P_CONFIRM_STABLE      = 0x49
 P_RS_CANCEL_AHEAD     = 0x4a
+P_DISCONNECT          = 0x4b
+P_RS_DAGTAG_REQ       = 0x4c
+P_RS_CSUM_DAGTAG_REQ  = 0x4d
+P_RS_THIN_DAGTAG_REQ  = 0x4e
+P_OV_DAGTAG_REQ       = 0x4f
+P_OV_DAGTAG_REPLY     = 0x50
+P_WRITE_ACK_IN_SYNC   = 0x51
+P_RS_NEG_ACK          = 0x52
+P_OV_RESULT_ID        = 0x53
+P_RS_DEALLOCATED_ID   = 0x54
 
 fio_write_args = {
         'bs': '4K',

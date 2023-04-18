@@ -1,0 +1,220 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+
+# Test DRBD's behavior when resync requests conflict with application IO, and
+# the connection is interrupted by connection loss and reconnection. Multiple
+# variants are tested with different combinations of primary node,
+# disconnection type and resync type.
+#
+# This test works as follows:
+# 1. Start a resync
+# 2. Freeze the resync by blocking network packets
+# 3. Give the disk on one node a high delay so that IO basically gets stuck
+# 4. Scatter application writes over the disk; they will get stuck on the node with the delay
+# 5. Let the resync continue; the requests will conflict with the application writes
+# 6. Temporarily break the connection; DRBD must resolve or clear up the conflicts
+
+from enum import Enum
+import json
+import time
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+from python import datatools
+from python import trafficcontrol
+
+
+rs_req_packets = [drbdtest.P_RS_DATA_REQUEST, drbdtest.P_CSUM_RS_REQUEST, drbdtest.P_RS_THIN_REQ,
+        drbdtest.P_RS_DAGTAG_REQ, drbdtest.P_RS_CSUM_DAGTAG_REQ, drbdtest.P_RS_THIN_DAGTAG_REQ]
+
+disk_options = 'c-max-rate 60M; c-min-rate 0;'
+
+fio_zero_args = {
+        'rw': 'randwrite',
+        'ioengine': 'libaio',
+        'size': '96M',
+        'bs': '128K',
+        'blockalign': '512K', # scatter blocks
+        'norandommap': 1, # required for blockalign
+        'direct': 1,
+        'zero_buffers': 1}
+
+
+class VariantDisconnect(Enum):
+    NORMAL = 0
+    FORCE = 1
+    DOWN = 2
+
+
+class VariantType(Enum):
+    NORMAL = 0
+    THIN = 1
+
+
+def fetch_status(node):
+    result = node.run(['drbdsetup', 'status', resource.name, '--json'], return_stdout=True)
+    return json.loads(result)[0]
+
+def validate_statistic(context, values, name, expected):
+    drbdtest.ensure(expected, values[name], '{}: Expect "{}" to be {}'.format(context, name, expected))
+
+def validate_status_inactive(nodes=None, busy=True):
+    for node, peer in [(source_n, target_n), (target_n, source_n)]:
+        if nodes is not None and not node in nodes:
+            continue
+
+        status = fetch_status(node)
+        connection_status = next(c for c in status['connections'] if c['peer-node-id'] == peer.id)
+        pd_status = connection_status['peer_devices'][0]
+
+        context = '{} -> {}'.format(node.name, peer.name)
+        validate_statistic(context, connection_status, 'rs-in-flight', 0)
+        validate_statistic(context, pd_status, 'unacked', 0)
+        validate_statistic(context, pd_status, 'pending', 0)
+
+        if not busy:
+            device_status = {}
+            # Allow several attempts because DRBD might be updating metadata
+            for _ in range(3):
+                device_status = status['devices'][0]
+                if device_status['lower-pending'] != 0:
+                    time.sleep(1)
+                    status = fetch_status(node)
+            validate_statistic(node.name, device_status, 'lower-pending', 0)
+
+def wait_for_pending(primary_n, conflict_n):
+    for _ in range(100):
+        status = fetch_status(primary_n)
+        connection_status = next(c for c in status['connections'] if c['peer-node-id'] == conflict_n.id)
+        pd_status = connection_status['peer_devices'][0]
+
+        log('pending: {}'.format(pd_status['pending']))
+        if pd_status['pending'] != 0:
+            return
+
+        time.sleep(0.1)
+
+def interrupt_connection(disconnect_type):
+    log('* Break connection')
+    if disconnect_type == VariantDisconnect.NORMAL:
+        target_source_c.disconnect()
+    elif disconnect_type == VariantDisconnect.FORCE:
+        resource.forbidden_patterns.difference_update([
+            r'connection:NetworkFailure',
+            r'connection:BrokenPipe',
+            r'connection:ProtocolError'
+        ])
+        target_source_c.disconnect(force=True)
+    elif disconnect_type == VariantDisconnect.DOWN:
+        target_n.down()
+    source_target_c.event(r'connection .* connection:Connecting')
+
+    log('* Restore connection')
+    if disconnect_type == VariantDisconnect.DOWN:
+        validate_status_inactive(nodes=[source_n])
+        target_n.up()
+    else:
+        if disconnect_type == VariantDisconnect.FORCE:
+            resource.forbidden_patterns.update([
+                r'connection:NetworkFailure',
+                r'connection:BrokenPipe',
+                r'connection:ProtocolError'
+            ])
+        validate_status_inactive()
+        target_source_c.connect()
+
+def test_variant(primary_n, conflict_n, disconnect_type, resync_type):
+    log('*** Variant: primary={} conflict={} disconnect={} type={}'.format(
+        primary_n, conflict_n, disconnect_type, resync_type))
+
+    resource.disk_options = '{} rs-discard-granularity {};'.format(disk_options,
+            '1M' if resync_type == VariantType.THIN else '0')
+    resource.nodes.adjust()
+
+    diskless_n.primary()
+
+    log('* Write data without target node')
+    from_target.disconnect()
+    diskless_n.write(size='96M', bs='1M', direct=1)
+
+    # Zero out part of the data so that there is something to discard
+    diskless_n.fio(fio_zero_args)
+
+    target_diskless_c.connect()
+    target_diskless_c.event(r'connection .* connection:Connected')
+
+    log('* Let sync start')
+    target_source_c.connect()
+    source_target_pd.event(r'peer-device .* replication:SyncSource')
+    target_source_pd.event(r'peer-device .* replication:SyncTarget')
+    diskless_n.secondary()
+    # Allow time for the resync to progress beyond the very start
+    time.sleep(0.5)
+    for packet in rs_req_packets:
+        source_n.block_packet_type(packet, from_node=target_n)
+    # Allow time for in-flight resync requests to complete or get stuck due to the blocked packet
+    time.sleep(0.1)
+
+    conflict_n.volumes[0].disk_volume.set_delay_ms(3000)
+
+    log('* Start writing in background')
+    writer = busywrite.BusyWrite(primary_n.volumes[0])
+    writer.start('--iodepth=256 --size=96M --io_size=1M --bs=4K --blockalign=256K --norandommap=1 --time_based=0')
+    wait_for_pending(primary_n, conflict_n)
+
+    # Allow time for the writes to reach the delayed disk
+    time.sleep(0.1)
+    for packet in rs_req_packets:
+        source_n.unblock_packet_type(packet, from_node=target_n)
+    # Allow time for the resync requests to move again and conflict with the writes
+    time.sleep(1.5)
+
+    interrupt_connection(disconnect_type)
+
+    conflict_n.volumes[0].disk_volume.set_delay_ms(0)
+
+    source_target_pd.event(r'peer-device .* replication:Established')
+    target_source_pd.event(r'peer-device .* replication:Established')
+
+    writer.wait()
+
+    validate_status_inactive(busy=False)
+    datatools.verify_data([source_n, target_n], 96)
+
+
+resource = drbdtest.setup_resource(nodes=3)
+diskless_n, source_n, target_n = resource.nodes
+
+source_tc = trafficcontrol.TrafficControl(source_n, resource.nodes)
+
+resource.disk_options = disk_options
+# Use a thin backing volume so that the discard is definitely reported as being
+# supported. This is necessary for VariantType.THIN to actually test thin
+# resync.
+resource.cluster.create_storage_pool(thin=True)
+# External metadata to be able to independently add delay to data disk.
+resource.add_disk('100M', meta_size='4M', diskful_nodes=[source_n, target_n], delay_ms=0)
+resource.up_wait()
+
+from_target = connections(target_n)
+source_target_c = connections(source_n, target_n)
+source_target_pd = peer_devices(source_n, target_n)
+target_diskless_c = connections(target_n, diskless_n)
+target_source_c = connections(target_n, source_n)
+target_source_pd = peer_devices(target_n, source_n)
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+test_variant(diskless_n, source_n, VariantDisconnect.FORCE, VariantType.NORMAL)
+test_variant(diskless_n, target_n, VariantDisconnect.FORCE, VariantType.NORMAL)
+test_variant(source_n, target_n, VariantDisconnect.FORCE, VariantType.NORMAL)
+test_variant(source_n, target_n, VariantDisconnect.FORCE, VariantType.THIN)
+test_variant(source_n, target_n, VariantDisconnect.NORMAL, VariantType.NORMAL)
+test_variant(source_n, target_n, VariantDisconnect.DOWN, VariantType.NORMAL)
+
+log('* Shut down and clean up.')
+resource.down()
+source_tc.reset()
+resource.cluster.teardown()

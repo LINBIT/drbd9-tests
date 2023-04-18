@@ -1,6 +1,8 @@
 #! /usr/bin/env python3
 ### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.1" }
-
+#
+# test1:
+#
 # Consider a cluster with a primary diskless node, that has connections
 # with two diskfull nodes. One of the diskful nodes leaves the cluster
 # for some time. When it comes back it connects to the diskless node first.
@@ -11,10 +13,54 @@
 # test twice (with both variations of node-ids)
 #
 # Up to drbd-9.1.7 the primary diskless simply rejected the connect attempt.
-
+#
+#
+# test2:
+#
+# Consider nodes A, B, and C, where B is intentionally diskless:
+#
+#      B     | with B diskless and primary. It writes some data.
+#     / \    | B demotes to secondary.
+#    A---C   | A and C have backing disks.
+#
+#      B     | C becomes isolated. B promotes, writes and demotes
+#     /      | again.
+#    A   C   | C is now an older data generation.
+#
+#      B     | B and C establish a connection.
+#     / \    | C needs to outdate in that moment, B may not create
+#    A   C   | a new UUID if it promotes again.
+#
+# Up to drbd-9.1.14 B created another UUID and C accepted that,
+# with that A & C miss a resync if they connect later
+#
+#
+# test3 is Is similar to test2:
+#
+#      B     | with B diskless and primary. It writes some data.
+#     / \    | B demotes to secondary.
+#    A---C   | A and C have backing disks.
+#
+#      B     | C becomes isolated. B promotes, writes and demotes
+#     /      | again.
+#    A   C   | C is now an older data generation.
+#
+#      B     | B down and up.
+#            |
+#    A   C   |
+#
+#      B     | B and C establish a connection.
+#       \    |
+#    A   C   |
+#
+#      B     | B and A establish a connection.
+#     / \    |
+#    A   C   |
+#
 
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from python import datatools
 
 resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('10M')
@@ -28,7 +74,7 @@ resource.forbidden_patterns.remove(r'connection:NetworkFailure')
 
 node_a, node_b, node_c = resource.nodes
 
-def test(diskless, diskfull, third):
+def test1(diskless, diskfull, third):
     to_diskless_pd = peer_devices(to_node=diskless)
     to_diskless_c = connections(to_node=diskless)
     from_diskfull_c = connections(diskfull)
@@ -59,8 +105,57 @@ def test(diskless, diskfull, third):
     diskless.volumes.event(r'device .* disk:UpToDate')
     diskless.secondary()
 
-test(node_a, node_b, node_c)
-test(node_c, node_b, node_a)
+
+def test2_and_3(diskless_n, source_n, target_n, test3=False):
+    diskless_n.detach()
+    peer_devices(to_node=diskless_n).event(r'peer-device .* peer-disk:Diskless')
+
+    diskless_n.fio({}, rw='write', size='10M', bs='1M', direct=1, buffer_pattern='"a"')
+    connections(target_n).disconnect()
+
+    log('* Write data without target node')
+    diskless_n.fio({}, rw='write', size='10M', bs='1M', direct=1, buffer_pattern='"b"')
+
+    if test3:
+        connections(source_n).disconnect()
+        diskless_n.down()
+        diskless_n.new_resource()
+        diskless_n.new_minor()
+        diskless_n.new_peer()
+        diskless_n.peer_device_options()
+        diskless_n.new_path()
+        connections(diskless_n).connect()
+
+    connections(target_n, diskless_n).connect()
+    connections(target_n, diskless_n).event(r'connection .* connection:Connected')
+
+    if test3:
+        connections(source_n).connect()
+        target_n.volumes.event(r'device .* disk:Outdated')
+
+    diskless_n.fio({}, rw='write', size='1M', bs='1M', direct=1, buffer_pattern='"c"')
+
+    log('* Let diskful nodes resync')
+    connections(target_n, source_n).connect()
+    peer_devices(source_n, target_n).event(r'peer-device .* replication:Established')
+    peer_devices(target_n, source_n).event(r'peer-device .* replication:Established')
+
+    datatools.verify_data([source_n, target_n], 10)
+
+    diskless_n.attach()
+    diskless_n.volumes.event(r'device .* disk:UpToDate')
+
+
+log('* Test 1')
+test1(node_a, node_b, node_c)
+test1(node_c, node_b, node_a)
+
+log('* Test 2')
+test2_and_3(node_a, node_b, node_c)
+test2_and_3(node_c, node_b, node_a)
+
+log('* Test 3')
+test2_and_3(node_b, node_c, node_a, test3=True)
 
 log('* Shut down and clean up.')
 resource.down()

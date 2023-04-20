@@ -22,7 +22,7 @@ def verify_data(nodes, size_mb=None, backing_disk=False):
     for n in nodes:
         filename = n.volumes[0].disk if backing_disk else n.volumes[0].device()
 
-        if n.host.drbd_version_tuple < (9, 0, 0):
+        if n.host.drbd_version_tuple < (9, 0, 0) and not backing_disk:
             n.primary()
             md5sums.append(_read_md5sum(n, filename, count_arg))
             n.secondary()

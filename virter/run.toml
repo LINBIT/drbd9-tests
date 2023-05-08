@@ -1,3 +1,5 @@
+version = 1
+
 [values]
 ScratchDisk = "/dev/sda"
 TestSuiteImage = "drbd9-tests"
@@ -49,16 +51,16 @@ SCRATCH_DISK = "{{.ScratchDisk}}"
 DRBD_TEST_RDMA = "{{.RDMA}}"
 
 [[steps]]
-[steps.docker]
+[steps.container]
 image = "{{.TestSuiteImage}}"
-[steps.docker.env]
+[steps.container.env]
 DRBD_TESTS_DIR = "{{.TestsDir}}"
 SCRATCH_DISK = "{{.ScratchDisk}}"
 DRBD_TEST_STORAGE = "{{.Storage}}"
 DRBD_TEST_RDMA = "{{.RDMA}}"
 DRBD_VERSION = "{{.DrbdVersion}}"
 DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
-[steps.docker.copy]
+[steps.container.copy]
 source = "/log"
 dest = "{{.OutDir}}"
 

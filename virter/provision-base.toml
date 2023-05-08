@@ -1,3 +1,5 @@
+version = 1
+
 [values]
 # KernelPackage is a path to a kernel package file to be installed
 KernelPackage = ""

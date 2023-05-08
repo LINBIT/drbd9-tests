@@ -1,16 +1,22 @@
 [[variants]]
 name = "tcp"
+vm_tags = [ "distro" ]
 
 [[variants]]
 name = "rdma"
-vm_tags = [ "rdma" ]
+vm_tags = [ "rdma", "distro" ]
 variables = { RDMA = "true" }
 
 [[variants]]
 name = "raw"
+vm_tags = [ "distro" ]
 variables = { Storage = "raw" }
 
 [[variants]]
 name = "zfs"
-vm_tags = [ "zfs" ]
+vm_tags = [ "zfs", "distro" ]
 variables = { Storage = "zfs" }
+
+[[variants]]
+name = "mainline"
+vm_tags = [ "mainline" ]

@@ -7,8 +7,8 @@ KernelPackage = ""
 # When neither KernelPackage nor KernelRelease is set, the kernel will not be replaced.
 KernelRelease = ""
 # KernelRepositoryURL is the URL for the repository containing the kernel package.
-# Only supported on rpm based distributions.
 KernelRepositoryURL = ""
+RepositoryDistribution = "" # for apt, e.g. bionic
 
 # Disable SELinux
 [[steps]]
@@ -86,7 +86,7 @@ dest = "/opt/packages-kernel/"
 [[steps]]
 [steps.shell]
 script = '''
-set -e
+set -e -o pipefail
 
 mkdir -p /opt/packages-kernel
 install_package=$(find /opt/packages-kernel -type f)
@@ -150,14 +150,23 @@ kernel::rpm() {
 	fi
 }
 
+# Usage: <regex>
+# Searches available packages for a regex, printing the matching package name
+deb_regex() {
+	apt-cache show "$1" | sed -nr 's/^Package: (.*)$/\1/p'
+}
+
 kernel::deb() {
-	[ -z "$install_package" ] && install_package="linux-image-$KERNEL_RELEASE-generic"
+	[ -n "$KERNEL_REPOSITORY_URL" ] && echo deb [trusted=yes] $KERNEL_REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/kernel.list
+	apt-get update
+
+	[ -z "$install_package" ] && install_package=$(deb_regex "^linux-image-$KERNEL_RELEASE(-generic)?$")
 
 	# Prevent the newest kernel from being installed automatically
 	apt-get autoremove -y linux-virtual linux-image-virtual
 
 	dpkg-query -f '${Package}\n' -W "linux-image-*" | grep 'linux-image-[0-9]\+' | sort > /tmp/had
-	apt-get update && apt-get install -y "$install_package"
+	apt-get install -y "$install_package"
 	dpkg-query -f '${Package}\n' -W "linux-image-*" | grep 'linux-image-[0-9]\+' | sort > /tmp/have
 
 	for k in $(comm -12 /tmp/had /tmp/have); do
@@ -183,6 +192,7 @@ rm -f /tmp/ha{d,ve}
 [steps.shell.env]
 KERNEL_RELEASE = "{{.KernelRelease}}"
 KERNEL_REPOSITORY_URL = "{{.KernelRepositoryURL}}"
+REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
 DEBIAN_FRONTEND = "noninteractive"
 
 # Install packages

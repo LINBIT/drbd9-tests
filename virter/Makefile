@@ -8,11 +8,12 @@ base_image_%:
 	@printf "Building base image: $*\n"
 	VM_JSON="$$(rq -t < vms.toml | jq '[.vms[] | select( .base_image == "$*" )] | first')" && \
 	printf "Image definition: %s\n" "$$VM_JSON" && \
-	get_meta() { printf %s "$$VM_JSON" | jq -r ".metadata.$$1" ; } && \
-	virter image build "$$(get_meta SourceImage)" "$(or $(BASE_IMAGE_NAME),$*)" \
+	get_key() { printf %s "$$VM_JSON" | jq -r ".$$1 // empty" ; } && \
+	virter image build "$$(get_key metadata.SourceImage)" "$(or $(BASE_IMAGE_NAME),$*)" \
 		--id $(VIRTER_BUILD_ID) \
-		--set values.KernelRelease="$$(get_meta KernelRelease)" \
-		--set values.KernelRepositoryURL="$$(get_meta KernelRepositoryURL)" \
+		--set values.KernelRelease="$$(get_key metadata.KernelRelease)" \
+		--set values.KernelRepositoryURL="$$(get_key metadata.KernelRepositoryURL)" \
+		--set values.RepositoryDistribution="$$(get_key values.RepositoryDistribution)" \
 		-p provision-base.toml
 
 pull_source_images:

@@ -178,10 +178,16 @@ class Tee(object):
         self.streams = set()
 
     def add(self, stream):
-        self.streams.add(stream)
+        # Do not modify self.streams in place. Another thread may be iterating over it.
+        streams = set(self.streams)
+        streams.add(stream)
+        self.streams = streams
 
     def remove(self, stream):
-        self.streams.remove(stream)
+        # Do not modify self.streams in place. Another thread may be iterating over it.
+        streams = set(self.streams)
+        streams.remove(stream)
+        self.streams = streams
 
     def write(self, message):
         for stream in self.streams:

@@ -13,7 +13,7 @@ from subprocess import CalledProcessError
 
 resource = drbdtest.setup_resource(nodes=3)
 diskful_nodes = resource.nodes[:2]
-node_a, node_b = diskful_nodes
+node_a, node_b, node_c = resource.nodes
 resource.add_disk('100M', max_peers=3, diskful_nodes=diskful_nodes) # That is one spare to keep day0 bitmap
 
 for n in diskful_nodes:
@@ -29,6 +29,8 @@ node_a.write()
 
 log('* node_b gets lost')
 node_b.down()
+node_a.drbdadm(['del-peer', '{}:{}'.format(resource.name, node_b.name)])
+node_a.drbdadm(['forget-peer', '{}:{}'.format(resource.name, node_b.name)])
 
 log('* remaining nodes form new current UUID')
 node_a.write()
@@ -38,10 +40,15 @@ log('* node_b is repaired but returns with an empty disk (day0 current UUID)')
 node_b.fio_file(node_b.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
 
 node_b.volumes[0].create_md(max_peers=3)
-node_b.set_gi(node_b.volumes[0], '87236C45CB784220')
+node_b.set_gi(node_b.volumes[0], '87236C45CB784220',
+        flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE)
 
+# connect to node_b again
+node_a.adjust()
+# bring node_b up
 node_b.adjust()
 node_b.volumes.event(r'device .* disk:UpToDate')
+peer_devices(node_a, node_b).event(r'peer-device .* peer-disk:UpToDate')
 
 log('* Shut down and clean up.')
 resource.down()

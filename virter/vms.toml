@@ -6,6 +6,7 @@ provision_file = "provision-test.toml"
 base_image = "alma-9-drbd-k70"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not available
 vm_tags = [ "discard-stat", "distro" ]
 
@@ -25,6 +26,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel9
 base_image = "alma-8-drbd-k348"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module prints:
 # Warning: Soft-RoCE Transport Driver - This driver has not undergone sufficient testing by Red Hat for this release and therefore cannot be used in production systems.
 vm_tags = [ "discard-stat", "distro" ]
@@ -45,6 +47,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 base_image = "alma-8-drbd-k305"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. Connection frequently fails with "repost of tx_desc failed! -104".
 vm_tags = [ "discard-stat", "distro" ]
 
@@ -64,6 +67,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 base_image = "alma-8-drbd-k147"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "rdma", "distro" ]
 
 [vms.values]
@@ -82,6 +86,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 base_image = "centos-7-drbd-k1160"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "rdma", "distro" ]
 
 [vms.values]
@@ -100,6 +105,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 base_image = "centos-7-drbd-k862"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "rdma", "distro" ]
 
 [vms.values]
@@ -118,6 +124,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 base_image = "ubuntu-bionic-drbd-k210"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
 vm_tags = [ "zfs", "distro" ]
 
@@ -137,6 +144,7 @@ SourceImage = "ubuntu-bionic"
 base_image = "ubuntu-focal-drbd-k148"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
 vm_tags = [ "discard-stat", "zfs", "distro" ]
 
@@ -156,6 +164,7 @@ SourceImage = "ubuntu-focal"
 base_image = "ubuntu-jammy-drbd-k69"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
 vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro" ]
 
@@ -174,6 +183,7 @@ SourceImage = "ubuntu-jammy"
 base_image = "mainline-drbd-k6.3.0"
 vcpus = 2
 memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
 # No ZFS support in upstream Linux
 vm_tags = [ "discard-stat", "dm-ebs", "mainline" ]

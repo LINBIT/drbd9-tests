@@ -94,26 +94,12 @@ die() {
 }
 
 mkdir -p /opt/packages-kernel
-install_package=$(find /opt/packages-kernel -type f)
+package_files=$(find /opt/packages-kernel -type f)
 
-[ -z "$KERNEL_RELEASE" -a -z "$install_package" ] && exit 0
+[ -z "$KERNEL_RELEASE" -a -z "$package_files" ] && exit 0
 
 # transform "." -> "\." for usage in regexes
 kernel_release_regex=${KERNEL_RELEASE//./\\.}
-
-# Install a package from a specific repo, reinstalling if necessary. If the
-# package is a file, it will be installed as usual.
-rpm_install_repo() {
-	local repo="$1"
-	local package="$2"
-	if [ -e "$package" ] ; then
-		yum install -y "$package"
-	elif rpm -q "$package" ; then
-		yum reinstall -y --disablerepo=* --enablerepo="$repo" "$package"
-	else
-		yum install -y --disablerepo=* --enablerepo="$repo" "$package"
-	fi
-}
 
 # usage: <regex>
 # assert that there is exactly one kernel installed, and that it maches the specified regex
@@ -130,7 +116,6 @@ kernel::rpm() {
 	else
 		kernel_prefix=kernel
 	fi
-	[ -z "$install_package" ] && install_package="${kernel_prefix}-$KERNEL_RELEASE.$(uname -m)"
 
 	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/kernel.repo
@@ -142,29 +127,53 @@ kernel::rpm() {
 		EOF
 	fi
 
+	reinstall_packages=""
+	install_packages=""
+	# also install kernel-modules{,-core,-extra} if available
+	for package_name in ${kernel_prefix} kernel-modules kernel-modules-core kernel-modules-extra; do
+		package_versioned=${package_name}-$KERNEL_RELEASE.$(uname -m)
+		if yum list --disablerepo=* --enablerepo=drbd-kernel --showduplicates "$package_versioned"; then
+			if rpm -q "$package_versioned"; then
+				reinstall_packages="$reinstall_packages $package_versioned"
+			else
+				install_packages="$install_packages $package_versioned"
+			fi
+		fi
+	done
+
 	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/had
-	rpm_install_repo drbd-kernel "$install_package"
+	[ -n "$package_files" ] && yum install -y $package_files
+	[ -n "$reinstall_packages" ] && yum reinstall -y --disablerepo=* --enablerepo=drbd-kernel $reinstall_packages
+	[ -n "$install_packages" ] && yum install -y --disablerepo=* --enablerepo=drbd-kernel $install_packages
 	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/have
 
+	# This package can block downgrade to older kernel
+	rpm -q shim-x64 && rpm -e shim-x64
+
+	# Search through kernel packages which we did not just add to remove those we do not need
 	for k in $(comm -12 /tmp/had /tmp/have); do
-		[ "$k" = "$install_package" ] && continue
+		# Do not remove packages we deliberately reinstalled.
+		printf '%s' "$reinstall_packages" | tr ' ' '\n' | grep -F "$k" && continue
 
 		to_remove=$k
+
 		# On RHEL8 the kernel package is called kernel-core, but we
-		# want to remove the kernel metapackage. For AlmaLinux we have
-		# to explicitly remove the kernel-core and kernel-modules
-		# packages too.
-		[ "$kernel_prefix" = "kernel-core" ] && to_remove="${k/kernel-core/kernel} $k ${k/kernel-core/kernel-modules}"
+		# want to remove the kernel metapackage.
+		[ "$kernel_prefix" = "kernel-core" ] && to_remove="$to_remove ${k/kernel-core/kernel}"
+
+		# Explicitly remove the modules packages too.
+		for package_name in kernel-modules kernel-modules-core kernel-modules-extra; do
+			remove_package=${k/$kernel_prefix/$package_name}
+			if rpm -q $remove_package; then
+				to_remove="$to_remove $remove_package"
+			fi
+		done
 
 		printf "Removing '%s'\n" "$to_remove"
 		# yum autoremove does not like to remove the running kernel
 		rpm -e $to_remove
 	done
 
-	# also install kernel-modules-extra if available
-	if yum list kernel-modules-extra-$KERNEL_RELEASE; then
-		rpm_install_repo drbd-kernel "kernel-modules-extra-$KERNEL_RELEASE"
-	fi
 	assert_installed_kernel "^vmlinuz-${kernel_release_regex}\.x86_64$"
 }
 
@@ -178,12 +187,13 @@ kernel::deb() {
 	[ -n "$KERNEL_REPOSITORY_URL" ] && echo deb [trusted=yes] $KERNEL_REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/kernel.list
 	apt-get update
 
-	[ -z "$install_package" ] && install_package=$(deb_regex "^linux-image-${kernel_release_regex}(-generic)?$")
+	install_package=$(deb_regex "^linux-image-${kernel_release_regex}(-generic)?$")
 
 	# Prevent the newest kernel from being installed automatically
 	apt-get autoremove -y linux-virtual linux-image-virtual
 
 	dpkg-query -f '${Package}\n' -W "linux-image-*" | grep 'linux-image-[0-9]\+' | sort > /tmp/had
+	[ -n "$package_files" ] && apt-get install -y "$package_files"
 	apt-get install -y "$install_package"
 	dpkg-query -f '${Package}\n' -W "linux-image-*" | grep 'linux-image-[0-9]\+' | sort > /tmp/have
 

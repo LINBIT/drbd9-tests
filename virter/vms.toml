@@ -3,6 +3,26 @@ name = "t"
 provision_file = "provision-test.toml"
 
 [[vms]]
+base_image = "alma-9-drbd-k284"
+vcpus = 2
+memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
+# No RDMA support. rdma_rxe module not available
+vm_tags = [ "discard-stat", "distro" ]
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.2/drbd-9/$basearch/"
+
+[vms.metadata]
+BuildDistribution = "rhel9.2"
+BuildKernel = "5.14.0-284.11.1.el9_2"
+KernelRelease = "5.14.0-284.11.1.el9_2"
+SourceImage = "alma-9"
+KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel9/"
+
+
+[[vms]]
 base_image = "alma-9-drbd-k70"
 vcpus = 2
 memory = "1G"
@@ -23,7 +43,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel9
 
 
 [[vms]]
-base_image = "alma-8-drbd-k348"
+base_image = "alma-8-drbd-k477"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -33,32 +53,12 @@ vm_tags = [ "discard-stat", "distro" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.5/drbd-9/$basearch/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.8/drbd-9/$basearch/"
 
 [vms.metadata]
-BuildDistribution = "rhel8.5"
-BuildKernel = "4.18.0-348.el8"
-KernelRelease = "4.18.0-348.2.1.el8_5"
-SourceImage = "alma-8"
-KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
-
-
-[[vms]]
-base_image = "alma-8-drbd-k305"
-vcpus = 2
-memory = "1G"
-disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-# No RDMA support. Connection frequently fails with "repost of tx_desc failed! -104".
-vm_tags = [ "discard-stat", "distro" ]
-
-[vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.4/drbd-9/$basearch/"
-
-[vms.metadata]
-BuildDistribution = "rhel8.4"
-BuildKernel = "4.18.0-305.el8"
-KernelRelease = "4.18.0-305.25.1.el8_4"
+BuildDistribution = "rhel8.8"
+BuildKernel = "4.18.0-477.10.1.el8_8"
+KernelRelease = "4.18.0-477.10.1.el8_8"
 SourceImage = "alma-8"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8/"
 

@@ -55,7 +55,7 @@ prepare:base_image:
       mkdir -p base-image-build-log
       make -s print_base_images | \
         parallel --line-buffer --tag \
-          ./build-push-base-image.sh '{%}' '{}' "2>&1" "|" tee 'base-image-build-log/{}'
+          ./build-push-base-image.sh '{%}' '{}'
   artifacts:
     paths:
       - virter/base-image-build-log

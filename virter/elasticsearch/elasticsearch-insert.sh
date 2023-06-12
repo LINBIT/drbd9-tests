@@ -62,6 +62,7 @@ ci_tests="$(printf '%s' "$ci_tests_config" | rq -t | jq -c '.tests | to_entries 
 echo "CI Tests: $ci_tests"
 
 cat "$results_file" | jq -c '
+select( .status != "SKIPPED" and .status != "CANCELED" and .status != "ERROR" ) |
 { index: { _id: ( "'"$CI_JOB_ID-"'" + .id ) } },
 (
 	(.name + "-" + (.vm_count | tostring)) as $nc |

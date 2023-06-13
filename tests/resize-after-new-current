@@ -1,0 +1,48 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+
+# This test ensures that the nodes have the correct UUIDs for each other after
+# a new current UUID from a diskless node. A resize after the new current UUID
+# causes the SyncTarget to set its current UUID to value it believes the peer
+# has. The current UUIDs are then validated by ensuring that a bitmap-based
+# resync occurs rather than a full resync.
+#
+# This was broken up to (including) drbd-9.1.15 (and 9.2.4). Specifically, the
+# final resync is a full resync.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a, node_b, node_diskless = resource.nodes
+diskful_nodes = drbdtest.Nodes([node_a, node_b])
+
+resource.add_disk('20M', diskful_nodes=diskful_nodes)
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+node_diskless.primary()
+node_diskless.write(direct=1)
+
+log('* Resize, syncing from {}'.format(node_a.name))
+diskful_nodes.volumes.resize('40M')
+node_a.drbdadm(['resize', resource.name])
+peer_devices(node_b, node_a).event(r'peer-device .* replication:SyncTarget')
+peer_devices(node_b, node_a).event(r'peer-device .* replication:Established')
+
+log('* Trigger small resync to {}'.format(node_b.name))
+node_b.down()
+node_diskless.write(direct=1)
+node_b.up()
+
+log('* Wait for bitmap-based resync')
+peer_devices(node_b, node_a).event(r'peer-device .* replication:SyncTarget .* out-of-sync:4')
+
+node_diskless.secondary()
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

@@ -1,0 +1,79 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+#
+# This test exercises:
+# 1: A cluster of 3 nodes. A and B with a backing disk, C diskless.
+# A is primary
+#
+#   A---B
+#    \ /
+#     C
+#
+# 2: A has a request timeout towards B and closes to connection towards B.
+# (Note that B has not yet realized that the connection to A is down)
+# A starts a new-data-generation now, since it continues to write after
+# it closed the connection.
+#
+#   A  -B
+#    \ /
+#     C
+#
+# 3: A demotes to secondary. C and B are part of that cluster-wide state
+# transition. B now knows that A is no longer a primary.
+#
+#   A  -B
+#    \ /
+#     C
+#
+# 4: Finally, B realizes that the TCP connections to A no longer exist.
+#
+#   A   B
+#    \ /
+#     C
+#
+# 5: Now, B is free to promote.
+#
+#
+# This was broken up to (including) drbd-9.1.15 (and 9.2.4).
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup_resource(nodes=3)
+
+A, B = resource.nodes[:2]
+resource.add_disk('10M', diskful_nodes=[A, B])
+resource.resource_options = 'quorum majority;'
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+conn_A_B = connections(A, B)
+conn_B_A = connections(B, A)
+
+# TCP connection breakage expected...
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+
+A.primary()
+A.write(size='4K', direct=1)
+conn_B_A.block(jump_to="DROP")
+conn_A_B.disconnect(force=True, wait=False)
+# B does not see that A closed the TCP connections
+A.write(size='8K', direct=1)
+A.secondary()
+
+try:
+    B.write(size='4K', direct=1)
+    raise RuntimeError('Oh no, the brain is split!')
+except CalledProcessError:
+    pass # expected outcome
+
+B.volumes.event(r'device .* disk:Outdated', timeout=5) # double check
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

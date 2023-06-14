@@ -51,6 +51,17 @@ resource.forbidden_patterns.difference_update([
     r'connection:Timeout',
 ])
 
+def wait_twopc_finished(res):
+    while True:
+        nodes_with_2pc = 0
+        for node in res.nodes:
+            tid = node.twopc_tid()
+            if tid is not None:
+                nodes_with_2pc += 1
+        if nodes_with_2pc == 0:
+            return
+        time.sleep(0.05)
+
 def sectors_received(node, res_name, peer_node_id):
     result = node.run(['drbdsetup', 'status', res_name, '--json'], return_stdout=True)
     status = json.loads(result)[0]
@@ -94,6 +105,7 @@ def do_test(with_promote):
         raise Exception('No recieve progress!')
 
     #resource.forbidden_patterns.difference_update([r'connection:NetworkFailure'])
+    wait_twopc_finished(resource)
     conn_quick.block()
     log('* Blocked network connetion to both secondaries')
 

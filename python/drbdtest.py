@@ -151,6 +151,7 @@ devnull = open(os.devnull, 'w')
 # stream to write output to
 logstream = None
 
+state_twopc_regex = re.compile(r'Executing tid: (\d+)')
 
 class MetadataFlag(Flag):
     CONSISTENT = auto()
@@ -2126,6 +2127,16 @@ class Node():
 
     def disable_fault_injection(self, volume):
         self.host.run_helper('disable-faults', ['--devs=%d' % (1 << volume.minor)])
+
+    def twopc_tid(self):
+        text = self.run(['cat',
+                         '/sys/kernel/debug/drbd/resources/{}/state_twopc'.format(self.resource.name)],
+                        return_stdout=True)
+        match = state_twopc_regex.search(text)
+        if match:
+            return int(match.group(1))
+
+        return None
 
 
 def skip_test(text):

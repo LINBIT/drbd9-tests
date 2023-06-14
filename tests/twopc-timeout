@@ -7,22 +7,9 @@
 # two-phase-commit on the passive/target node.
 #
 
-import re
 import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
-
-state_twopc_regex = re.compile(r'Executing tid: (\d+)')
-
-def twopc_tid(res, node):
-    text = node.run(['cat',
-                     '/sys/kernel/debug/drbd/resources/{}/state_twopc'.format(res.name)],
-                    return_stdout=True)
-    match = state_twopc_regex.search(text)
-    if match:
-        return int(match.group(1))
-
-    return None
 
 def wait_twopc_started_on_all(res):
     while True:
@@ -31,7 +18,7 @@ def wait_twopc_started_on_all(res):
         for node in res.nodes:
             if tid is not None:
                 p_tid = tid
-            tid = twopc_tid(res, node)
+            tid = node.twopc_tid()
             if p_tid is not None:
                 assert(p_tid == tid)
 
@@ -41,7 +28,7 @@ def wait_twopc_started_on_all(res):
 
 def wait_twopc_completed(res, node, complete_tid):
     while True:
-        tid = twopc_tid(res, node)
+        tid = node.twopc_tid()
         if tid != complete_tid:
             return tid
         time.sleep(0.1)

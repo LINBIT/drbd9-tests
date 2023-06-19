@@ -77,6 +77,24 @@ node_a.write()
 
 recreate_node(node_b)
 
+resource.add_node(node_c)
+resource.nodes.adjust()
+connections(node_c, bidir=True).event(r'peer-device .* peer-disk:(UpToDate|Diskless)')
+
+
+# The case below was broken up to DRBD 9.1.15/9.2.4 inclusive.
+# Fixed by the following DRBD commit:
+# 773c5cdc7723 drbd: reset diskless peer slot to day0 UUID when forgetting
+log('*** delete diskless node, then delete and recreate diskful node')
+delete_node(node_c)
+resource.remove_node(node_c)
+
+delete_node(node_b)
+
+log('* remaining nodes form new current UUID')
+node_a.write()
+
+recreate_node(node_b)
 
 log('* Shut down and clean up.')
 resource.down()

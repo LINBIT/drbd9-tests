@@ -10,9 +10,10 @@
 
 # TODO: Execute all possible orders of nodes joining the primary
 
+import time
+
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
-from subprocess import CalledProcessError
 
 resource = drbdtest.setup_resource(nodes=3)
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
@@ -27,9 +28,9 @@ resource.skip_initial_sync()
 [node_a, node_b, node_c] = resource.nodes
 dev_name = node_a.volumes[0].device()
 
+log('* Create 3 different data generations')
 node_a.primary()
-connections_to_a = connections(to_node=node_a)
-connections_to_a.event(r'connection .* role:Primary')
+connections(to_node=node_a).event(r'connection .* role:Primary')
 
 connections(node_c).disconnect()
 node_a.write()
@@ -37,20 +38,37 @@ node_a.write()
 connections(node_b).disconnect()
 node_a.write()
 
+log('* Resync from newest to oldest data')
 connections(node_c, node_a).connect()
 node_c.volumes.event(r'device .* disk:UpToDate')
 
-connections_bc = connections(node_b, node_c, bidir=True)
-connections_bc.connect()
-connections_bc.event(r'connection .* connection:Connected')
+log('* Start resync to remaining node')
+connections(node_b, node_c, bidir=True).connect()
+connections(node_b, node_c, bidir=True).event(r'connection .* connection:Connected')
 
-connection_bc = connections(node_b, node_c)
-peer_devices_bc = drbdtest.PeerDevices.from_connections(connection_bc)
-peer_devices_bc.event(r'peer-device .* replication:SyncTarget')
+ev_first = peer_devices(node_b, node_c).event(r'peer-device .* replication:SyncTarget .* out-of-sync:(\d+)')
+amount_first = int(ev_first[0][0])
 
-connection_ba = connections(node_b, node_a)
-connection_ba.connect();
-connection_ba.event(r'connection .* connection:Connected')
+# Let the resync run a bit
+time.sleep(1.0)
+
+log('* Restart resync to remaining node')
+connections(node_b, node_c).disconnect()
+connections(node_b, node_c).connect()
+
+ev_second = peer_devices(node_b, node_c).event(r'peer-device .* replication:SyncTarget .* out-of-sync:(\d+)')
+amount_second = int(ev_second[0][0])
+
+# This was broken up to DRBD 9.1.15/9.2.4 inclusive.
+# Fixed by the following DRBD commit:
+# f647d1f7fff6 drbd: set bitmap UUID when setting bitmap slot
+if amount_second >= amount_first:
+    raise RuntimeError('Second resync ({}) not smaller than first resync ({})'.format(
+        amount_second, amount_first))
+
+log('* Allow remaining node to resync from original primary')
+connections(node_b, node_a).connect();
+connections(node_b, node_a).event(r'connection .* connection:Connected')
 
 node_b.volumes.event(r'device .* disk:UpToDate')
 

@@ -1,0 +1,75 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+#
+# The test adds new volumes to a resource that has already established
+# connections.
+#
+# Test 1 first adds the new minor to all nodes and waits until every
+# node recognizes that the other nodes also added that minor. After
+# that, it continues with attaching the backing disks. This method
+# works with older DRBD releases.
+# (Probably, it was only tested this way)
+#
+# Test 2 uses `adjust` on the nodes in parallel. This test fails up to
+# drbd-9.1.15 and drbd-9.2.4.
+#
+# Test 3 skips the initial resync
+#
+
+import time
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+def dynamic_add_disk(step_by_step=False):
+    vol_nr = resource.add_disk('10M')
+    log('* Adding new disk {}.'.format(vol_nr))
+
+    if step_by_step:
+        resource.volumes_by_vnr(vol_nr).new_minor()
+        resource.volumes_by_vnr(vol_nr).event(r'device .* disk:Diskless')
+        resource.peer_devices_by_vnr(vol_nr).event(r'peer-device .* peer-disk:Diskless')
+
+    resource.nodes.adjust()
+
+    # The local  Diskless -> Attaching -> Inconsistent appears in random
+    # interleaving with the remote Diskless -> Negotiating -> Inconsistent.
+    # Both need to end up as 'Inconsistent' after this.
+    resource.volumes_by_vnr(vol_nr).event(r'device .* disk:Inconsistent', r'peer-device .* peer-disk:Inconsistent')
+
+    return vol_nr
+
+def assert_resync(from_node, vol_nr):
+    from_node.peer_devices_by_vnr(vol_nr).event(r'peer-device .* replication:SyncSource')
+    from_node.peer_devices_by_vnr(vol_nr).event(r'peer-device .* replication:Established')
+
+
+resource = drbdtest.setup_resource(nodes=3)
+resource.disk_options = 'c-max-rate 10M;'
+resource.add_disk('10M')
+
+node_a, node_b, node_c = resource.nodes
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+node_a.primary()
+
+log('* Test 1, step-by-step')
+vol_nr = dynamic_add_disk(step_by_step=True)
+node_a.drbdadm(['new-current-uuid', '--force-resync', '{}/{}'.format(resource.name, vol_nr)])
+assert_resync(node_a, vol_nr)
+
+log('* Test 2, in-one-go')
+vol_nr = dynamic_add_disk()
+node_a.drbdadm(['new-current-uuid', '--force-resync', '{}/{}'.format(resource.name, vol_nr)])
+assert_resync(node_a, vol_nr)
+
+log('* Test 3, in-one-go, no resync')
+vol_nr = dynamic_add_disk()
+node_a.drbdadm(['new-current-uuid', '--clear-bitmap', '{}/{}'.format(resource.name, vol_nr)])
+resource.volumes_by_vnr(vol_nr).event(r'device .* disk:UpToDate', no=r'peer-device .* replication:Sync(Source|Target)')
+
+resource.down()
+resource.cluster.teardown()

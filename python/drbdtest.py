@@ -565,6 +565,10 @@ class Volumes(Collection):
         for v in self:
             v.new_current_uuid()
 
+    def new_minor(self):
+        for v in self:
+            v.new_minor()
+
 
 class Connections(Collection):
     def __init__(self, members=[]):
@@ -859,6 +863,8 @@ class Resource(object):
         for volume in diskful_volumes:
             volume.create_md(max_peers)
 
+        return volume_number
+
     volumes = property(lambda self: self.nodes.volumes)
     connections = property(lambda self: self.nodes.connections)
     peer_devices = property(lambda self: self.nodes.peer_devices)
@@ -1010,6 +1016,12 @@ class Resource(object):
         self.name = new_name
         self.touch_config()
 
+    def volumes_by_vnr(self, vnr):
+        return Volumes([v for v in self.volumes if v.volume == vnr])
+
+    def peer_devices_by_vnr(self, vnr):
+        return PeerDevices([pd for pd in self.peer_devices if pd.volume.volume == vnr])
+
 class Volume(object):
     def __init__(self, node, volume, minor=None):
         if volume is None:
@@ -1109,6 +1121,9 @@ class Volume(object):
 
     def new_current_uuid(self):
         self.node.drbdadm(['new-current-uuid', '{}/{}'.format(self.node.resource.name, self.volume)])
+
+    def new_minor(self):
+        self.node.drbdadm(['new-minor', '{}/{}'.format(self.node.resource.name, self.volume)])
 
 class Connection(object):
     def __init__(self, node1, node2):
@@ -2138,6 +2153,11 @@ class Node():
 
         return None
 
+    def volume_by_vnr(self, vol_nr):
+        return next(v for v in self.resource.volumes_by_vnr(vol_nr) if v.node == self)
+
+    def peer_devices_by_vnr(self, vol_nr):
+        return PeerDevices([pd for pd in self.resource.peer_devices_by_vnr(vol_nr) if pd.volume.node == self])
 
 def skip_test(text):
     print(text, file=sys.stderr)

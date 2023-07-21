@@ -1209,6 +1209,12 @@ class PeerDevice(object):
     def verify(self, wait=True, options=[]):
         PeerDevices([self]).verify(self, wait, options)
 
+    def diskful(self):
+        vol_nr = self.volume.volume
+        node1, node2 = self.connection.nodes
+        return node1.volume_by_vnr(vol_nr).disk_volume is not None and \
+            node2.volume_by_vnr(vol_nr).disk_volume is not None
+
 class AsPrimary(object):
 
     def __init__(self, node, force=False):

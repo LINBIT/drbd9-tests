@@ -1,8 +1,8 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+### vmshed: { "vms_all": [4], "vms_ci": null, "drbd_version_min": "9.0" }
 #
 # The test adds new volumes to a resource that has already established
-# connections.
+# connections. The resource has a diskless node as well.
 #
 # Test 1 first adds the new minor to all nodes and waits until every
 # node recognizes that the other nodes also added that minor. After
@@ -21,7 +21,8 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
 def dynamic_add_disk(step_by_step=False):
-    vol_nr = resource.add_disk('10M')
+    diskful_nodes = [n for n in resource.nodes if n.volumes[0].disk_volume is not None]
+    vol_nr = resource.add_disk('10M', diskful_nodes=diskful_nodes)
     log('* Adding new disk {}.'.format(vol_nr))
 
     if step_by_step:
@@ -34,20 +35,23 @@ def dynamic_add_disk(step_by_step=False):
     # The local  Diskless -> Attaching -> Inconsistent appears in random
     # interleaving with the remote Diskless -> Negotiating -> Inconsistent.
     # Both need to end up as 'Inconsistent' after this.
-    resource.volumes_by_vnr(vol_nr).event(r'device .* disk:Inconsistent', r'peer-device .* peer-disk:Inconsistent')
+    diskful_vols = drbdtest.Volumes([v for v in resource.volumes_by_vnr(vol_nr) if v.disk_volume is not None])
+    diskful_vols.event(r'device .* disk:Inconsistent', r'peer-device .* peer-disk:Inconsistent')
 
     return vol_nr
 
 def assert_resync(from_node, vol_nr):
-    from_node.peer_devices_by_vnr(vol_nr).event(r'peer-device .* replication:SyncSource')
-    from_node.peer_devices_by_vnr(vol_nr).event(r'peer-device .* replication:Established')
+    diskful_pds = drbdtest.PeerDevices([pd for pd in from_node.peer_devices_by_vnr(vol_nr) if pd.diskful()])
+    diskful_pds.event(r'peer-device .* replication:SyncSource')
+    diskful_pds.event(r'peer-device .* replication:Established')
 
 
-resource = drbdtest.setup_resource(nodes=3)
+resource = drbdtest.setup_resource(nodes=4)
 resource.disk_options = 'c-max-rate 10M;'
-resource.add_disk('10M')
+diskful_nodes = resource.nodes[:-1]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
 
-node_a, node_b, node_c = resource.nodes
+node_a, node_b, node_c, diskless_node_d = resource.nodes
 
 resource.up_wait()
 
@@ -69,7 +73,8 @@ assert_resync(node_a, vol_nr)
 log('* Test 3, in-one-go, no resync')
 vol_nr = dynamic_add_disk()
 node_a.drbdadm(['new-current-uuid', '--clear-bitmap', '{}/{}'.format(resource.name, vol_nr)])
-resource.volumes_by_vnr(vol_nr).event(r'device .* disk:UpToDate', no=r'peer-device .* replication:Sync(Source|Target)')
+diskful_vols = drbdtest.Volumes([v for v in resource.volumes_by_vnr(vol_nr) if v.disk_volume is not None])
+diskful_vols.event(r'device .* disk:UpToDate', no=r'peer-device .* replication:Sync(Source|Target)')
 
 resource.down()
 resource.cluster.teardown()

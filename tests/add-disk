@@ -79,5 +79,23 @@ diskful_vols = drbdtest.Volumes([v for v in resource.volumes_by_vnr(vol_nr) if v
 diskful_vols.event(r'device .* disk:UpToDate', no=r'peer-device .* replication:Sync(Source|Target)')
 diskless_node_d.peer_devices_by_vnr(vol_nr).event(r'peer-device .* peer-disk:UpToDate')
 
+node_a.secondary()
+
+log('* Test 4, in-one-go, no primary with resync')
+vol_nr = dynamic_add_disk()
+node_c.drbdadm(['new-current-uuid', '--force-resync', '{}/{}'.format(resource.name, vol_nr)])
+assert_resync(node_c, vol_nr)
+diskless_node_d.peer_devices_by_vnr(vol_nr).event(r'peer-device .* peer-disk:UpToDate')
+
+diskless_node_d.primary()
+
+log('* Test 5, in-one-go, diskless is primary with resync')
+vol_nr = dynamic_add_disk()
+node_b.drbdadm(['new-current-uuid', '--force-resync', '{}/{}'.format(resource.name, vol_nr)])
+assert_resync(node_b, vol_nr)
+diskless_node_d.peer_devices_by_vnr(vol_nr).event(r'peer-device .* peer-disk:UpToDate')
+
+diskless_node_d.secondary()
+
 resource.down()
 resource.cluster.teardown()

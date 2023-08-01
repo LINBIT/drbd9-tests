@@ -121,15 +121,11 @@ P_OV_RESULT_ID        = 0x53
 P_RS_DEALLOCATED_ID   = 0x54
 
 fio_write_args = {
-        'bs': '4K',
-        'ioengine': 'sync',
         'verify': 'md5',
         'do_verify': 0,
         'rw': 'write'}
 
 fio_verify_args = {
-        'bs': '4K',
-        'ioengine': 'sync',
         'verify': 'md5',
         'verify_only': 1,
         'rw': 'read'}

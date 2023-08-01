@@ -33,7 +33,7 @@ def do_test(mode):
     target_other_c.disconnect()
 
     diskless_n.resource_options([res_opt_str])
-    diskless_n.fio_file('/mnt/1/file', rw='write', ioengine='sync', size='8K', direct=1)
+    diskless_n.fio_file('/mnt/1/file', rw='write', size='8K', direct=1)
     time.sleep(sleep_time)
 
     if mode == M_NOT_PEER_ACKED:
@@ -47,7 +47,7 @@ def do_test(mode):
         if connection_status['peer_devices'][0]['out-of-sync'] < 8:
             raise Exception("bit(s) not set for the not peer-acked write-request(s)")
         # Create a new current UUID on the primary.
-        diskless_n.fio_file('/mnt/1/file', rw='write', ioengine='sync', size='4K', direct=1)
+        diskless_n.fio_file('/mnt/1/file', rw='write', size='4K', direct=1)
 
     target_other_c.connect()
     other_target_c.connect()

@@ -14,6 +14,8 @@ base_image_%:
 		--set values.KernelRelease="$$(get_key metadata.KernelRelease)" \
 		--set values.KernelRepositoryURL="$$(get_key metadata.KernelRepositoryURL)" \
 		--set values.RepositoryDistribution="$$(get_key values.RepositoryDistribution)" \
+		--set values.ReleaseRepositoryURL="$$(get_key values.ReleaseRepositoryURL)" \
+		--set values.VmTags="$$(get_key vm_tags | jq -r 'join(";")')" \
 		-p provision-base.toml
 
 pull_source_images:

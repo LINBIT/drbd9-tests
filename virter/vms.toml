@@ -8,7 +8,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not available
-vm_tags = [ "discard-stat", "distro" ]
+vm_tags = [ "discard-stat", "distro", "tls" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
@@ -28,7 +28,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not available
-vm_tags = [ "discard-stat", "distro" ]
+vm_tags = [ "discard-stat", "distro", "tls" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
@@ -49,7 +49,7 @@ memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module prints:
 # Warning: Soft-RoCE Transport Driver - This driver has not undergone sufficient testing by Red Hat for this release and therefore cannot be used in production systems.
-vm_tags = [ "discard-stat", "distro" ]
+vm_tags = [ "discard-stat", "distro", "tls" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
@@ -68,7 +68,7 @@ base_image = "alma-8-drbd-k147"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-vm_tags = [ "discard-stat", "rdma", "distro" ]
+vm_tags = [ "discard-stat", "rdma", "distro", "tls" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
@@ -146,7 +146,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat", "zfs", "distro" ]
+vm_tags = [ "discard-stat", "zfs", "distro", "tls" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-focal/"
@@ -166,7 +166,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro" ]
+vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-jammy/"
@@ -186,7 +186,7 @@ memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
 # No ZFS support in upstream Linux
-vm_tags = [ "discard-stat", "dm-ebs", "mainline" ]
+vm_tags = [ "discard-stat", "dm-ebs", "mainline", "tls" ]
 
 [vms.values]
 DrbdRepositoryURL = "https://nexus.at.linbit.com/repository/mainline/"

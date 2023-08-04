@@ -9,6 +9,8 @@ KernelRelease = ""
 # KernelRepositoryURL is the URL for the repository containing the kernel package.
 KernelRepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
+ReleaseRepositoryURL = ""
+VmTags = ""
 
 # Disable SELinux
 [[steps]]
@@ -229,24 +231,56 @@ DEBIAN_FRONTEND = "noninteractive"
 [steps.shell]
 script = """
 set -e
+packages=()
+
+# Read VM_TAGS into array tags without messing up IFS
+IFS=";" read -a tags <<< "$VM_TAGS"
+
+for TAG in ${tags[*]}; do
+	case $TAG in
+	zfs)
+		packages+=("zfsutils-linux")
+		;;
+	tls)
+		packages+=("ktls-utils")
+		;;
+	esac
+done
+
 if command -v yum > /dev/null; then
-	packages="iptables fio lvm2 make python3 gdisk"
+	if [ -n "$RELEASE_REPOSITORY_URL" ]; then
+		cat <<- EOF > /etc/yum.repos.d/linbit.repo
+		[linbit-internal]
+		name=LINBIT Internal
+		baseurl=$RELEASE_REPOSITORY_URL
+		gpgcheck=0
+		enabled=1
+		EOF
+	fi
+
+	packages+=("iptables" "fio" "lvm2" "make" "python3" "gdisk")
 	if ! command -v tc > /dev/null; then
-		packages="$packages iproute-tc"
+		packages+=("iproute-tc")
 	fi
 	yum update -y --exclude=kernel*
-	yum install -y $packages
+	yum install -y ${packages[*]}
 elif command -v apt-get > /dev/null; then
+	[ -n "$RELEASE_REPOSITORY_URL" ] && echo deb [trusted=yes] $RELEASE_REPOSITORY_URL $REPOSITORY_DISTRIBUTION drbd-9 > /etc/apt/sources.list.d/linbit.list
+
+	packages+=("fio" "thin-provisioning-tools" "make" "gdisk")
 	apt-get update
 	apt-get -y upgrade
-	apt-get -y install fio thin-provisioning-tools make zfsutils-linux gdisk
+	apt-get -y install ${packages[*]}
 else
 	echo "Unknown package manager"
 	exit 1
 fi
 """
 [steps.shell.env]
+RELEASE_REPOSITORY_URL = "{{.ReleaseRepositoryURL}}"
+REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
 DEBIAN_FRONTEND = "noninteractive"
+VM_TAGS = "{{ .VmTags }}"
 
 # Install lbdisttool.py (only for yum)
 [[steps]]

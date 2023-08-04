@@ -22,7 +22,7 @@ import signal
 from subprocess import CalledProcessError
 import atexit
 from .ordered_set import OrderedSet
-from . import disktools
+from . import disktools, tls
 import io
 import fnmatch
 
@@ -681,13 +681,14 @@ class Cluster(object):
     In LINSTOR this is roughly equivalent to the "controller".
     """
 
-    def __init__(self, job, logdir, drbd_version, drbd_version_other, resource_name, transport):
+    def __init__(self, job, logdir, drbd_version, drbd_version_other, resource_name, transport, tls):
         self.job = job
         self.logdir = logdir
         self.drbd_version = drbd_version
         self.drbd_version_other = drbd_version_other
         self.resource_name = resource_name
         self.transport = transport
+        self.tls = tls
         self.hosts = []
         self.resources = []
         self.logscan_events = None
@@ -787,7 +788,7 @@ class Cluster(object):
 
     def create_resource(self, name=None):
         resource = Resource(self, self.resource_name if name is None else name,
-                              transport=self.transport)
+                            transport=self.transport, tls=self.tls)
 
         for host in self.hosts:
             Node(host, resource, port=host.next_port())
@@ -816,7 +817,7 @@ class Resource(object):
     In LINSTOR this is called a "resource definition".
     """
 
-    def __init__(self, cluster, name, transport):
+    def __init__(self, cluster, name, transport, tls):
         self.cluster = cluster
         self.name = name
         self._net_options = ""
@@ -828,6 +829,7 @@ class Resource(object):
         self.nodes = Nodes()
         self.num_volumes = 0
         self.transport = transport
+        self.tls = tls
         self.forbidden_patterns = OrderedSet()
         self.forbidden_patterns.update([
             r'connection:Timeout',
@@ -1883,7 +1885,9 @@ class Node():
 
             with ConfigBlock(t='net') as net:
                 if resource.transport:
-                    net.write('transport "{}";'.format(resource.transport));
+                    net.write('transport "{}";'.format(resource.transport))
+                if resource.tls == 'yes':
+                    net.write('tls {};'.format(resource.tls))
                 if self._fencing_mode and self.host.drbd_version_tuple >= (9, 0, 0):
                     net.write('fencing {};'.format(self._fencing_mode))
                 net.write(resource._net_options)
@@ -2223,6 +2227,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
     parser.add_argument('--transport', choices=('tcp', 'lb-tcp', 'rdma'))
+    parser.add_argument('--tls', default='no', choices=('yes', 'no'))
     parser.add_argument('--override-max', action="store_true")
     parser.add_argument('--report-and-quit', action="store_true")
     parser.add_argument('--no-rmmod', action="store_true")
@@ -2358,7 +2363,8 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
             drbd_version=args.drbd_version,
             drbd_version_other=args.drbd_version_other,
             resource_name=args.resource,
-            transport=args.transport)
+            transport=args.transport,
+            tls=args.tls)
 
     for i, host_name in enumerate(args.host):
         host = Host(cluster, host_name,
@@ -2371,6 +2377,9 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
             # Automatically install other version
             host.install_drbd(args.drbd_version_other)
             host.has_other_version = True
+
+    if args.tls == 'yes':
+        tls.setup_kernel_tls_helper(cluster.hosts)
 
     cluster.validate_drbd_versions()
 

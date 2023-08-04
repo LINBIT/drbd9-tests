@@ -33,6 +33,7 @@ test_args=( "$@" "--logdir" "/log" )
 [ -n "$SCRATCH_DISK" ] && test_args+=( "--backing-device=$SCRATCH_DISK")
 [ -n "$DRBD_TEST_STORAGE" ] && test_args+=( "--storage-backend=$DRBD_TEST_STORAGE" )
 [ -n "$DRBD_TEST_TRANSPORT" ] && test_args+=( "--transport=$DRBD_TEST_TRANSPORT" )
+[ -n "$DRBD_TEST_TLS" ] && test_args+=( "--tls=$DRBD_TEST_TLS" )
 
 echo "===== Run test '$TEST_PATH' with args '${test_args[*]}' on nodes '${nodes[*]}'"
 

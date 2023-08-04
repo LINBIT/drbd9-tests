@@ -20,7 +20,7 @@ for arg in "${@}"; do
 	[[ "$arg" = "--variant" || "$arg" == "--variant="* ]] && variant_set=true
 	extra_args+=( "$arg" )
 done
-[ "$variant_set" = "true" ] || extra_args+=( "--variant" "tcp" "--variant" "raw" "--variant" "zfs" )
+[ "$variant_set" = "true" ] || extra_args+=( "--variant" "tcp" "--variant" "raw" "--variant" "zfs" "--variant" "tls")
 
 [ -n "$DRBD_VERSION_OTHER" ] && extra_args+=( "--set" "values.DrbdVersionOther=$DRBD_VERSION_OTHER" )
 

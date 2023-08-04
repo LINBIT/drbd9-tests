@@ -12,9 +12,9 @@ Merge request pipelines use the default test selection `ci`. This means that
 the set of tests to run and the VM counts to use is determined by the `vms_ci`
 entry in the `### vmshed:` line of the test.
 
-The default variants `tcp`, `raw` and `zfs` are used. All tests are run with
-the `tcp` variant. Only specific tests run with the other variants. These tests
-declare that they should be run with those variants using the
+The default variants `tcp`, `tls`, `raw` and `zfs` are used. All tests are run
+with the `tcp` variant. Only specific tests run with the other variants. These
+tests declare that they should be run with those variants using the
 `variants_add` field. The number of such tests is deliberately limited to keep
 the test suite fast.
 

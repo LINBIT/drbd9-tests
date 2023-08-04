@@ -5,6 +5,7 @@ ARG LBPYTEST_VERSION=0.3.0
 RUN apt-get update && apt-get -y install \
     python3 \
     python3-pip \
+    python3-openssl \
     openssh-client
 
 RUN pip3 install lbpytest==${LBPYTEST_VERSION}

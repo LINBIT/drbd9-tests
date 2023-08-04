@@ -3,6 +3,11 @@ name = "tcp"
 vm_tags = [ "distro" ]
 
 [[variants]]
+name = "tls"
+vm_tags = [ "tls" ]
+variables = { TLS = "yes" }
+
+[[variants]]
 name = "rdma"
 vm_tags = [ "rdma", "distro" ]
 variables = { Transport = "rdma" }

@@ -89,8 +89,9 @@ def main():
             # Python string formatting is compatible with toml
             print('vm_tags = {}'.format(vm_tags))
 
-        variants = args.default_variants + vmshed_config.get('variants_add', [])
-        print('variants = {}'.format(variants))
+        variants = set(args.default_variants)
+        variants |= parse_variants_add(vmshed_config.get('variants_add', []), drbd_version_lower)
+        print('variants = {}'.format(sorted(variants)))
 
         samevms = vmshed_config.get('samevms')
         if samevms:
@@ -132,6 +133,16 @@ def read_vmshed_json(filepath):
             json_str = line[len(vmshed_prefix):]
             return json.loads(json_str)
     return None
+
+
+def parse_variants_add(variants_list, drbd_version_lower):
+    variants = set()
+    for item in variants_list:
+        if isinstance(item, str):
+            variants.add(item)
+        elif is_lower(parse_version(item["drbd_version_min"]), drbd_version_lower):
+            variants.add(item["variant"])
+    return variants
 
 
 if __name__ == '__main__':

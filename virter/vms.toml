@@ -141,7 +141,7 @@ SourceImage = "ubuntu-bionic"
 
 
 [[vms]]
-base_image = "ubuntu-focal-drbd-k148"
+base_image = "ubuntu-focal-drbd-k159"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -155,8 +155,8 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
-BuildKernel = "5.4.0-148"
-KernelRelease = "5.4.0-148"
+BuildKernel = "5.4.0-159"
+KernelRelease = "5.4.0-159"
 SourceImage = "ubuntu-focal"
 
 

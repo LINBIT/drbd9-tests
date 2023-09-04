@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0", "variants": ["tcp", "rdma", "raw", "zfs"] }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0", "variants_add": ["raw", "zfs"] }
 
 # Test that a diskless DRBD primary node survives if one of the peers is
 # resized and reset. This was broken up to DRBD 9.0.30/9.1.3 inclusive.

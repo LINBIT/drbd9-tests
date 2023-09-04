@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--drbd-version', help='only output tests for this DRBD version')
     parser.add_argument('--drbd-version-other', help='only output tests also supported by this DRBD version')
     parser.add_argument('--default-variants', default=['tcp', 'rdma', 'second_is_other'], type=str, nargs='+',
-                        help='which variants to add to tests that do not specify their own')
+                        help='which variants to add to all tests')
     parser.add_argument('--test-timeout', default='5m',
                         help='test timeout in Golang duration format (default "5m")')
     args = parser.parse_args()
@@ -89,7 +89,7 @@ def main():
             # Python string formatting is compatible with toml
             print('vm_tags = {}'.format(vm_tags))
 
-        variants = vmshed_config.get('variants', args.default_variants)
+        variants = args.default_variants + vmshed_config.get('variants_add', [])
         print('variants = {}'.format(variants))
 
         samevms = vmshed_config.get('samevms')

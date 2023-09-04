@@ -17,6 +17,12 @@ name = "zfs"
 vm_tags = [ "zfs", "distro" ]
 variables = { Storage = "zfs" }
 
+# For compatibility testing - install the "other" version on the second node
+[[variants]]
+name = "second_is_other"
+vm_tags = [ "distro" ]
+variables = { DrbdOtherNode = "1" }
+
 [[variants]]
 name = "mainline"
 vm_tags = [ "mainline" ]

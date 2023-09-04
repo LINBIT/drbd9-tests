@@ -35,8 +35,9 @@ if resource.cluster.drbd_version_other:
         raise RuntimeError('No version specified to upgrade to')
 
     log('* Downgrade remaining nodes to {}'.format(resource.cluster.drbd_version_other))
-    for node in [second, *others]:
-        node.host.install_drbd(resource.cluster.drbd_version_other)
+    for node in resource.nodes:
+        if not node.host.has_other_version:
+            node.host.install_drbd(resource.cluster.drbd_version_other)
     resource.cluster.listen_to_events()
 else:
     log('* No version to downgrade to, just testing failovers')

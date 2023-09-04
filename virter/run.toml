@@ -9,6 +9,7 @@ Storage = "lvm" # Also possible: raw and zfs
 OutDir = ""
 DrbdVersion = "" # validate that this DRBD version is installed
 DrbdVersionOther = ""
+DrbdOtherNode = ""
 
 [[steps]]
 [steps.shell]
@@ -60,6 +61,7 @@ DRBD_TEST_STORAGE = "{{.Storage}}"
 DRBD_TEST_RDMA = "{{.RDMA}}"
 DRBD_VERSION = "{{.DrbdVersion}}"
 DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
+DRBD_OTHER_NODE = "{{.DrbdOtherNode}}"
 [steps.container.copy]
 source = "/log"
 dest = "{{.OutDir}}"

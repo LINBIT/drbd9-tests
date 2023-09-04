@@ -754,9 +754,9 @@ class Cluster(object):
 
         git_hashes = set()
 
-        for i, host in enumerate(self.hosts):
+        for host in self.hosts:
             expect_version = None
-            if self.drbd_version_other and i == 0:
+            if self.drbd_version_other and host.has_other_version:
                 expect_version = self.drbd_version_other
             elif self.drbd_version:
                 expect_version = self.drbd_version
@@ -1330,6 +1330,7 @@ class Host():
         self.volume_group = volume_group
         self.storage_backend = storage_backend
         self.backing_device = backing_device
+        self.has_other_version = False
         self.read_drbd_version()
 
         if self.drbd_version_tuple < (9, 0, 0):
@@ -2223,6 +2224,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     parser.add_argument('--backing-device', type=str)
     parser.add_argument('--drbd-version', help='validate that this DRBD version is installed')
     parser.add_argument('--drbd-version-other')
+    parser.add_argument('--drbd-other-node', type=int, default=0, help='index of node to install "other" version on')
     args = parser.parse_args()
 
     if nodes is not None:
@@ -2348,14 +2350,17 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
             resource_name=args.resource,
             rdma=args.rdma)
 
-    for host_name in args.host:
-        cluster.hosts.append(Host(cluster, host_name,
+    for i, host_name in enumerate(args.host):
+        host = Host(cluster, host_name,
             args.volume_group, args.storage_backend, args.backing_device,
-            multi_paths=multi_paths, netns=netns))
+            multi_paths=multi_paths, netns=netns)
 
-    if args.drbd_version_other:
-        # Automatically install other version on the first host
-        cluster.hosts[0].install_drbd(args.drbd_version_other)
+        cluster.hosts.append(host)
+
+        if args.drbd_version_other and i == args.drbd_other_node:
+            # Automatically install other version
+            host.install_drbd(args.drbd_version_other)
+            host.has_other_version = True
 
     cluster.validate_drbd_versions()
 

@@ -681,13 +681,13 @@ class Cluster(object):
     In LINSTOR this is roughly equivalent to the "controller".
     """
 
-    def __init__(self, job, logdir, drbd_version, drbd_version_other, resource_name, rdma=False):
+    def __init__(self, job, logdir, drbd_version, drbd_version_other, resource_name, transport):
         self.job = job
         self.logdir = logdir
         self.drbd_version = drbd_version
         self.drbd_version_other = drbd_version_other
         self.resource_name = resource_name
-        self.rdma = rdma
+        self.transport = transport
         self.hosts = []
         self.resources = []
         self.logscan_events = None
@@ -787,7 +787,7 @@ class Cluster(object):
 
     def create_resource(self, name=None):
         resource = Resource(self, self.resource_name if name is None else name,
-                              rdma=self.rdma)
+                              transport=self.transport)
 
         for host in self.hosts:
             Node(host, resource, port=host.next_port())
@@ -816,7 +816,7 @@ class Resource(object):
     In LINSTOR this is called a "resource definition".
     """
 
-    def __init__(self, cluster, name, rdma=False):
+    def __init__(self, cluster, name, transport):
         self.cluster = cluster
         self.name = name
         self._net_options = ""
@@ -827,7 +827,7 @@ class Resource(object):
         self._handlers = ""
         self.nodes = Nodes()
         self.num_volumes = 0
-        self.rdma = rdma
+        self.transport = transport
         self.forbidden_patterns = OrderedSet()
         self.forbidden_patterns.update([
             r'connection:Timeout',
@@ -1574,6 +1574,10 @@ class Host():
             except:
                 pass
             try:
+                self.run(['rmmod', 'drbd_transport_lb-tcp'])
+            except:
+                pass
+            try:
                 self.run(['rmmod', 'drbd_transport_rdma'])
             except:
                 pass
@@ -1878,8 +1882,7 @@ class Node():
                 disk.write(resource._disk_options)
 
             with ConfigBlock(t='net') as net:
-                if resource.rdma:
-                    net.write("transport rdma;")
+                net.write('transport "{}";'.format(resource.transport));
                 if self._fencing_mode and self.host.drbd_version_tuple >= (9, 0, 0):
                     net.write('fencing {};'.format(self._fencing_mode))
                 net.write(resource._net_options)
@@ -2107,7 +2110,7 @@ class Node():
     def _iptables_cmd(self, node2, jump, path_nr, add_remove, additional_filter=[]):
         """Returns an array of arrays (for .run) to filter the given path."""
         r = []
-        rdma = self.resource.rdma
+        rdma = self.resource.transport == 'rdma'
         if rdma:
             r.append(Node._iptables_cmd_1('drbd-test-output',  self.host.addrs[path_nr], None, node2.host.addrs[path_nr], 4791, jump, add_remove, 'udp'))
             r.append(Node._iptables_cmd_1('drbd-test-input',  node2.host.addrs[path_nr], None,  self.host.addrs[path_nr], 4791, jump, add_remove, 'udp'))
@@ -2135,7 +2138,7 @@ class Node():
 
     def _block_packet_type(self, packet, op, from_node, volume):
         cmdline = ['iptables', op, 'drbd-test-input', '-p']
-        cmdline.append('udp' if self.resource.rdma else 'tcp')
+        cmdline.append('udp' if self.resource.transport == 'rdma' else 'tcp')
         if from_node is not None:
             cmdline += ['-s', from_node.host.addrs[0]]
         cmdline += [ '-m', 'string', '--algo', 'bm', '--from', '0',
@@ -2218,7 +2221,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     parser.add_argument('--silent', action='store_true')
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
-    parser.add_argument('--rdma', action='store_true')
+    parser.add_argument('--transport', default='tcp', choices=('tcp', 'lb-tcp', 'rdma'))
     parser.add_argument('--override-max', action="store_true")
     parser.add_argument('--report-and-quit', action="store_true")
     parser.add_argument('--no-rmmod', action="store_true")
@@ -2354,7 +2357,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
             drbd_version=args.drbd_version,
             drbd_version_other=args.drbd_version_other,
             resource_name=args.resource,
-            rdma=args.rdma)
+            transport=args.transport)
 
     for i, host_name in enumerate(args.host):
         host = Host(cluster, host_name,

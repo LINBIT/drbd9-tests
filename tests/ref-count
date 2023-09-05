@@ -26,7 +26,7 @@ def ref_count(node, compare):
         raise Exception('On "%s" wanted %s, got %s!' % (node, compare, rc))
 
 def expect_drbd(node, drbd, transport):
-    transport_module = 'drbd_transport_rdma' if resource.rdma else 'drbd_transport_tcp'
+    transport_module = 'drbd_transport_{}'.format(resource.transport.replace('-','_'))
     ref_count(node, {'drbd': drbd, transport_module: transport})
 
 

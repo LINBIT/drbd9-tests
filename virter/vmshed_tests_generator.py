@@ -16,7 +16,7 @@ def main():
             help='which selection of tests to generate (default "all")')
     parser.add_argument('--drbd-version', help='only output tests for this DRBD version')
     parser.add_argument('--drbd-version-other', help='only output tests also supported by this DRBD version')
-    parser.add_argument('--default-variants', default=['tcp', 'rdma', 'second_is_other'], type=str, nargs='+',
+    parser.add_argument('--default-variants', default=['tcp', 'rdma', 'second_is_other', 'mainline'], type=str, nargs='+',
                         help='which variants to add to all tests')
     parser.add_argument('--test-timeout', default='5m',
                         help='test timeout in Golang duration format (default "5m")')

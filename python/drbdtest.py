@@ -771,7 +771,13 @@ class Cluster(object):
     def write_drbd_versions_meta(self, f):
         data = {}
         for i, host in enumerate(self.hosts):
-            pkg = host.run_helper('installed-drbd-package', return_stdout=True)
+            try:
+                pkg = host.run_helper('installed-drbd-package', return_stdout=True)
+            except CalledProcessError:
+                # when drbd is compiled into the kernel, there will be no drbd
+                # package installed and the helper will fail. just ignore this
+                # condition and return an empty package.
+                pkg = ''
             data[host.name] = {
                 'version': host.drbd_version,
                 'git_hash': host.drbd_git_hash,

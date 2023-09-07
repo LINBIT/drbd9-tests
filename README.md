@@ -89,4 +89,5 @@ tests/connect tick trick track
 
 ## GitLab
 
-See [doc/gitlab.md](./doc/gitlab.md).
+See [doc/gitlab.md](./doc/gitlab.md) for more information about test automation
+in GitLab including the different forms of testing which are used.

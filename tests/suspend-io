@@ -46,5 +46,7 @@ ev_b_a = peer_device_b_a.event(r'peer-device .* replication:(WFBitMapT|WFBitMapS
 if ev_a_b[0][0] != 'Established' or ev_b_a[0][0] != 'Established':
     raise Exception('Uhh, looks like the write while IO suspended created a new current UUID!')
 
+node_b.secondary()
+
 resource.down()
 resource.cluster.teardown()

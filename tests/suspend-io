@@ -34,9 +34,9 @@ resource.forbidden_patterns.remove(r'connection:NetworkFailure')
 node_b.primary()
 connection_a_b.disconnect(force=True)
 node_b.event(r'resource .* suspended:fencing')
-node_b.run(['bash', '-c',
-            'nohup dd if=/dev/zero of=%s bs=4k oflag=direct count=1 </dev/null &> /dev/null &' %
-            (node_b.volumes[0].device())])
+dd_pid = node_b.run(['bash', '-c',
+            'nohup dd if=/dev/zero of=%s bs=4k oflag=direct count=1 </dev/null &> /dev/null & echo $!' %
+            (node_b.volumes[0].device())], return_stdout=True)
 time.sleep(0.1)
 peer_device_b_a.event(r'peer-device .* replication:Off')
 connection_a_b.connect()
@@ -46,6 +46,8 @@ ev_b_a = peer_device_b_a.event(r'peer-device .* replication:(WFBitMapT|WFBitMapS
 if ev_a_b[0][0] != 'Established' or ev_b_a[0][0] != 'Established':
     raise Exception('Uhh, looks like the write while IO suspended created a new current UUID!')
 
+# wait for dd to terminate
+node_b.run(['tail', '--pid={}'.format(dd_pid), '-f', '/dev/null'])
 node_b.secondary()
 
 resource.down()

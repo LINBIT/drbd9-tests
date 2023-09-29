@@ -29,20 +29,31 @@ def expect_drbd(node, drbd, transport):
     transport_module = 'drbd_transport_{}'.format(resource.transport.replace('-','_'))
     ref_count(node, {'drbd': drbd, transport_module: transport})
 
+def loaded_transports(node):
+    lines = node.run(['lsmod'], return_stdout=True, update_config=False).split('\n')
+    transports = 0
+    for l in lines:
+        m = re.match(r'^drbd_transport_', l)
+        if m:
+            transports += 1
+    return transports
 
 resource = drbdtest.setup_resource(nodes=2)
 resource.up_wait()
+
+transports = loaded_transports(resource.nodes[0])
 
 node = resource.nodes[0]
 other = resource.nodes[1]
 
 node.primary(force=True)
 
-expect_drbd(node, 2, 1)
+time.sleep(2) # lb-tcp has references for the listener, wait a bit so that these go away
+expect_drbd(node, 1 + transports, 1)
 
 # disconnect doesn't remove the "connection"
 node.disconnect(other)
-expect_drbd(node, 2, 1)
+expect_drbd(node, 1 + transports, 1)
 
 # neither does this
 # TODO: get connection info from testsuite
@@ -51,49 +62,51 @@ expect_drbd(node, 2, 1)
 
 # but this should
 node.run(['drbdsetup', 'del-peer', resource.name, '1'])
-expect_drbd(node, 2, 0)
+expect_drbd(node, 1 + transports, 0)
 
 # get up again
 # node.connect(other) # doesn't work, drbdadm doesn't recreate the connection data in the kernel
 node.drbdadm(['adjust', resource.name])
-expect_drbd(node, 2, 1)
+time.sleep(2) # lb-tcp has references for the listener, wait a bit so that these go away
+expect_drbd(node, 1 + transports, 1)
 
 # actually use it
 node.volumes.fio(drbdtest.fio_write_args)
-expect_drbd(node, 2, 1)
+expect_drbd(node, 1 + transports, 1)
 
 # change a setting
 node.run(['drbdsetup', 'net-options', resource.name, '1', '--verify-alg=md5'])
-expect_drbd(node, 2, 1)
+expect_drbd(node, 1 + transports, 1)
 
 # change some settings, badly; ignore error
 try:
     node.run(['drbdsetup', 'net-options', resource.name, '1', '--verify-alg=quaxi-wurstli'])
 except:
     pass
-expect_drbd(node, 2, 1)
+expect_drbd(node, 1 + transports, 1)
 
 # Now "up" with wrong data
 node.down()
-time.sleep(0.1) # the reference doesn't get freed immediately. give it some time to settle
-expect_drbd(node, 1, 0)
+time.sleep(0.2) # the reference doesn't get freed immediately. give it some time to settle
+expect_drbd(node, transports, 0)
 resource.net_options = 'verify-alg quaxi-wurstly;'
 try:
     node.up()
 except:
     pass
 # No reference taken, because no valid config
-expect_drbd(node, 2, 0)
+expect_drbd(node, 1 + transports, 0)
 
 
 resource.net_options = 'verify-alg md5;';
 node.drbdadm(['adjust', resource.name])
-expect_drbd(node, 2, 1)
+time.sleep(2) # lb-tcp has references for the listener, wait a bit so that these go away
+expect_drbd(node, 1 + transports, 1)
 
 
 resource.down()
 # the transport still has a reference...
-expect_drbd(node, 1, 0)
+expect_drbd(node, transports, 0)
 
 
 resource.cluster.teardown()

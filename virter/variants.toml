@@ -5,7 +5,7 @@ vm_tags = [ "distro" ]
 [[variants]]
 name = "rdma"
 vm_tags = [ "rdma", "distro" ]
-variables = { RDMA = "true" }
+variables = { Transport = "rdma" }
 
 [[variants]]
 name = "raw"

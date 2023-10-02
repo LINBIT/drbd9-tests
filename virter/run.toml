@@ -4,7 +4,7 @@ version = 1
 ScratchDisk = "/dev/sda"
 TestSuiteImage = "drbd9-tests"
 TestsDir = "tests"
-RDMA = "" # set to "true" to enable
+Transport = "" # For example: rdma
 Storage = "lvm" # Also possible: raw and zfs
 OutDir = ""
 DrbdVersion = "" # validate that this DRBD version is installed
@@ -26,7 +26,7 @@ default_route=$(ip route show to match $default_gateway | grep /24)
 # Find the device for the default route.
 dev=$(printf "%s" "$default_route" | awk '{print $3}')
 
-if [ "$DRBD_TEST_RDMA" = "true" ] ; then
+if [ "$DRBD_TEST_TRANSPORT" = "rdma" ] ; then
 	# Ensure that an RDMA link is available.
 	if ! rdma link show | grep ^ ; then
 		modprobe rdma_rxe
@@ -49,7 +49,7 @@ done
 '''
 [steps.shell.env]
 SCRATCH_DISK = "{{.ScratchDisk}}"
-DRBD_TEST_RDMA = "{{.RDMA}}"
+DRBD_TEST_TRANSPORT = "{{.Transport}}"
 
 [[steps]]
 [steps.container]
@@ -58,7 +58,7 @@ image = "{{.TestSuiteImage}}"
 DRBD_TESTS_DIR = "{{.TestsDir}}"
 SCRATCH_DISK = "{{.ScratchDisk}}"
 DRBD_TEST_STORAGE = "{{.Storage}}"
-DRBD_TEST_RDMA = "{{.RDMA}}"
+DRBD_TEST_TRANSPORT = "{{.Transport}}"
 DRBD_VERSION = "{{.DrbdVersion}}"
 DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
 DRBD_OTHER_NODE = "{{.DrbdOtherNode}}"

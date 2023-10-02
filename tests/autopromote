@@ -5,8 +5,10 @@
 # conneciton loss to the peer (I.e. before the local node
 # noticed the absence of the peer).
 
+import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from python import trafficcontrol
 
 READ_ONLY = '<'
 READ_WRITE = '>'
@@ -25,6 +27,8 @@ resource = drbdtest.setup_resource(nodes=2)
 node_a, node_b = resource.nodes
 resource.add_disk('10M')
 
+a_tc = trafficcontrol.TrafficControl(node_a, resource.nodes)
+
 log('* Make up-to-date data available.')
 resource.up_wait()
 resource.skip_initial_sync()
@@ -42,8 +46,8 @@ test_open(node_a, READ_ONLY, SUCCESS)
 resource.connections.unblock(jump_to="DROP")
 resource.peer_devices.event(r'peer-device .* replication:Established')
 
-node_b.primary()
 log('* Tests with peer primary.')
+node_b.primary()
 test_open(node_a, READ_ONLY, FAILURE)
 resource.connections.block(jump_to="DROP")
 test_open(node_a, READ_ONLY, SUCCESS)
@@ -51,8 +55,21 @@ test_open(node_a, READ_WRITE, SUCCESS)
 test_open(node_a, READ_ONLY, SUCCESS)
 resource.connections.unblock(jump_to="DROP")
 resource.peer_devices.event(r'peer-device .* replication:Established')
+node_b.secondary()
+
+# This was broken from DRBD 9.1.7 to 9.1.16 inclusive.
+log('* Test auto-demote on SIGTERM.')
+a_tc.slow_down(node_b, delay='200ms')
+opener_pid = node_a.run([
+    "setsid", "bash", "-c",
+    "dd if=/dev/zero of={} bs=4K count=1 oflag=direct < /dev/null &> /dev/null & echo $!".format(node_a.volumes[0].device())],
+    return_stdout=True)
+# Allow time for auto-promote, but not for write to complete.
+time.sleep(0.5)
+node_a.run(["kill", "-TERM", opener_pid])
+node_a.event(r'resource .* role:Secondary')
 
 log('* Shut down and clean up.')
-node_b.secondary()
 resource.down()
+a_tc.reset()
 resource.cluster.teardown()

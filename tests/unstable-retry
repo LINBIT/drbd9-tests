@@ -10,7 +10,7 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
 resource = drbdtest.setup_resource(nodes=4)
-resource.disk_options = 'c-max-rate 4M;'
+resource.disk_options = 'c-max-rate 3M;'
 diskful_nodes = resource.nodes[1:]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
 

@@ -26,7 +26,9 @@ def ref_count(node, compare):
         raise Exception('On "%s" wanted %s, got %s!' % (node, compare, rc))
 
 def expect_drbd(node, drbd, transport):
-    transport_module = 'drbd_transport_{}'.format(resource.transport.replace('-','_'))
+    transport_module = 'drbd_transport_tcp'
+    if resource.transport:
+        transport_module = 'drbd_transport_{}'.format(resource.transport.replace('-','_'))
     ref_count(node, {'drbd': drbd, transport_module: transport})
 
 def loaded_transports(node):

@@ -1882,7 +1882,8 @@ class Node():
                 disk.write(resource._disk_options)
 
             with ConfigBlock(t='net') as net:
-                net.write('transport "{}";'.format(resource.transport));
+                if resource.transport:
+                    net.write('transport "{}";'.format(resource.transport));
                 if self._fencing_mode and self.host.drbd_version_tuple >= (9, 0, 0):
                     net.write('fencing {};'.format(self._fencing_mode))
                 net.write(resource._net_options)
@@ -2221,7 +2222,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     parser.add_argument('--silent', action='store_true')
     parser.add_argument('-d', action='count', dest='debug')
     parser.add_argument('--debug', type=int)
-    parser.add_argument('--transport', default='tcp', choices=('tcp', 'lb-tcp', 'rdma'))
+    parser.add_argument('--transport', choices=('tcp', 'lb-tcp', 'rdma'))
     parser.add_argument('--override-max', action="store_true")
     parser.add_argument('--report-and-quit', action="store_true")
     parser.add_argument('--no-rmmod', action="store_true")

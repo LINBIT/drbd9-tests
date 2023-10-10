@@ -19,8 +19,13 @@ def get_ref_counts(lines, which):
     return res
 
 def ref_count(node, compare):
-    lines = node.run(['lsmod'], return_stdout=True, update_config=False).split('\n')
-    rc = get_ref_counts(lines, compare)
+    rc = {}
+    for s in range(0, 3000, 500):
+        lines = node.run(['lsmod'], return_stdout=True, update_config=False).split('\n')
+        rc = get_ref_counts(lines, compare)
+        if compare == rc:
+            break;
+        time.sleep(0.5) # some refs are dropped after RCU grace periods. Wait up to 3 seconds
     log(('expect %s, found %s' % (compare, rc)))
     if compare != rc:
         raise Exception('On "%s" wanted %s, got %s!' % (node, compare, rc))
@@ -50,7 +55,6 @@ other = resource.nodes[1]
 
 node.primary(force=True)
 
-time.sleep(2) # lb-tcp has references for the listener, wait a bit so that these go away
 expect_drbd(node, 1 + transports, 1)
 
 # disconnect doesn't remove the "connection"
@@ -69,7 +73,6 @@ expect_drbd(node, 1 + transports, 0)
 # get up again
 # node.connect(other) # doesn't work, drbdadm doesn't recreate the connection data in the kernel
 node.drbdadm(['adjust', resource.name])
-time.sleep(2) # lb-tcp has references for the listener, wait a bit so that these go away
 expect_drbd(node, 1 + transports, 1)
 
 # actually use it
@@ -89,7 +92,6 @@ expect_drbd(node, 1 + transports, 1)
 
 # Now "up" with wrong data
 node.down()
-time.sleep(0.2) # the reference doesn't get freed immediately. give it some time to settle
 expect_drbd(node, transports, 0)
 resource.net_options = 'verify-alg quaxi-wurstly;'
 try:
@@ -102,7 +104,6 @@ expect_drbd(node, 1 + transports, 0)
 
 resource.net_options = 'verify-alg md5;';
 node.drbdadm(['adjust', resource.name])
-time.sleep(2) # lb-tcp has references for the listener, wait a bit so that these go away
 expect_drbd(node, 1 + transports, 1)
 
 

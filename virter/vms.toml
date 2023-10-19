@@ -161,7 +161,7 @@ SourceImage = "ubuntu-focal"
 
 
 [[vms]]
-base_image = "ubuntu-jammy-drbd-k75"
+base_image = "ubuntu-jammy-drbd-k87"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -175,8 +175,8 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-jammy"
-BuildKernel = "5.15.0-75"
-KernelRelease = "5.15.0-75"
+BuildKernel = "5.15.0-87"
+KernelRelease = "5.15.0-87"
 SourceImage = "ubuntu-jammy"
 
 [[vms]]

@@ -113,6 +113,8 @@ def is_lower(version, min_version):
             return True
         if version[i] == '*':
             return False
+        if min_version[i] == '*':
+            return True
         if version[i] < min_version[i]:
             return True
         elif version[i] > min_version[i]:

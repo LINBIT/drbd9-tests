@@ -1,0 +1,89 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+#
+# test 1:
+#
+# Consider a cluster of 3 nodes with all possible connections
+# configured. The only obstacle is that one node (A) has a slightly
+# smaller backing disk, and it is primary before establishing the
+# connections.
+#
+#        B
+#       / \
+#      A---C
+#
+# The test connects A and B first, and then B and C. It verifies that
+# DRBD does not drop the established connections when the smaller size
+# propagates.
+#
+# test 2:
+#
+# In a linear chain of nodes
+#
+#   A - B - C
+#
+# The test verifies that the smaller size propagates through to node C
+# when A joins last.
+#
+# Both test cases fail up to (including) drbd-9.1.17.
+
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a, node_b, node_c = resource.nodes
+resource.add_disk('10M', max_size='20M')
+node_b.volumes.resize('20M')
+node_c.volumes.resize('20M')
+
+def check_sizes_and_down():
+    node_a.secondary()
+    for node in resource.nodes:
+        size_bytes = int(node.run(['blockdev', '--getsize64', '/dev/drbd%d' % (node.disks[0].minor)], return_stdout=True))
+        if size_bytes > 14 * 2**20:
+            raise RuntimeError("drbd device > 14MiB ({} B) on {}".format(size_bytes, node.name))
+    resource.down()
+    for node in resource.nodes:
+        node.volumes[0].create_md()
+
+def test1():
+    log('* test 1')
+    node_a.up()
+    node_a.primary(force=True)
+
+    node_b.up()
+    connections(node_a, node_b).event(r'connection .* connection:Connected')
+
+    node_c.up_unconnected()
+    connections(node_c, node_b).connect()
+    connections(node_c, node_b).event(r'connection .* connection:Connected')
+
+    connections(node_c, node_a).connect()
+    connections(node_c, node_a).event(r'connection .* connection:Connected',
+        no=r'connection .* connection:StandAlone')
+
+    check_sizes_and_down()
+
+def test2():
+    log('* test 2')
+    node_b.up()
+    node_c.up()
+    connections(node_c, node_b).event(r'connection .* connection:Connected')
+
+    node_a.up_unconnected()
+    node_a.primary(force=True)
+    connections(node_a, node_b).connect()
+    connections(node_a, node_b).event(r'connection .* connection:Connected')
+
+    # Not connecting A to C. Check if C has got the smaller size!
+    #connections(node_a, node_c).connect()
+    #connections(node_a, node_c).event(r'connection .* connection:Connected')
+
+    check_sizes_and_down()
+
+test1()
+test2()
+
+log('* Clean up.')
+resource.cluster.teardown()

@@ -6,6 +6,7 @@ DrbdRepositoryURL = ""
 ReleaseRepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
 RepositoryPackages = "" # comma separated
+DrbdPackage = ""
 DrbdVersion = ""
 DrbdVersionOther = ""
 
@@ -88,7 +89,9 @@ if [ -n "$DRBD_VERSION_OTHER" ]; then
 	download-drbd-package.sh "$DRBD_VERSION_OTHER"
 fi
 
-if [ -n "$DRBD_VERSION" ]; then
+if [ -n "$DRBD_PACKAGE" ]; then
+	packages="$packages $DRBD_PACKAGE"
+elif [ -n "$DRBD_VERSION" ]; then
 	download-drbd-package.sh "$DRBD_VERSION"
 	drbd_package_file=$(grep -F "$DRBD_VERSION:" "$download_dir/pkgs.map" | cut -d':' -f2)
 	drbd_package="$download_dir/$drbd_package_file"
@@ -133,5 +136,6 @@ DRBD_REPOSITORY_URL = "{{.DrbdRepositoryURL}}"
 RELEASE_REPOSITORY_URL = "{{.ReleaseRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
 REPOSITORY_PACKAGES = "{{.RepositoryPackages}}"
+DRBD_PACKAGE = "{{.DrbdPackage}}"
 DRBD_VERSION = "{{.DrbdVersion}}"
 DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"

@@ -3,7 +3,7 @@ name = "t"
 provision_file = "provision-test.toml"
 
 [[vms]]
-base_image = "alma-9-drbd-k284"
+base_image = "alma-9-drbd-k362"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -12,12 +12,12 @@ vm_tags = [ "discard-stat", "distro", "tls" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.2/drbd-9/$basearch/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.3/drbd-9/$basearch/"
 
 [vms.metadata]
-BuildDistribution = "rhel9.2"
-BuildKernel = "5.14.0-284.11.1.el9_2"
-KernelRelease = "5.14.0-284.11.1.el9_2"
+BuildDistribution = "rhel9.3"
+BuildKernel = "5.14.0-362.8.1.el9_3"
+KernelRelease = "5.14.0-362.8.1.el9_3"
 SourceImage = "alma-9"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel9/"
 

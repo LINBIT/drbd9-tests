@@ -23,9 +23,15 @@
 #   A - B - C
 #
 # The test verifies that the smaller size propagates through to node C
-# when A joins last.
+# when A joins last. A is primary.
 #
 # Both test cases fail up to (including) drbd-9.1.17.
+#
+# test3:
+#
+# Again, the linear chain and B and C connect first, but this time, C
+# becomes primary. A tries to connect with B and should fail because
+# it is too small.
 
 
 from python import drbdtest
@@ -82,8 +88,25 @@ def test2():
 
     check_sizes_and_down()
 
+def test3():
+    log('* test 3')
+    node_b.up()
+    node_c.up()
+    connections(node_c, node_b).event(r'connection .* connection:Connected')
+
+    node_c.primary(force=True)
+    node_a.up_unconnected()
+    connections(node_a, node_b).connect()
+    connections(node_a, node_b).event(r'connection .* connection:StandAlone', timeout=5)
+    connections(node_b, node_a).event(r'connection .* connection:StandAlone', timeout=5)
+
+    resource.down()
+    for node in resource.nodes:
+        node.volumes[0].create_md()
+
 test1()
 test2()
+test3()
 
 log('* Clean up.')
 resource.cluster.teardown()

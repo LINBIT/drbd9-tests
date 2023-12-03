@@ -227,6 +227,56 @@ def test_case3_promote():
     resource.forbidden_patterns.add(r'connection:BrokenPipe')
     resource.forbidden_patterns.add(r'connection:Timeout')
 
+def test_case4():
+    """
+    Case 4: Is about preserving quorum over a reboot
+
+       C             C
+      / \     ->    /       ->            ->
+     A---B         A             A             A
+
+
+    A is primary. B goes away first. A keeps quorum with the help of
+    the tiebreaker C. Then C disappears. Finally A reboots.
+    Starting with drbd-9.1.18 (drbd-9.2.7) A regains quorum when it
+    comes up again.
+    """
+    my_log('* Test Case 4 ')
+    # A is primary here
+
+    resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+    resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+    resource.forbidden_patterns.remove(r'connection:Timeout')
+
+    my_log('* Isolate B')
+    connections(B, to_nodes=[A, C]).block()
+    connections(from_nodes=[A, C], to_node=B).event(r'connection:(NetworkFailure|BrokenPipe|Timeout)')
+    connections(from_nodes=[A, C], to_node=B).event(r'connection:Connecting')
+    connections(B, to_nodes=[A, C]).event(r'connection:Connecting')
+    time.sleep(1) # allow the 2PCs to settle
+
+    my_log('* Isolate C')
+    connections(C, A).block()
+    connections(A, C).event(r'connection:(NetworkFailure|BrokenPipe|Timeout)')
+    connections(A, C).event(r'connection:Connecting')
+    connections(C, A).event(r'connection:Connecting')
+
+    my_log('* Down A')
+    A.down()
+    A.up()
+
+    A.event(r'quorum:yes', timeout=5)
+    A.primary()
+
+    connections(C, A).unblock()
+    connections(B, to_nodes=[A, C]).unblock()
+
+    connections(A, to_nodes=[A, C]).event(r'connection:Connected')
+    my_log('* All nodes connected again')
+    resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:BrokenPipe')
+    resource.forbidden_patterns.add(r'connection:Timeout')
+
 resource = drbdtest.setup_resource(nodes=3)
 
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
@@ -250,6 +300,7 @@ test_case1()
 test_case2()
 test_case3()
 test_case3_promote()
+test_case4()
 
 # clean up
 resource.forbidden_patterns.remove(r'connection:NetworkFailure')

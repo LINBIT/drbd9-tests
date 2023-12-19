@@ -112,6 +112,34 @@ assert_installed_kernel() {
 	echo "$installed_kernels" | grep -Eq "$regex" || die "Installed kernel does not match expected version: $installed_kernels vs. $regex"
 }
 
+remove_all_installed_kernels() {
+	# This package can block kernel removal, remove it with extreme force.
+	# yum autoremove does not like to remove the running kernel, so use rpm -e.
+	# --nodeps is required because grub2 sometimes depends on shim-x64.
+	rpm -q shim-x64 && rpm -e --nodeps shim-x64
+
+	kernels=$(rpm -qa | grep "^${kernel_prefix}-[0-9]\+")
+	for k in $kernels; do
+		to_remove=$k
+
+		# On RHEL8 the kernel package is called kernel-core, but we
+		# want to remove the kernel metapackage.
+		[ "$kernel_prefix" = "kernel-core" ] && to_remove="$to_remove ${k/kernel-core/kernel}"
+
+		# Explicitly remove the modules packages too.
+		for package_name in kernel-modules kernel-modules-core kernel-modules-extra; do
+			remove_package=${k/$kernel_prefix/$package_name}
+			if rpm -q $remove_package >/dev/null 2>&1; then
+				to_remove="$to_remove $remove_package"
+			fi
+		done
+
+		printf "Removing '%s'\n" "$to_remove"
+		# yum autoremove does not like to remove the running kernel
+		rpm -e $to_remove
+	done
+}
+
 kernel::rpm() {
 	if yum list kernel-core >/dev/null 2>/dev/null; then
 		kernel_prefix=kernel-core
@@ -129,52 +157,20 @@ kernel::rpm() {
 		EOF
 	fi
 
-	reinstall_packages=""
 	install_packages=""
 	# also install kernel-modules{,-core,-extra} if available
 	for package_name in ${kernel_prefix} kernel-modules kernel-modules-core kernel-modules-extra; do
 		package_versioned=${package_name}-$KERNEL_RELEASE.$(uname -m)
 		if yum list --disablerepo=* --enablerepo=drbd-kernel --showduplicates "$package_versioned"; then
-			if rpm -q "$package_versioned"; then
-				reinstall_packages="$reinstall_packages $package_versioned"
-			else
-				install_packages="$install_packages $package_versioned"
-			fi
+			install_packages="$install_packages $package_versioned"
 		fi
 	done
 
-	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/had
+	# Clean slate; remove all installed kernels so we can install only the one we want
+	remove_all_installed_kernels
+
 	[ -n "$package_files" ] && yum install -y $package_files
-	[ -n "$reinstall_packages" ] && yum reinstall -y --disablerepo=* --enablerepo=drbd-kernel $reinstall_packages
 	[ -n "$install_packages" ] && yum install -y --disablerepo=* --enablerepo=drbd-kernel $install_packages
-	rpm -qa | grep "^${kernel_prefix}-[0-9]\+" | sort > /tmp/have
-
-	# This package can block downgrade to older kernel
-	rpm -q shim-x64 && rpm -e shim-x64
-
-	# Search through kernel packages which we did not just add to remove those we do not need
-	for k in $(comm -12 /tmp/had /tmp/have); do
-		# Do not remove packages we deliberately reinstalled.
-		printf '%s' "$reinstall_packages" | tr ' ' '\n' | grep -F "$k" && continue
-
-		to_remove=$k
-
-		# On RHEL8 the kernel package is called kernel-core, but we
-		# want to remove the kernel metapackage.
-		[ "$kernel_prefix" = "kernel-core" ] && to_remove="$to_remove ${k/kernel-core/kernel}"
-
-		# Explicitly remove the modules packages too.
-		for package_name in kernel-modules kernel-modules-core kernel-modules-extra; do
-			remove_package=${k/$kernel_prefix/$package_name}
-			if rpm -q $remove_package; then
-				to_remove="$to_remove $remove_package"
-			fi
-		done
-
-		printf "Removing '%s'\n" "$to_remove"
-		# yum autoremove does not like to remove the running kernel
-		rpm -e $to_remove
-	done
 
 	assert_installed_kernel "^vmlinuz-${kernel_release_regex}\.x86_64$"
 }

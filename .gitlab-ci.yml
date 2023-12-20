@@ -1,7 +1,7 @@
 image: $LINBIT_DOCKER_REGISTRY/build-helpers:$BUILD_HELPERS_VERSION
 
 variables:
-  BUILD_HELPERS_VERSION: c0d39c0e5a2235262f21d072c4bf3b2dd62b2040
+  BUILD_HELPERS_VERSION: 164e0fc5dceacb32184e3a6037758bb9472372be
   DRBD_TEST_COUNT: 1
   VMSHED_ARGS: ""
   DRBD_TEST_SERIES: "none" # To distinguish regular stability tests from other scheduled tests.
@@ -49,13 +49,20 @@ prepare:base_image:
       ci_fetch_rq
       ci_fetch_binary virter virter-$VIRTER_VERSION https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64
     - |
-      cd virter
+      pushd virter
       virter registry update
       make pull_source_images
       mkdir -p base-image-build-log
+      build_rc=0
       make -s print_base_images | \
-        parallel --line-buffer --tag \
-          ./build-push-base-image.sh '{%}' '{}'
+        parallel --line-buffer --tag --joblog parallel.log \
+          ./build-push-base-image.sh '{%}' '{}' \
+          || build_rc=$?
+      popd
+      ./build-helpers/parse_joblog.py build-push-base-image virter/parallel.log
+      if [ "$build_rc" -ne 0 ]; then
+        exit $build_rc
+      fi
   artifacts:
     paths:
       - virter/base-image-build-log

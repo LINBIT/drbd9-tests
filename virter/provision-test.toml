@@ -121,7 +121,7 @@ ln -sfT ../bin/true /usr/sbin/depmod
 echo "Output of 'drbdadm --version':"
 drbdadm --version || die "drbd-utils not installed"
 
-modinfo drbd > /dev/null || die "DRBD not installed"
+modinfo drbd > /dev/null || { >&2 echo "DRBD not installed"; exit 100; }
 
 sed -i 's/usage-count yes/usage-count no/' /etc/drbd.d/global_common.conf
 

@@ -1,0 +1,127 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+#
+# Test1:
+#  This test prepares the cluster by isolating node B, and the
+#  remaining nodes create a new data generation. Before the two nodes
+#  reconnect with B, they get separated.
+#
+#    B    | 1. Resync starts from C to B while connecting
+#   / \   | 2. B connects with A, marking it a PausedSyncS
+#  A   C  | 3. C promotes, outdates A; PausedSync from A to B disappears
+#         | 4. A and C connect
+#         | 5. C kills resync to B by disconnecting
+#         | 6. A becomes UpToDate and resync source for B
+#
+# Test2:
+#  This test is similar to Test 1. The difference is that it simulates
+#  that B is a crashed primary and needs resync from A & B, although
+#  it has the same current UUID as the two.
+
+from python import drbdtest
+from python.drbdtest import MetadataFlag, connections, log, peer_devices
+from subprocess import CalledProcessError
+
+resource = drbdtest.setup_resource(nodes=3)
+resource.disk_options = 'c-max-rate 4M;'
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.net_options = 'ping-int 1;'
+resource.add_disk('10M')
+resource.up_wait()
+node_a, node_b, node_c = resource.nodes
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+log('* isolating B')
+connections(from_node=node_b, to_nodes=[node_a, node_c]).disconnect()
+connections(from_nodes=[node_a, node_c], to_node=node_b).event(r'connection .* connection:Connecting')
+log('* write on C')
+node_c.volumes.write(size='8M')
+log('* A and C disconnect')
+connections(node_a, node_c).event(r'connection .* role:Secondary')
+connections(node_a, node_c, bidir=True).disconnect()
+log('* B and C connect, resync from C to B')
+connections(node_b, node_c).connect()
+peer_devices(node_c, node_b).event(r'peer-device .* replication:SyncSource')
+peer_devices(node_b, node_c).event(r'peer-device .* replication:SyncTarget')
+log('* B and A connect')
+connections(node_b, node_a).connect()
+peer_devices(node_a, node_b).event(r'peer-device .* replication:PausedSyncS')
+peer_devices(node_b, node_a).event(r'peer-device .* replication:PausedSyncT')
+log('* C promotes, A becomes weak and outdated')
+node_c.volumes.write(size='4k')
+
+log('* B gives up wanting a resync from A (because A became weak)')
+# Look for the line "My sync source became a weak node, aborting resync!"
+peer_devices(node_a, node_b, bidir=True).event(r'peer-device .* replication:Established')
+
+log('* A and C connect')
+connections(node_a, node_c, bidir=True).connect()
+connections(node_a, node_c, bidir=True).event(r'connection .* connection:Connected')
+
+log('* C kills the ongoing resync to B')
+connections(node_c, node_b).disconnect()
+# after node_a becomes up-to-date, it start a resync with node_b. All works.
+log('* B become UpToDate')
+node_b.volumes.event(r'device .* disk:UpToDate')
+
+
+log('* Prepare Test2; establish all connections')
+connections(node_c, node_b).connect()
+connections(node_b, node_c).event(r'connection .* connection:Connected')
+node_b.primary()
+node_b.volumes.write(size='4k')
+resource.disk_options = 'c-max-rate 2M;'
+
+log('* isolating B')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+connections(from_nodes=[node_a, node_c], to_node=node_b).block(jump_to="DROP")
+try:
+    node_b.volumes.write(size='4k', direct=1)
+except CalledProcessError:
+    pass
+else:
+    raise RuntimeError("Write did not fail!")
+node_b.secondary()
+connections(from_nodes=[node_a, node_c], to_node=node_b).event(r'connection .* connection:Connecting')
+connections(from_node=node_b, to_nodes=[node_a, node_c]).disconnect()
+resource.forbidden_patterns.add(r'connection:BrokenPipe')
+resource.forbidden_patterns.add(r'connection:NetworkFailure')
+
+connections(node_a, node_c, bidir=True).disconnect()
+
+# Power outage for all nodes! Simulate node_b is a crashed primary!
+for n in resource.nodes:
+    n.down()
+    n.update_config()
+    if n == node_b:
+        n.set_gi(n.volumes[0], flags_set=MetadataFlag.PRIMARY_IND, flags_unset=MetadataFlag.WAS_UP_TO_DATE)
+    n.up_unconnected()
+
+connections(from_nodes=[node_a, node_c], to_node=node_b).unblock(jump_to="DROP")
+
+log('* B and C connect, resync from C to B')
+connections(node_b, node_c, bidir=True).connect() # First resync is 4MiB (=one extent)
+peer_devices(node_c, node_b).event(r'peer-device .* replication:SyncSource .* out-of-sync:4096')
+peer_devices(node_b, node_c).event(r'peer-device .* replication:SyncTarget .* out-of-sync:4096')
+log('* B and A connect')
+connections(node_b, node_a, bidir=True).connect() # Is this a full or a partial resync?
+[(oos_s_str,)] = peer_devices(node_a, node_b).event(r'peer-device .* replication:PausedSyncS .* out-of-sync:([0-9]+)')
+[(oos_t_str,)] = peer_devices(node_b, node_a).event(r'peer-device .* replication:PausedSyncT .* out-of-sync:([0-9]+)')
+oos_s = int(oos_s_str)
+oos_t = int(oos_t_str)
+partial_resync = oos_s == 4096 and oos_t == 4096
+log(' * This was a {} resync ({} {})'.format('partial' if partial_resync else 'full', oos_s, oos_t))
+assert partial_resync
+
+resource.disk_options = 'c-max-rate 100M;'
+resource.nodes.adjust()
+
+log('* B become UpToDate')
+node_b.volumes.event(r'device .* disk:UpToDate')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

@@ -11,6 +11,7 @@ KernelRepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
 ReleaseRepositoryURL = ""
 VmTags = ""
+NoUpgrade = "" # set to 1 to skip yum/apt upgrade
 
 # Disable SELinux
 [[steps]]
@@ -258,14 +259,14 @@ if command -v yum > /dev/null; then
 	if ! command -v tc > /dev/null; then
 		packages+=("iproute-tc")
 	fi
-	yum update -y --exclude=kernel*
+	[ "$NO_UPGRADE" = 1 ] || yum update -y --exclude=kernel*
 	yum install -y ${packages[*]}
 elif command -v apt-get > /dev/null; then
 	[ -n "$RELEASE_REPOSITORY_URL" ] && echo deb [trusted=yes] $RELEASE_REPOSITORY_URL $REPOSITORY_DISTRIBUTION drbd-9 > /etc/apt/sources.list.d/linbit.list
 
 	packages+=("fio" "thin-provisioning-tools" "make" "gdisk")
 	apt-get update
-	apt-get -y upgrade
+	[ "$NO_UPGRADE" = 1 ] || apt-get -y upgrade
 	apt-get -y install ${packages[*]}
 else
 	echo "Unknown package manager"
@@ -277,6 +278,7 @@ RELEASE_REPOSITORY_URL = "{{.ReleaseRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
 DEBIAN_FRONTEND = "noninteractive"
 VM_TAGS = "{{ .VmTags }}"
+NO_UPGRADE = "{{.NoUpgrade}}"
 
 # Install lbdisttool.py (only for yum)
 [[steps]]

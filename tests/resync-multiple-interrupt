@@ -37,11 +37,9 @@ log('* Start sync to node_b and let it run a bit')
 connection_ba.connect()
 peer_device_ba.event(r'peer-device .* replication:SyncTarget')
 
-while True:
-    done = peer_device_ba.event(r'peer-device .* done:([0-9.]+)')
-    if float(done[0][0]) > 20.0:
-        log(done)
-        break
+# wait until events2 reports >= 20 % done
+done = peer_device_ba.event(r'peer-device .* done:([2-9][0-9][0-9.]+)')
+log(done)
 
 log('* Start sync to node_c')
 connection_ca.connect()

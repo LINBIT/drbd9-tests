@@ -31,10 +31,8 @@ target_source_pd.event(r'peer-device .* replication:SyncTarget')
 
 target_n.primary()
 
-while True:
-    done = target_source_pd.event(r'peer-device .* done:([0-9.]+)')
-    if float(done[0][0]) > 20.0:
-        break
+# wait until events2 reports >= 20 % done
+target_source_pd.event(r'peer-device .* done:([2-9][0-9][0-9.]+)')
 
 log('* Break connection')
 resource.forbidden_patterns.remove(r'connection:BrokenPipe')

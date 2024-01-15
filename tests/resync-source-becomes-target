@@ -56,10 +56,8 @@ def do_test(variant):
     pd_s0_s1 = peer_devices(node_s0, node_s1)
 
     if variant == 1:
-        while True:
-            done = pd_s1_s0.event(r'peer-device .* done:([0-9.]+)')
-            if float(done[0][0]) > 10.0:
-                break
+        # wait until events2 reports >= 10 % done
+        done = pd_s1_s0.event(r'peer-device .* done:([1-9][0-9][0-9.]+)')
         log('* Start upstream resync at %s of downstream resync.' % (done[0][0]))
         pds.peer_device_options("--c-max-rate=60M")
 

@@ -38,11 +38,9 @@ target_pds = peer_devices(to_node=source_n)
 source_pds.event(r'peer-device .* replication:SyncSource')
 target_pds.event(r'peer-device .* replication:SyncTarget')
 
-while True:
-    done = source_pds.event(r'peer-device .* done:([0-9.]+)')
-    if float(done[0][0]) > 1.0 and float(done[1][0]) > 1.0:
-        log(done)
-        break
+# wait until events2 reports >= 10 % done
+done = source_pds.event(r'peer-device .* done:([1-9][0-9.]+)')
+log(done)
 
 for n in resource.nodes[0:2]:
     n.volumes.write()

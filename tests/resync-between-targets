@@ -68,10 +68,8 @@ def start_syncs():
     connection_a_b.connect()
     volume_b.event(r'device .* disk:Inconsistent')
 
-    while True:
-        done = peer_device_b_a.event(r'peer-device .* done:([0-9.]+)')
-        if float(done[0][0]) > 1.0:
-            break
+    # wait until events2 reports >= 1 % done
+    peer_device_b_a.event(r'peer-device .* done:([1-9][0-9.]+)')
 
     log('* Let B and C connect.')
     connection_c_b.connect()

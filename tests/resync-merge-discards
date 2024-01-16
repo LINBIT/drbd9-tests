@@ -38,6 +38,14 @@ def number_of_discards(node, vol):
     stat_content = node.run(['cat', '/sys/block/' + bd_name + '/stat'], return_stdout=True)
     return int(stat_content.split()[11])
 
+def discard_max(node, vol):
+    backing_max = int(node.run(['lsblk', '--bytes', '--noheadings', '--nodeps',
+        '-o', 'DISC-MAX', vol.disk], return_stdout=True))
+    if backing_max < 2 * 1024 * 1024:
+        raise RuntimeError('backing discard max ({}) too low to test merging'.format(backing_max))
+    # DRBD merges discards up to 128MiB
+    return min(backing_max, 128 * 1024 * 1024)
+
 resource = drbdtest.setup_resource(nodes=2)
 resource.disk_options = 'discard-zeroes-if-aligned yes; rs-discard-granularity 65536; c-max-rate 500M;'
 resource.cluster.create_storage_pool(thin=True)
@@ -56,9 +64,14 @@ peer_devices_ba = drbdtest.PeerDevices.from_connections(connection_ba)
 peer_devices_ba.event(r'peer-device .* replication:SyncTarget')
 peer_devices_ba.event(r'peer-device .* replication:Established')
 
+backing_discard_max = discard_max(node_b, node_b.volumes[0])
+
+# 1GiB backend
+expected_discard_count = 1024 * 1024 * 1024 // backing_discard_max
+
 nr_discards = number_of_discards(node_b, node_b.volumes[0])
-# 1GiB backend / 128MiB per discard -> 8 discard requests.
-if nr_discards > 8:
+log('* Expect {} discards, found {}'.format(expected_discard_count, nr_discards))
+if nr_discards > expected_discard_count:
     raise Exception('More discards than expected nr_discards = {}'
                     .format(nr_discards))
 

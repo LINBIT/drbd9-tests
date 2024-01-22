@@ -1471,6 +1471,11 @@ class Host():
 
         self.stop_dmesg()
 
+        tlshd_log = self.run(["journalctl", "-u", "tlshd", "-b", "0", "-q"], return_stdout=True)
+        if tlshd_log:
+            with open(os.path.join(self.cluster.logdir, 'tlshd-{}'.format(self.name)), "w") as tlshd_logfile:
+                tlshd_logfile.write(tlshd_log)
+
         self.run(["iptables", "-D", "INPUT", "-j", "drbd-test-input"])
         self.run(["iptables", "-D", "OUTPUT", "-j", "drbd-test-output"])
         self.run(["bash", "-c", 'iptables -F drbd-test-input && iptables -X drbd-test-input || true'])

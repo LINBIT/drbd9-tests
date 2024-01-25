@@ -121,7 +121,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7
 
 
 [[vms]]
-base_image = "ubuntu-bionic-drbd-k210"
+base_image = "ubuntu-bionic-drbd-k213"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -135,13 +135,13 @@ RepositoryDistribution = "bionic"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-bionic"
-BuildKernel = "4.15.0-210"
-KernelRelease = "4.15.0-210"
+BuildKernel = "4.15.0-213"
+KernelRelease = "4.15.0-213"
 SourceImage = "ubuntu-bionic"
 
 
 [[vms]]
-base_image = "ubuntu-focal-drbd-k166"
+base_image = "ubuntu-focal-drbd-k170"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -155,13 +155,13 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
-BuildKernel = "5.4.0-166"
-KernelRelease = "5.4.0-166"
+BuildKernel = "5.4.0-170"
+KernelRelease = "5.4.0-170"
 SourceImage = "ubuntu-focal"
 
 
 [[vms]]
-base_image = "ubuntu-jammy-drbd-k87"
+base_image = "ubuntu-jammy-drbd-k92"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -175,8 +175,8 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-jammy"
-BuildKernel = "5.15.0-87"
-KernelRelease = "5.15.0-87"
+BuildKernel = "5.15.0-92"
+KernelRelease = "5.15.0-92"
 SourceImage = "ubuntu-jammy"
 
 [[vms]]

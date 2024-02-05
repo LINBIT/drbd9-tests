@@ -1,6 +1,8 @@
 #! /usr/bin/env python3
 ### vmshed: { "vms_all": [2], "vms_ci": [2], "drbd_version_min": "8.4" }
 
+import re
+import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from python import datatools
@@ -8,35 +10,87 @@ from python import trafficcontrol
 
 resource = drbdtest.setup_resource(nodes=2)
 
-resource.add_disk('60M')
+resource.add_disk('600M', delay_ms=0)
 resource.net_options = 'csums-alg md5;'
+# Set resync-rate for DRBD 8.4 compatibility
+resource.disk_options = 'resync-rate 1G; c-min-rate 0; c-max-rate 1G;'
 
 resource.up_wait()
 
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
+done_pattern = re.compile(r'done:([1-9][0-9.]+)')
+
+def wait_resync_progress(node):
+    # For DRBD 8.4 compatibility, we cannot wait for "done:" in the events2
+    # stream, or use "--json"
+    for _ in range(20):
+        result = node.run(['drbdsetup', 'status', resource.name], return_stdout=True)
+        if done_pattern.search(result):
+            return
+        time.sleep(0.5)
+    raise RuntimeError('no resync progress')
+
 def test(source_n, target_n):
     log('*** Test with source={} target={}'.format(source_n, target_n))
 
     source_target_c = connections(source_n, target_n)
+    target_source_c = connections(target_n, source_n)
     source_target_pd = peer_devices(source_n, target_n)
     target_source_pd = peer_devices(target_n, source_n)
 
     source_tc = trafficcontrol.TrafficControl(source_n, resource.nodes)
 
     source_n.primary()
-    source_n.fio({}, rw='write', ioengine='libaio', size='48M', offset='1M', bs='1M', direct=1, buffer_pattern='"a"')
+    source_n.fio({}, rw='write', ioengine='libaio', size='470M', offset='30M', bs='1M', direct=1, buffer_pattern='"a"')
 
     log('* Write new data on only the source node')
     source_target_c.disconnect()
-    source_n.write(size='50M', bs='1M', direct=1)
+    source_n.write(size='30M', bs='1M', direct=1)
     # Make most of the data the same, but not all - we want to also check that differing blocks are synced
-    source_n.fio({}, rw='write', ioengine='libaio', size='48M', offset='1M', bs='1M', direct=1, buffer_pattern='"a"')
+    source_n.fio({}, rw='write', ioengine='libaio', size='470M', offset='30M', bs='1M', direct=1, buffer_pattern='"a"')
+    source_n.secondary()
 
-    log('* Reconnect and let sync')
-    # Throttle so that resync will time out if checksumming is not effective
-    source_tc.slow_down(target_n, speed='8mbit')
+    log('* Reconnect and let resync start')
+    # Throttle so that resync will time out if checksumming is not effective.
+    source_tc.slow_down(target_n, speed='120mbit', delay='5ms')
+    # Add disk delay so that the source sends a reply after the target has detached.
+    source_n.volumes[0].disk_volume.set_delay_ms(20)
+    source_target_c.connect()
+
+    source_target_pd.event(r'peer-device .* replication:SyncSource')
+    target_source_pd.event(r'peer-device .* replication:SyncTarget')
+
+    wait_resync_progress(target_n)
+
+    log('* Detach and attach during resync')
+    source_n.volumes[0].disk_volume.set_delay_ms(0)
+    # For DRBD 8.4 compatibility
+    resource.forbidden_patterns.remove(r'disk:Failed')
+    resource.forbidden_patterns.remove(r'peer-disk:Failed')
+    target_n.detach()
+    target_n.attach()
+
+    source_target_pd.event(r'peer-device .* replication:SyncSource')
+    target_source_pd.event(r'peer-device .* replication:SyncTarget')
+    resource.forbidden_patterns.add(r'disk:Failed')
+    resource.forbidden_patterns.add(r'peer-disk:Failed')
+
+    target_n.volumes[0].disk_volume.set_delay_ms(20)
+
+    wait_resync_progress(target_n)
+
+    log('* Disconnect and reconnect during resync')
+    resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+    resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+    resource.forbidden_patterns.remove(r'connection:ProtocolError')
+    source_target_c.disconnect(force=True)
+    target_source_c.event(r'connection .* connection:Connecting')
+    resource.forbidden_patterns.add(r'connection:BrokenPipe')
+    resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:ProtocolError')
+    target_n.volumes[0].disk_volume.set_delay_ms(0)
     source_target_c.connect()
 
     source_target_pd.event(r'peer-device .* replication:SyncSource')
@@ -45,7 +99,6 @@ def test(source_n, target_n):
     target_source_pd.event(r'peer-device .* replication:Established')
 
     source_tc.reset()
-    source_n.secondary()
     datatools.verify_data(resource.nodes)
 
 # Test in both directions for the sake of compatibility testing

@@ -1813,10 +1813,10 @@ class Node():
         # done via "address" in "on <host>" section
         pass
 
-    def _config_one_host_addr(self, node, block, i):
+    def _config_one_host_addr(self, node, block, addr):
         block.write("host %s address %s:%d;" %
                     (node.name,
-                     node.host.addrs[i],
+                     addr,
                      node.port))
 
     def _config_one_connection(self, n1, n2):
@@ -1839,10 +1839,10 @@ class Node():
                 with ConfigBlock(t='net'):
                     pass
 
-                for i, a1, a2 in zip(range(len(n1.host.addr)), n1.host.addrs, n2.host.addrs):
+                for a1, a2 in zip(n1.host.addrs, n2.host.addrs):
                     with ConfigBlock(t='path') as path:
-                        self._config_one_host_addr(n1, path, i)
-                        self._config_one_host_addr(n2, path, i)
+                        self._config_one_host_addr(n1, path, a1)
+                        self._config_one_host_addr(n2, path, a2)
 
     def _config_conns_9(self):
         for start, n1 in enumerate(self.resource.nodes):

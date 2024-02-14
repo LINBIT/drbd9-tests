@@ -14,25 +14,35 @@ import time
 size = 8
 step = 8
 
-def verify_size(size_mb = 0):
+resource = drbdtest.setup_resource(min_nodes=2, max_nodes=5)
+max_peers = len(resource.nodes)-1
+
+def verify_size(size_mb = 0, nodes=resource.nodes, adjust_for_internal_meta_data=False):
     common_size = 0
-    for n in resource.nodes:
+    for n in nodes:
         size_bytes = int(n.run(['blockdev', '--getsize64',
                                 '/dev/drbd%d' % (n.disks[0].minor)],
                                return_stdout=True))
         if size_mb:
-            if size_mb * 2**20 != size_bytes:
-                raise RuntimeError("Expected %dM found %dM on %s" %
-                                   (size_mb, size_bytes / 2.0**20, n.name))
+            expected_bytes = size_mb * 2**20
+            if adjust_for_internal_meta_data:
+                bits = int((expected_bytes + 4095)/4096)
+                words = int((bits + 63)/64)*64
+                pages = int((bits/8 * max_peers + 4095)/4096)
+                # bitmap pages + activity log + "super block"
+                metadata_bytes = 1024 * (4 + 32 + 4 * pages)
+                expected_bytes = expected_bytes - metadata_bytes
+            if expected_bytes != size_bytes:
+                raise RuntimeError("Expected %d found %d on %s" %
+                                   (expected_bytes, size_bytes, n.name))
         if common_size == 0:
             common_size = size_bytes
         else:
             if size_bytes != common_size:
                 raise RuntimeError("Expected %d found %d on %s" %
                                    (common_size, size_bytes, n.name))
-
-
-resource = drbdtest.setup_resource(min_nodes=2, max_nodes=5)
+        log("found size to be\n%12d Bytes\n%12d kB\n%12d MiB" %
+                ( common_size, int(common_size/1024), int(common_size / 2**20)));
 
 # Node sets
 client_nodes = []
@@ -53,6 +63,7 @@ if len(resource.nodes) > 2:
 
 # take a strong one
 first_node = diskful_nodes[0]
+second_node = diskful_nodes[1]
 
 # Initialization
 resource.add_disk('%dM' % size, diskful_nodes=diskful_nodes, max_size='%dM' % (size + step * len(diskful_nodes)))
@@ -72,7 +83,7 @@ resource.skip_initial_sync();
 
 ## TODOs: add some test for --assume-peer-has-space
 
-log('* Resize on each diskfull node once. Testing --size and --assume-clean')
+log('\n* Resize on each diskfull node once. Testing --size and --assume-clean')
 for n in diskful_nodes:
     # new values
     size += step
@@ -87,15 +98,16 @@ for n in diskful_nodes:
                      '--size=%dM' % (size - 1), resource.name])
 
     time.sleep(settle_time)
-    verify_size(size-1)
+    verify_size(size_mb = size-1)
 
 
 # This is also a test of two-phase-commit serializing concurrent transactions,
 # since starting the transaction al all nodes concurrently.
-log('* Get rid of the user supplied size')
+log('\n* Get rid of the user supplied size')
 diskful_nodes.drbdadm(['resize', '--assume-clean', resource.name])
+verify_size(size_mb = size, adjust_for_internal_meta_data = True)
 
-log('* Resize on each diskfull node once. Testing --assume-clean')
+log('\n* Resize on each diskfull node once. Testing --assume-clean')
 for n in diskful_nodes:
     size += step
     size_str = "%dM" % size
@@ -110,7 +122,7 @@ for n in diskful_nodes:
     verify_size()
 
 
-log('* Check resync after resize.')
+log('\n* Check resync after resize.')
 size += step
 size_str = "%dM" % size
 diskful_nodes.volumes.resize(size_str)
@@ -122,9 +134,10 @@ pds.event(r'peer-device .* replication:SyncSource')
 pds.event(r'peer-device .* replication:Established')
 rstn.volumes.event(r'device .* disk:Inconsistent')
 rstn.volumes.event(r'device .* disk:UpToDate')
+verify_size(size_mb = size, adjust_for_internal_meta_data = True)
 
 if nr_nodes >= 5:
-    log('* Forming a sigma-shaped cluster')
+    log('\n* Forming a sigma-shaped cluster')
     #
     # This tests what the two-phase-commit logic does at node 3
     # where the prepare (and commit) arrives two times.
@@ -156,8 +169,52 @@ if nr_nodes >= 5:
     time.sleep(settle_time)
     verify_size()
 
+previous_effective_size = size
+log('\n* Resize while disconnected: size must stay at %dMB' % previous_effective_size)
+connections(first_node, resource.nodes[2:]).disconnect()
+size += step
+size_str = "%dM" % size
+diskful_nodes[1:].volumes.resize(size_str)
+first_node.drbdadm(['resize', '--assume-clean', resource.name])
+second_node.drbdadm(['resize', '--assume-clean', resource.name])
+time.sleep(settle_time)
+# -1 to account for meta data
+# effective drbd size in MB is truncated (rounded down)
+verify_size(size_mb = previous_effective_size, adjust_for_internal_meta_data = True)
+
+log('\n* Resize while disconnect, --assume-peer-has-space should allow to grow to %dMB' % size)
+second_node.drbdadm(['resize', '--assume-clean', '--assume-peer-has-space', resource.name])
+time.sleep(settle_time)
+verify_size(size_mb = size, nodes = resource.nodes[1:], adjust_for_internal_meta_data = True)
+
+log('\n* Connect of a too small backend should be rejected')
+connections(first_node, second_node).connect()
+connections(first_node, second_node, bidir = True).event(r'connection .* connection:StandAlone')
+
+log('\n* Resize after a too small peer was rejected should not have any effect')
+second_node.drbdadm(['resize', resource.name])
+time.sleep(settle_time)
+verify_size(size_mb = size, nodes = resource.nodes[1:], adjust_for_internal_meta_data = True)
+
+previous_effective_size_first_node = previous_effective_size
+previous_effective_size = size
+size += step
+size_str = "%dM" % size
+diskful_nodes.volumes.resize(size_str)
+log('\n* Resize on isolated node should not have an effect')
+first_node.drbdadm(['resize', resource.name])
+time.sleep(settle_time)
+verify_size(size_mb = previous_effective_size_first_node, nodes = [first_node], adjust_for_internal_meta_data = True)
+
+log('\n* Connect should notice backend size change and auto-grow to %dMB' % size)
+
+connections(first_node, second_node, bidir = True).connect()
+connections(first_node, second_node, bidir = True).event(r'connection .* connection:Connected')
+time.sleep(settle_time)
+verify_size(size_mb = size, adjust_for_internal_meta_data=True)
+
 if len(resource.nodes.diskless) >= 1:
-    log('* Verify consistency between old resize code an 2pc code')
+    log('\n* Verify consistency between old resize code an 2pc code')
     # Resize using 2pc code. The connect of the diskless works only if
     # some caching members (like peer_device->max_size) in DRBD where
     # updated correctly by the 2pc code.
@@ -191,12 +248,13 @@ if len(resource.nodes.diskless) >= 1:
     diskless_node.primary()
     diskless_node.secondary()
     time.sleep(settle_time)
+    verify_size(size_mb = size, nodes = two_nodes + [diskless_node], adjust_for_internal_meta_data=True)
 
-    log('* Shut down and clean up.')
+    log('\n* Shut down and clean up.')
     diskless_node.down()
     two_nodes.down()
 else:
-    log('* Shut down and clean up.')
+    log('\n* Shut down and clean up.')
     resource.down()
 
 resource.cluster.teardown()

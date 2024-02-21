@@ -1,11 +1,36 @@
 #! /usr/bin/env python3
 ### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0" }
 
-# This test exercises resync between to diskfull nodes with a
-# diskless primary present
+# This test exercises resync between two diskfull nodes with a
+# diskless primary present.
+#
+# It tests three possible orders of how the flapping node
+# reconnects with the other nodes:
+# order 1: It connects to the diskless first
+# order 2: It connects to other node with a backing disk first and
+#          during the resync to the diskless
+# order 3: It connects to other node with a backing disk first and
+#          after the resync to the diskless
+#
+# These three orders are tested with:
+# a) no modifications while the flapping node is away
+# b) with a modification of 1MByte
+# c) with ongoing writes from the diskless primary
+#
+# That leads to 9 test cases.
+
+from enum import Enum
+import time
 
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+
+
+class ResyncType(Enum):
+    NONE = 0
+    PARTIAL = 1
+    ONGOING_WRITES = 2
 
 resource = drbdtest.setup_resource(nodes=3)
 resource.disk_options = 'c-max-rate 500k;'
@@ -26,36 +51,45 @@ resync_source_pd = peer_devices(stable_n, flapping_n)
 from_flapping_c = connections(flapping_n)
 flapping_to_dless_c = connections(flapping_n, diskless_n)
 flapping_to_stable_c = connections(flapping_n, stable_n)
+background_writer = busywrite.BusyWrite(diskless_v)
 
-def prelude(do_resync, text):
-    log(text)
+def prelude(resync: ResyncType, text):
+    log('{} (resync = {})'.format(text, resync.name))
     diskless_n.primary()
     diskless_v.write(direct=1)
 
     from_flapping_c.disconnect()
     dless_to_flapping_pd.event(r'peer-device .* replication:Off')
-    if do_resync:
+    if resync == ResyncType.PARTIAL:
         diskless_v.write(size='1M', bs='1M', offset='1M', direct=1)
+    elif resync == ResyncType.ONGOING_WRITES:
+        resync_target_pd.peer_device_options("--c-max-rate=100M")
+        background_writer.start('--iodepth=4 --runtime=60')
+        time.sleep(0.1) # Give the background writer a chance to have some requests in flight
 
-def postlude():
+def postlude(resync: ResyncType):
+    if resync == ResyncType.ONGOING_WRITES:
+        if background_writer.is_running():
+            background_writer.stop()
+        flapping_n.adjust() # restore c-max-rate
     dless_to_flapping_pd.event(r'peer-device .* peer-disk:UpToDate')
     diskless_n.secondary()
 
-def test1(do_resync):
-    prelude(do_resync, '* connect to diskless first ')
+def test1(resync: ResyncType):
+    prelude(resync, '* connect to diskless first ')
     flapping_to_dless_c.connect()
     dless_to_flapping_pd.event(r'peer-device .* peer-disk:Outdated')
     flapping_to_stable_c.connect()
-    if do_resync:
+    if resync != ResyncType.NONE:
         resync_target_pd.event(r'peer-device .* replication:SyncTarget')
         resync_source_pd.event(r'peer-device .* replication:SyncSource')
     resync_target_pd.event(r'peer-device .* replication:Established')
     resync_source_pd.event(r'peer-device .* replication:Established')
-    postlude()
+    postlude(resync)
 
-def test2(do_resync):
-    if do_resync:
-        prelude(do_resync, '* connect to other diskfull first, connect to dless during resync')
+def test2(resync: ResyncType):
+    if resync != ResyncType.NONE:
+        prelude(resync, '* connect to other diskfull first, connect to dless during resync')
         flapping_to_stable_c.connect()
         resync_target_pd.event(r'peer-device .* replication:SyncTarget')
         resync_source_pd.event(r'peer-device .* replication:SyncSource')
@@ -63,27 +97,38 @@ def test2(do_resync):
         dless_to_flapping_pd.event(r'peer-device .* peer-disk:Inconsistent')
         resync_target_pd.event(r'peer-device .* replication:Established')
         resync_source_pd.event(r'peer-device .* replication:Established')
-        postlude()
+        postlude(resync)
 
-def test3(do_resync):
-    prelude(do_resync, '* connect to other diskfull first, connect to dless after resync')
+def test3(resync: ResyncType):
+    prelude(resync, '* connect to other diskfull first, connect to dless after resync')
     flapping_to_stable_c.connect()
-    if do_resync:
+    if resync != ResyncType.NONE:
         resync_target_pd.event(r'peer-device .* replication:SyncTarget')
         resync_source_pd.event(r'peer-device .* replication:SyncSource')
-    resync_target_pd.event(r'peer-device .* replication:Established')
-    resync_source_pd.event(r'peer-device .* replication:Established')
+
+    # 5 seconds longer than FIO runs; That ensures DRBD finishes the resync,
+    # if it is not locked up. It avoids false test failures.
+    timeout = 65 if resync == ResyncType.ONGOING_WRITES else None
+    resync_target_pd.event(r'peer-device .* replication:Established', timeout=timeout)
+
+    # The source should see the event simultaneously; therefore, only 5 seconds.
+    resync_source_pd.event(r'peer-device .* replication:Established', timeout=5)
+
     flapping_to_dless_c.connect()
-    postlude()
+    postlude(resync)
 
-def test(do_resync):
-    test1(do_resync)
-    test2(do_resync)
-    test3(do_resync)
+def test(resync: ResyncType):
+    test1(resync)
+    test2(resync)
+    test3(resync)
 
 
-test(do_resync=True)
-test(do_resync=False)
+resync_cases = [ResyncType.NONE, ResyncType.PARTIAL]
+if resource.nodes.min_drbd_version_tuple() >= (9, 2, 0):
+    resync_cases.append(ResyncType.ONGOING_WRITES)
+
+for r in resync_cases:
+    test(r)
 
 log('* Shut down and clean up.')
 resource.cluster.teardown()

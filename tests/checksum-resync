@@ -64,22 +64,22 @@ def test(source_n, target_n):
 
     wait_resync_progress(target_n)
 
-    log('* Detach and attach during resync')
+    # This part of the test does work with out-of-tree 8.4.12. It does not work
+    # with in-tree 8.4.11 or the compatibility case between 8.4.12 and 9.x so
+    # just disable it when DRBD 8 is involved.
+    if resource.nodes.min_drbd_version_tuple() >= (9, 0, 0):
+        log('* Detach and attach during resync')
+        target_n.detach()
+        target_n.attach()
+
+        source_target_pd.event(r'peer-device .* replication:SyncSource')
+        target_source_pd.event(r'peer-device .* replication:SyncTarget')
+        wait_resync_progress(target_n)
+
     source_n.volumes[0].disk_volume.set_delay_ms(0)
-    # For DRBD 8.4 compatibility
-    resource.forbidden_patterns.remove(r'disk:Failed')
-    resource.forbidden_patterns.remove(r'peer-disk:Failed')
-    target_n.detach()
-    target_n.attach()
 
-    source_target_pd.event(r'peer-device .* replication:SyncSource')
-    target_source_pd.event(r'peer-device .* replication:SyncTarget')
-    resource.forbidden_patterns.add(r'disk:Failed')
-    resource.forbidden_patterns.add(r'peer-disk:Failed')
-
+    # Add disk delay so that local read is pending when connection is lost.
     target_n.volumes[0].disk_volume.set_delay_ms(20)
-
-    wait_resync_progress(target_n)
 
     log('* Disconnect and reconnect during resync')
     resource.forbidden_patterns.remove(r'connection:BrokenPipe')

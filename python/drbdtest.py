@@ -953,7 +953,7 @@ class Resource(object):
         res_vols = set(["%s/%d" % (self.name, v.volume) for v in self.volumes if v.disk])
         node.drbdadm(["new-current-uuid", "--clear-bitmap"] + list(res_vols))
         # wait for completion
-        self.initial_resync(node)
+        self.initial_resync()
 
     def up_wait(self, extra_options=[]):
         self.up(extra_options)
@@ -995,7 +995,7 @@ class Resource(object):
             for node in self.nodes:
                 node.down()
 
-    def initial_resync(self, sync_from):
+    def initial_resync(self):
         # All diskless nodes should see all diskfull nodes as UpToDate
         diskful_nodes = self.nodes.diskful
         pds = PeerDevices()

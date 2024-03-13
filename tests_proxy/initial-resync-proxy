@@ -26,7 +26,7 @@ first_node.secondary()
 
 log('* Bring up all other nodes as well, wait until they have all the data, and verify the data received.')
 other_nodes.up()
-resource.initial_resync(first_node)
+resource.initial_resync()
 
 # log("---------sleeping")
 # time.sleep(20)

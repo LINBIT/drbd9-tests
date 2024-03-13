@@ -995,7 +995,7 @@ class Resource(object):
             for node in self.nodes:
                 node.down()
 
-    def initial_resync(self):
+    def initial_resync(self, timeout=300):
         # All diskless nodes should see all diskfull nodes as UpToDate
         diskful_nodes = self.nodes.diskful
         pds = PeerDevices()
@@ -1009,7 +1009,7 @@ class Resource(object):
                 for n2 in diskful_nodes:
                     if n1 != n2:
                         pds.add(PeerDevice(Connection(n1, n2), v))
-        pds.event(r'peer-device .* peer-disk:UpToDate', timeout=300)
+        pds.event(r'peer-device .* peer-disk:UpToDate', timeout=timeout)
 
     def touch_config(self):
         for n in self.nodes:

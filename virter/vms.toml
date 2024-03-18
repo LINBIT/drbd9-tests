@@ -141,7 +141,7 @@ SourceImage = "ubuntu-bionic"
 
 
 [[vms]]
-base_image = "ubuntu-focal-drbd-k170"
+base_image = "ubuntu-focal-drbd-k174"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -155,13 +155,13 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
-BuildKernel = "5.4.0-170"
-KernelRelease = "5.4.0-170"
+BuildKernel = "5.4.0-174"
+KernelRelease = "5.4.0-174"
 SourceImage = "ubuntu-focal"
 
 
 [[vms]]
-base_image = "ubuntu-jammy-drbd-k92"
+base_image = "ubuntu-jammy-drbd-k101"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -175,8 +175,8 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-jammy"
-BuildKernel = "5.15.0-92"
-KernelRelease = "5.15.0-92"
+BuildKernel = "5.15.0-101"
+KernelRelease = "5.15.0-101"
 SourceImage = "ubuntu-jammy"
 
 [[vms]]

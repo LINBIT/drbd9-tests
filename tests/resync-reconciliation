@@ -11,6 +11,7 @@ import json
 import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from python import busywrite
 from subprocess import CalledProcessError
 
 NOT = 0
@@ -77,19 +78,15 @@ def do_test(with_promote):
     to_primary_c.event(r'connection .* connection:Connected')
 
     primary_n.primary()
-    dev_name = primary_n.volumes[0].device()
     to_primary_c.event(r'connection .* role:Primary')
 
     log('* Blocked network connetion to one peer & writing')
     conn_slow.block()
 
-    # The fio command itself will block since one of the secondaries is not reachable,
-    # and therefore DRBD will not complete the write before the timeout expires.
-    # Using setsid and bash background execution to ensure that the teststuite continues
-    # and does not wait for the fio to terminate.
-    primary_n.run(['setsid', 'bash', '-c',
-                   'fio --max-jobs=1 --name=test --filename=%s --bs=4K --ioengine=libaio --iodepth=24 --rw=write --size=%dk --direct=1 < /dev/null &> /dev/null &'
-                   % (dev_name, data_amount)])
+    # BusyWrite lets fio run detached in the background by using setsid
+    # the test suite can continue while fio blocks in writing to the drbd dev
+    writer = busywrite.BusyWrite(primary_n.volumes[0])
+    writer.start(fio_base_args='--iodepth=24 --rw=write --size={}k --direct=1'.format(data_amount))
 
     # Wait until the "quick" secondary got at least one of those writes
     for i in range(0, 200):

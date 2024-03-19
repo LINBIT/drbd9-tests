@@ -11,7 +11,9 @@ class BusyWrite(object):
         self._fio_pid = None
         self._fio_out_str = None
 
-    def start(self, fio_arg_str=''):
+    def start(self, fio_arg_str='',
+              fio_base_args='--rw=randwrite --direct=1 ' +
+              '--iodepth=32 --time_based --runtime=600'):
         """
         Start writing to DRBD device.
 
@@ -25,16 +27,15 @@ class BusyWrite(object):
 
         Keyword arguments:
         fio_arg_str -- extra arguments to pass to fio
+        fio_base_args -- arguments to pass to fio; defaults to writing busily for a long time
         """
         self._output_filename = 'fio-{}-{}-async.json'.format(self._node.name, self._node.host.fio_count)
 
         # run fio in background
         fio_cmd = ['setsid', 'bash', '-c',
-                'fio --output-format=json --max-jobs=16 --name=test ' +
+                'fio --output-format=json --max-jobs=16 --name=test --ioengine=libaio ' +
                 '--filename={} '.format(self._volume.device()) +
-                '--ioengine=libaio --rw=randwrite --direct=1 --iodepth=32 ' +
-                '--time_based --runtime=600 ' +
-                fio_arg_str +
+                fio_base_args + ' ' + fio_arg_str +
                 ' < /dev/null > /tmp/{} 2> /dev/null & echo $!'.format(self._output_filename)]
         self._fio_pid = self._node.run(fio_cmd, return_stdout=True)
 

@@ -9,6 +9,7 @@ import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 from python import trafficcontrol
+from python import busywrite
 
 READ_ONLY = '<'
 READ_WRITE = '>'
@@ -60,13 +61,11 @@ node_b.secondary()
 # This was broken from DRBD 9.1.7 to 9.1.16 inclusive.
 log('* Test auto-demote on SIGTERM.')
 a_tc.slow_down(node_b, delay='200ms')
-opener_pid = node_a.run([
-    "setsid", "bash", "-c",
-    "dd if=/dev/zero of={} bs=4K count=1 oflag=direct < /dev/null &> /dev/null & echo $!".format(node_a.volumes[0].device())],
-    return_stdout=True)
+opener = busywrite.BusyWrite(node_a.volumes[0])
+opener.start(fio_base_args='--rw=write --size=4k --direct=1')
 # Allow time for auto-promote, but not for write to complete.
 time.sleep(0.5)
-node_a.run(["kill", "-TERM", opener_pid])
+opener.stop()
 node_a.event(r'resource .* role:Secondary')
 
 log('* Shut down and clean up.')

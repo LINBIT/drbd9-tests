@@ -24,19 +24,12 @@
 
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from python import busywrite
 import time
 
-def write_on_node(node):
-    v = node.volumes[0]
-    # write 4K in background
-    pid = primary_n.run(['setsid', 'bash', '-c',
-                   'dd if=/dev/urandom of={0} bs=4096 oflag=direct count=1 < /dev/null &> /dev/null & echo $!'
-                   .format(v.device())], return_stdout=True)
-
-    return pid
 
 def do_test(primary_n, other_nodes, wait_before_write):
-    dd_pid = 0
+    writer = busywrite.BusyWrite(primary_n.volumes[0])
     primary_conn = connections(from_nodes=other_nodes, to_node=primary_n)
 
     # cut connection so that primary loses quorum
@@ -45,13 +38,13 @@ def do_test(primary_n, other_nodes, wait_before_write):
 
     # now write on the primary without quorum; this should block
     if not wait_before_write:
-        dd_pid = write_on_node(primary_n)
+        writer.start(fio_base_args='--rw=write --size=4k --direct=1')
 
     primary_conn.event(r'connection:(NetworkFailure|Timeout)')
     primary_n.event(r'device .* quorum:no')
 
     if wait_before_write:
-        dd_pid = write_on_node(primary_n)
+        writer.start(fio_base_args='--rw=write --size=4k --direct=1')
 
     # give it some time to actually block
     time.sleep(1)
@@ -59,8 +52,8 @@ def do_test(primary_n, other_nodes, wait_before_write):
     # set on-no-quorum policy
     primary_n.run(['drbdsetup', 'resource-options', resource.name, '--on-no-quorum=io-error'])
 
-    # wait for the dd command to exit
-    primary_n.run(['tail', '--pid={0}'.format(dd_pid), '-f', '/dev/null'])
+    # wait for the fio command to exit
+    writer.wait()
 
     for n in other_nodes:
         primary_n.unblock_path(n, 0)

@@ -8,6 +8,7 @@
 
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from python import busywrite
 import time
 #import os
 
@@ -25,7 +26,6 @@ B = resource.nodes[1]
 a_b = connections(A)
 b_a = connections(B)
 pds = drbdtest.PeerDevices.from_connections(resource.connections)
-dev_name = A.volumes[0].device()
 
 my_log('* Make up-to-date data available.')
 resource.skip_initial_sync()
@@ -39,16 +39,14 @@ A.primary()
 a_b.connect()
 time.sleep(0.8)
 my_log('* Creating new UUID while uuid_sem is locked.')
-dd_pid = A.run([
-    "setsid", "bash", "-c",
-    "dd if=/dev/zero of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null & echo $!" % (dev_name, 4)],
-    return_stdout=True)
+writer = busywrite.BusyWrite(A.volumes[0])
+writer.start(fio_base_args='--rw=write --size=4k --direct=1')
 A.unblock_packet_type(drbdtest.P_SIZES, from_node=B)
 
 pds.event(r'peer-device .* replication:Established')
 
-log('* Wait for dd process to finish')
-A.run(["tail", "--pid={}".format(dd_pid), "-f", "/dev/null"])
+log('* Wait for background fio process to finish')
+writer.wait()
 
 log('* Shut down and clean up.')
 

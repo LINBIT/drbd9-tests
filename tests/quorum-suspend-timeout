@@ -22,6 +22,7 @@
 import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from python import busywrite
 
 def do_verify(node_source, node_target):
     node_source.drbdadm(['verify', '-v', '--start=0', '%s:%s/0' % (resource.name, node_target.name)])
@@ -46,9 +47,8 @@ def prepare_test(primary_n, freezing_io_n):
     resource.forbidden_patterns.remove(r'connection:BrokenPipe')
     resource.forbidden_patterns.remove(r'connection:NetworkFailure')
     resource.forbidden_patterns.remove(r'connection:Timeout')
-    primary_n.run(['setsid', 'bash', '-c',
-                   'fio --max-jobs=1 --name=test --filename={} --bs=4K --ioengine=libaio --iodepth=24 --rw=write --size=2M --direct=1 < /dev/null &> /dev/null & echo $!'
-                   .format(vol.device())], return_stdout=True)
+    writer = busywrite.BusyWrite(vol)
+    writer.start(fio_base_args='--rw=write --size=2M --iodepth=24 --direct=1')
 
     primary_suspended_c.event(r'connection .* connection:Timeout')
     suspended_primary_c.event(r'connection .* connection:(BrokenPipe|NetworkFailure)')

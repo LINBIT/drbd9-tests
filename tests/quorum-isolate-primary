@@ -23,6 +23,7 @@
 import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
+from python import busywrite
 from subprocess import CalledProcessError
 
 
@@ -51,8 +52,8 @@ def test_write_between_disconnects(resource):
     # that the cut2 secondary can still ping the primary when cut1 already
     # wants to reconciliate with cut2.
 
-    dev_name = primary_n.volumes[0].device()
-    primary_n.run(["setsid", "bash", "-c", "dd if=/dev/zero of=%s bs=%dk count=1 oflag=direct < /dev/null &> /dev/null &" % (dev_name, 4)])
+    writer = busywrite.BusyWrite(primary_n.volumes[0])
+    writer.start(fio_base_args='--rw=write --size=4k --direct=1')
     connection_witness1.event(r'connection .* connection:NetworkFailure')
 
     log('* silently cutting off other secondary (%s) from primary' % (cut2_sec.name))

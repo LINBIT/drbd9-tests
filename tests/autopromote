@@ -5,10 +5,10 @@
 # conneciton loss to the peer (I.e. before the local node
 # noticed the absence of the peer).
 
+import json
 import time
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
-from python import trafficcontrol
 from python import busywrite
 
 READ_ONLY = '<'
@@ -27,8 +27,6 @@ def test_open(node, mode, expect):
 resource = drbdtest.setup_resource(nodes=2)
 node_a, node_b = resource.nodes
 resource.add_disk('10M')
-
-a_tc = trafficcontrol.TrafficControl(node_a, resource.nodes)
 
 log('* Make up-to-date data available.')
 resource.up_wait()
@@ -60,15 +58,34 @@ node_b.secondary()
 
 # This was broken from DRBD 9.1.7 to 9.1.16 inclusive.
 log('* Test auto-demote on SIGTERM.')
-a_tc.slow_down(node_b, delay='200ms')
+# Prevent ping timeouts while the control stream is blocked
+resource.net_options = 'ping-timeout 40;'
+resource.nodes.adjust()
+
+node_a.block_packet_type(drbdtest.P_WRITE_ACK, from_node=node_b)
 opener = busywrite.BusyWrite(node_a.volumes[0])
 opener.start(fio_base_args='--rw=write --size=4k --direct=1')
-# Allow time for auto-promote, but not for write to complete.
+
+# Allow time for auto-promote; write is blocked
 time.sleep(0.5)
-opener.stop()
-node_a.event(r'resource .* role:Secondary')
+
+# Unblock write; allow time for auto-demote to start, but block it
+node_a.block_packet_type(drbdtest.P_TWOPC_YES, from_node=node_b, volume=0xffff)
+node_a.unblock_packet_type(drbdtest.P_WRITE_ACK, from_node=node_b)
+time.sleep(1.0)
+
+# Terminate during auto-demote; signal must be sent to the exact process that
+# is in the close() syscall
+opener.kill_jobs()
+node_a.unblock_packet_type(drbdtest.P_TWOPC_YES, from_node=node_b, volume=0xffff)
+opener.wait()
+
+# Check current status instead of events because fio opens and closes the
+# device multiple times, causing multiple promotes and demotes
+result = node_a.run(['drbdsetup', 'status', resource.name, '--json'], return_stdout=True)
+status = json.loads(result)[0]
+drbdtest.ensure('Secondary', status['role'])
 
 log('* Shut down and clean up.')
 resource.down()
-a_tc.reset()
 resource.cluster.teardown()

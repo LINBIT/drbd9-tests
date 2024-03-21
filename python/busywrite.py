@@ -65,6 +65,12 @@ class BusyWrite(object):
         with open(os.path.join(self._node.resource.cluster.logdir, self._output_filename), 'w') as output_file:
             output_file.write(self._fio_out_str)
 
+    def kill_jobs(self):
+        if self._fio_pid is None:
+            raise RuntimeError('Start first')
+
+        self._node.run(['bash', '-c', 'kill $(ps --ppid {} -o pid=)'.format(self._fio_pid)])
+
     def stop(self):
         if self._fio_pid is None:
             raise RuntimeError('Start first')

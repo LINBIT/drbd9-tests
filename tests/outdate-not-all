@@ -1,0 +1,85 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+
+# This test exercises some events in a three-node cluster with B and C
+# having a backing disk and A being diskless and primary.
+#
+#    A
+#   / \
+#  B---C
+#
+# Then the connection A-C gets interrupted. With that, C becomes Outdated.
+# A continues writing data.
+#
+#    A
+#   /
+#  B---C
+#
+# Now, the connection A-B dies. B starts a resync to C.
+#
+#    A
+#
+#  B-->C
+#
+# While the resync is ongoing, A connects to C
+#
+#    A
+#     \
+#  B-->C
+#
+# Ensuring this does _not_ Outdate B.
+#
+# DRBD up to 9.1.19 and 9.2.8 had this bug.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+
+resource = drbdtest.setup_resource(nodes=3)
+diskful_nodes = resource.nodes[1:]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.net_options = 'ping-int 2; connect-int 1;'
+resource.disk_options = 'c-max-rate 1M;'
+
+resource.up_wait()
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+diskless_a, node_b, node_c = resource.nodes
+
+
+diskless_a.primary()
+connections(from_nodes=diskful_nodes, to_node=diskless_a).event(r'connection .* role:Primary')
+
+resource.forbidden_patterns.remove(r'connection:Timeout') # network failure is expected
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+
+connections(node_c, diskless_a).block()
+diskless_a.volumes.write(size='8M', direct=1)
+connections(node_b, diskless_a).block()
+
+# This line consumes all the NetworkFailure, Timeout and BrokenPipe states
+connections(from_nodes=diskful_nodes, to_node=diskless_a, bidir=True).event(r'connection .* connection:Unconnected')
+
+resource.forbidden_patterns.add(r'connection:Timeout')
+resource.forbidden_patterns.add(r'connection:NetworkFailure')
+resource.forbidden_patterns.add(r'connection:BrokenPipe')
+
+peer_devices(node_c, node_b).event(r'peer-device .* replication:SyncTarget')
+peer_devices(node_b, node_c).event(r'peer-device .* replication:SyncSource')
+
+connections(node_c, diskless_a).unblock()
+connections(node_c, diskless_a, bidir=True).event(r'connection .* connection:Connected')
+
+connections(node_b, diskless_a).unblock() # This causes the resync to continue. But why does it freeze?
+
+#node_b should not outdate when node_c and diskless_a connect.
+node_b.volumes[0].event(r'peer-device .* peer-node-id:{} .* replication:Established'.format(node_c.id),
+                        no=r'device .* disk:Outdated')
+peer_devices(node_c, node_b).event(r'peer-device .* replication:Established')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

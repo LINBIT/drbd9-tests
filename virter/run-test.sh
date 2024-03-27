@@ -7,6 +7,7 @@ die() {
 	exit 1
 }
 
+[ -z "$DRBD_TEST_DOCKER_IMAGE" ] && die "Missing \$DRBD_TEST_DOCKER_IMAGE"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
 [ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
@@ -58,7 +59,7 @@ vmshed										\
 	--nvms "${LINBIT_CI_MAX_CPUS:-20}"						\
 	--vms virter/vms.toml					\
 	--tests virter/tests.toml				\
-	--set values.TestSuiteImage=$LINBIT_DOCKER_REGISTRY/drbd9-tests:$DRBD9_TESTS_VERSION \
+	--set values.TestSuiteImage=$DRBD_TEST_DOCKER_IMAGE \
 	--set values.TestsDir="$DRBD_TESTS_DIR"					\
 	--set values.DrbdVersion=$DRBD_VERSION					\
 	--set values.RepositoryPackages=drbd-utils=$DRBD_UTILS_VERSION		\

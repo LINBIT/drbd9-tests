@@ -24,7 +24,7 @@ data_amount = 128
 
 resource = drbdtest.setup_resource(nodes=3)
 resource.add_disk('10M')
-resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.resource_options = 'quorum majority; on-no-quorum io-error; twopc-timeout 50;'
 resource.net_options = 'ping-int 2;'
 
 resource.up_wait()
@@ -52,17 +52,6 @@ resource.forbidden_patterns.difference_update([
     r'connection:Timeout',
 ])
 
-def wait_twopc_finished(res):
-    while True:
-        nodes_with_2pc = 0
-        for node in res.nodes:
-            tid = node.twopc_tid()
-            if tid is not None:
-                nodes_with_2pc += 1
-        if nodes_with_2pc == 0:
-            return
-        time.sleep(0.05)
-
 def sectors_received(node, res_name, peer_node_id):
     result = node.run(['drbdsetup', 'status', res_name, '--json'], return_stdout=True)
     status = json.loads(result)[0]
@@ -80,7 +69,7 @@ def do_test(with_promote):
     primary_n.primary()
     to_primary_c.event(r'connection .* role:Primary')
 
-    log('* Blocked network connetion to one peer & writing')
+    log('* Blocked network connection to one peer & writing')
     conn_slow.block()
 
     # BusyWrite lets fio run detached in the background by using setsid
@@ -102,9 +91,8 @@ def do_test(with_promote):
         raise Exception('No recieve progress!')
 
     #resource.forbidden_patterns.difference_update([r'connection:NetworkFailure'])
-    wait_twopc_finished(resource)
     conn_quick.block()
-    log('* Blocked network connetion to both secondaries')
+    log('* Blocked network connection to both secondaries')
 
     if with_promote == EARLY:
         secondary_slow.primary(wait=False)

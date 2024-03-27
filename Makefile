@@ -9,7 +9,7 @@ VMSHED_TEST_TIMEOUT ?=
 
 .PHONY: docker
 docker:
-	docker build --no-cache=$(NOCACHE) -t $(DOCKER_IMAGE_NAME) .
+	docker build --no-cache=$(NOCACHE) -t $(DOCKER_IMAGE_NAME) docker/
 
 virter/tests.toml: tests/* virter/vmshed_tests_generator.py
 	virter/vmshed_tests_generator.py \

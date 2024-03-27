@@ -17,7 +17,7 @@ RUN pip3 install lbpytest==${LBPYTEST_VERSION}
 RUN sed -i /SendEnv/d /etc/ssh/ssh_config
 
 RUN mkdir -p /drbd-tests
-COPY docker/entry.sh /
+COPY entry.sh /
 
 ENV TEST_NAME=
 ENV TARGETS=

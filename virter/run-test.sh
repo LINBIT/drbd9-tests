@@ -10,7 +10,6 @@ die() {
 [ -z "$DRBD_TEST_DOCKER_IMAGE" ] && die "Missing \$DRBD_TEST_DOCKER_IMAGE"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
-[ -z "$DRBD9_TESTS_VERSION" ] && die "Missing \$DRBD9_TESTS_VERSION"
 
 extra_args=()
 # We want to default to "--variant tcp". However, vmshed collects all values of

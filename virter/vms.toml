@@ -175,8 +175,8 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-jammy"
-BuildKernel = "5.15.0-101"
-KernelRelease = "5.15.0-101"
+BuildKernel = "5.15.0-101-generic"
+KernelRelease = "5.15.0-101-generic"
 SourceImage = "ubuntu-jammy"
 
 [[vms]]

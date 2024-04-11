@@ -179,6 +179,28 @@ BuildKernel = "5.15.0-101-generic"
 KernelRelease = "5.15.0-101-generic"
 SourceImage = "ubuntu-jammy"
 
+
+[[vms]]
+base_image = "ubuntu-noble-drbd-k22"
+vcpus = 2
+memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
+# No RDMA support. rdma_rxe module not installed.
+vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls" ]
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-noble/"
+# TODO: uncomment once the LINBIT customer repositories include noble
+#ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
+RepositoryDistribution = "noble"
+
+[vms.metadata]
+BuildDistribution = "ubuntu-noble"
+BuildKernel = "6.8.0-22-generic"
+KernelRelease = "6.8.0-22-generic"
+SourceImage = "ubuntu-noble"
+
+
 [[vms]]
 base_image = "mainline-drbd-k6.3.0"
 vcpus = 2

@@ -23,6 +23,12 @@
 # Got fixed with
 # https://github.com/LINBIT/drbd/commit/057d17f455e909a75827948cd1fa932e58793a66
 #
+# check_disconnect_unconnected() is another independent small aspect, fitting
+# into this test nicely.
+# Up to drbd-9.1.20 (and drbd-9.2.9) a disconnect operation on an
+# unconnected connection wrongly outdates the peer if the local node
+# is Primary and Quorum or Fencing are enabled.
+#
 
 import time
 from python import drbdtest
@@ -84,6 +90,32 @@ def verify_double_promote(A, B, C):
         pass
     else:
         raise RuntimeError('B promoted!')
+    A.secondary()
+    connections(A, to_nodes=[B, C]).connect()
+    connections(A, to_nodes=[B, C]).event(r'connection .* connection:Connected')
+
+
+def check_disconnect_unconnected(A, B, C):
+    A.primary()
+    connections(C, A).disconnect(force=True)
+    connections(A, C).event(r'connection .* connection:Connecting')
+    connections(B, A).disconnect(force=True)
+    connections(A, B).event(r'connection .* connection:Connecting')
+
+    # With older DRBD A wrongly marks B and C as outdated here
+    connections(A, to_nodes=[B, C]).disconnect()
+
+    A.secondary()
+    try:
+        A.primary()
+    except:
+        pass
+    else:
+        raise RuntimeError('A should not have quorum in check_disconnect_unconnected()')
+
+    connections(A, to_nodes=[B, C], bidir=True).connect()
+    connections(A, to_nodes=[B, C], bidir=True).event(r'connection .* connection:Connected')
+
 
 resource = drbdtest.setup_resource(nodes=3)
 resource.resource_options = 'quorum majority;'
@@ -116,6 +148,9 @@ isolate_secondary(B, A, C)
 
 log('* Check double promote is not allowed')
 verify_double_promote(A, B, C)
+
+log('* Check disconnect of unconnected')
+check_disconnect_unconnected(A, B, C)
 
 resource.down()
 resource.cluster.teardown()

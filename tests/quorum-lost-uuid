@@ -1,0 +1,99 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.1" }
+#
+#
+# We are starting with a cluster of 3. Then B disconnects gracefully
+#
+#     A          A
+#    / \   ->     \
+#   B---C      B   C
+#
+# A promotes to primary and gets a write, so it also creates a new
+# current-UUID which it writes to disk. But the connection to C breaks
+# in just that moment. So the network packet informing C about it does
+# not make it to C. Then B and C connect.
+#
+#     A
+#
+#   B---C
+#
+# B gets promoted to primary (B & C have quorum now). Strictly speaking, we
+# maneuvered it into a split-brain just that A is I/O frozen, and has not
+# modified its data set.
+# To recover Node A, we terminate the writing process using `drbdsetup
+# --force secondary`. Upon restoring the network between A and C, a
+# split-brain situation is detected! (A generated a new current-UUID
+# when it was isolated). Then, the test adds the 'after-sb-0pri
+# discard-zero-changes;' config option to the resources, allowing them
+# to reconnect.
+#
+#     A          A
+#      \   ->   / \
+#   B---C      B---C
+
+import time
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+
+resource = drbdtest.setup_resource(nodes=3)
+resource.resource_options = 'quorum majority; on-no-quorum suspend-io;'
+resource.net_options = 'ping-int 1;'
+A, B, C = resource.nodes
+
+resource.add_disk('1M')
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+connections(B, to_nodes=[A, C]).disconnect()
+connections(from_nodes=[A, C], to_node=B).event(r'connection .* connection:Connecting')
+
+A.primary()
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+C.block_packet_type(drbdtest.P_UUIDS110, from_node=A)
+writer = busywrite.BusyWrite(A.volumes[0])
+writer.start(fio_base_args='--rw=write --size=4k --direct=1')
+time.sleep(0.5)
+connections(C, A).block()
+connections(A, C).event(r'connection .* connection:Connecting')
+connections(C, A).event(r'connection .* connection:Connecting')
+
+# Now A generated a new current-UUID and wrote it, just after that it
+# notices that it is now an isolated primary
+
+resource.forbidden_patterns.add(r'connection:BrokenPipe')
+resource.forbidden_patterns.add(r'connection:NetworkFailure')
+
+connections(B, C).connect()
+connections(C, B).event(r'connection .* connection:Connected')
+B.primary()
+B.volumes.write(direct=1)
+
+# B and C are a pritition with quorum
+
+A.secondary(force=True)
+writer.wait()
+
+C.unblock_packet_type(drbdtest.P_UUIDS110, from_node=A)
+connections(C, A).unblock()
+connections(A, C, bidir=True).event(r'connection .* connection:StandAlone')
+
+resource.net_options += 'after-sb-0pri discard-zero-changes;'
+resource.nodes.update_config()
+A.adjust()
+B.adjust()
+
+connections(A, B, bidir=True).event(r'connection .* connection:Connected')
+
+# Need to wait for resync to start before the last step works.
+peer_devices(A, B).event('peer-device .* replication:SyncTarget')
+
+# Last step
+C.adjust()
+connections(C, A, bidir=True).event(r'connection .* connection:Connected')
+
+resource.down()
+resource.cluster.teardown()

@@ -2086,8 +2086,8 @@ class Node():
             if wait:
                 self.event(r'resource .* role:Primary')
 
-    def secondary(self, wait=True):
-        self.drbdadm(['secondary', self.resource.name])
+    def secondary(self, wait=True, force=False):
+        self.drbdadm(['secondary', self.resource.name] + (['--force'] if force else []))
         if wait:
             self.event(r'resource .* role:Secondary')
 

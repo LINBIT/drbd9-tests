@@ -86,7 +86,7 @@ class LvmVolume(object):
         json_str = self._host.run(['lvs', '--reportformat', 'json', self._lv], return_stdout=True)
         lvs_rep = json.loads(json_str)
 
-        return lvs_rep['report'][0]['lv'][0]['data_percent']
+        return float(lvs_rep['report'][0]['lv'][0]['data_percent'])
 
 
 class RawPool(object):
@@ -193,7 +193,7 @@ class ZfsVolume(object):
                               return_stdout=True).splitlines()
         used = int(lines[0].split()[2])
         volsize = int(lines[1].split()[2])
-        return used / volsize
+        return used / volsize * 100
 
 
 class DeviceMapperTarget(object):

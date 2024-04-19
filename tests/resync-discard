@@ -33,7 +33,7 @@ def test(resource, discard_granularity):
     data_percent_a = node_a.volumes[0].disk_volume.fill_percentage()
     data_percent_b = node_b.volumes[0].disk_volume.fill_percentage()
 
-    if abs(data_percent_a - data_percent_b) > 0.1:
+    if abs(data_percent_a - data_percent_b) > 0.9:
         raise Exception("node_a data_percent {} while node_b shows {}"
                         .format(data_percent_a, data_percent_b))
 

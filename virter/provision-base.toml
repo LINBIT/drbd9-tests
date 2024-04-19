@@ -85,6 +85,24 @@ fi
 source = "{{ .KernelPackage }}"
 dest = "/opt/packages-kernel/"
 
+[[steps]]
+[steps.rsync]
+source = "virter/scripts/*"
+dest = "/usr/local/bin/"
+
+# Set up upstream RHEL repositories
+[[steps]]
+[steps.shell]
+script = """
+if [ -n "$RHEL_SECRETS_URL" ]; then
+	curl -fsSL "$RHEL_SECRETS_URL" | tar xzC /run
+	inject-rhel-secrets.sh
+fi
+"""
+
+[steps.shell.env]
+RHEL_SECRETS_URL = "{{.RhelSecretsUrl}}"
+
 # Install kernel
 [[steps]]
 [steps.shell]
@@ -149,6 +167,7 @@ kernel::rpm() {
 	fi
 
 	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
+		repos="--repo drbd-kernel"
 		cat <<- EOF > /etc/yum.repos.d/kernel.repo
 		[drbd-kernel]
 		name=Kernel for DRBD Tests
@@ -156,13 +175,17 @@ kernel::rpm() {
 		gpgcheck=0
 		enabled=1
 		EOF
+	elif [ -n "$RHEL_SECRETS_URL" ]; then
+		repos="--repo rhel-baseos"
+	else
+		die "Neither KERNEL_REPOSITORY_URL nor RHEL_SECRETS_URL is set, refusing to install kernel from distro repositories."
 	fi
 
 	install_packages=""
 	# also install kernel-modules{,-core,-extra} if available
 	for package_name in ${kernel_prefix} kernel-modules kernel-modules-core kernel-modules-extra; do
 		package_versioned=${package_name}-$KERNEL_RELEASE.$(uname -m)
-		if yum list --disablerepo=* --enablerepo=drbd-kernel --showduplicates "$package_versioned"; then
+		if yum --quiet list $repos --showduplicates "$package_versioned" >/dev/null; then
 			install_packages="$install_packages $package_versioned"
 		fi
 	done
@@ -171,7 +194,7 @@ kernel::rpm() {
 	remove_all_installed_kernels
 
 	[ -n "$package_files" ] && yum install -y $package_files
-	[ -n "$install_packages" ] && yum install -y --disablerepo=* --enablerepo=drbd-kernel $install_packages
+	[ -n "$install_packages" ] && yum install -y $repos $install_packages
 
 	assert_installed_kernel "^vmlinuz-${kernel_release_regex}\.x86_64$"
 }
@@ -221,6 +244,7 @@ rm -f /tmp/ha{d,ve}
 KERNEL_RELEASE = "{{.KernelRelease}}"
 KERNEL_REPOSITORY_URL = "{{.KernelRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
+RHEL_SECRETS_URL = "{{.RhelSecretsUrl}}"
 DEBIAN_FRONTEND = "noninteractive"
 
 # Install packages

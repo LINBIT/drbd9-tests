@@ -56,6 +56,13 @@ def run(resource, config):
         # timeout is longer than the expected wait time to allow fio some time to start and stop
         writer.wait(timeout=test_runtime + 10)
     else:
+        # Work around a bug on Ubuntu Noble 24.04 / Linux 6.8.0-22-generic.
+        # If we don't write at all, we often see warnings of the form:
+        # "task dm-delay-flush-:* blocked..."
+        # This causes the test to fail.
+        log('* Write 4K')
+        primary_n.write(direct=1)
+
         log('* Doing nothing for {}s'.format(test_runtime))
         time.sleep(test_runtime)
 

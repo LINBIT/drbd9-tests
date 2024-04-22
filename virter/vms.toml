@@ -181,23 +181,22 @@ SourceImage = "ubuntu-jammy"
 
 
 [[vms]]
-base_image = "ubuntu-noble-drbd-k22"
+base_image = "ubuntu-noble-drbd-k31"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-# No RDMA support. rdma_rxe module not installed.
+# No RDMA support. rdma_rxe module is part of linux-modules-extra which is not installed.
 vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-noble/"
-# TODO: uncomment once the LINBIT customer repositories include noble
-#ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
 RepositoryDistribution = "noble"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-noble"
-BuildKernel = "6.8.0-22-generic"
-KernelRelease = "6.8.0-22-generic"
+BuildKernel = "6.8.0-31-generic"
+KernelRelease = "6.8.0-31-generic"
 SourceImage = "ubuntu-noble"
 
 

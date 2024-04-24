@@ -107,8 +107,8 @@ def do_test(with_promote):
     if with_promote == LATE:
         secondary_slow.primary(wait=False)
 
-    evf = forward_pd.event(r'peer-device .* replication:SyncSource .* out-of-sync:(\d+)')
-    evb = backward_pd.event(r'peer-device .* replication:SyncTarget .* out-of-sync:(\d+)')
+    evf = forward_pd.event(r'peer-device .* out-of-sync:(\d+)', r'peer-device .* replication:SyncSource')
+    evb = backward_pd.event(r'peer-device .* out-of-sync:(\d+)', r'peer-device .* replication:SyncTarget')
     source_amount = int(evf[0][0])
     target_amount = int(evb[0][0])
     if source_amount != data_amount and target_amount != data_amount:

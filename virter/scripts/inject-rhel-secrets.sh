@@ -36,6 +36,22 @@ metadata_expire = 86400
 enabled_metadata = 1
 sslverifystatus = 1
 
+[rhel-baseos-eus]
+name = Red Hat Enterprise Linux \$releasever for x86_64 - BaseOS - Extended Update Support (RPMs)
+baseurl = https://cdn.redhat.com/content/eus/rhel$dist_major_version/\$releasever/x86_64/baseos/os
+enabled = 1
+gpgcheck = 1
+gpgkey = file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+sslverify = 1
+sslcacert = /run/secrets/rhsm/ca/redhat-uep.pem
+sslclientkey = $entitlement_key
+sslclientcert = $entitlement_cert
+metadata_expire = 86400
+enabled_metadata = 1
+sslverifystatus = 1
+skip_if_unavailable = True
+priority = 100 # weaker priority than the "normal" baseos repo so that userspace components are not taken from EUS
+
 [rhel-appstream]
 name = Red Hat Enterprise Linux \$releasever for x86_64 - AppStream (RPMs)
 baseurl = https://cdn.redhat.com/content/dist/rhel$dist_major_version/\$releasever/x86_64/appstream/os

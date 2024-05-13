@@ -12,6 +12,7 @@ RepositoryDistribution = "" # for apt, e.g. bionic
 ReleaseRepositoryURL = ""
 VmTags = ""
 NoUpgrade = "" # set to 1 to skip yum/apt upgrade
+ReleaseVer = "" # value to be passed to dnf as $releasever
 
 # Disable SELinux
 [[steps]]
@@ -89,6 +90,17 @@ dest = "/opt/packages-kernel/"
 [steps.rsync]
 source = "virter/scripts/*"
 dest = "/usr/local/bin/"
+
+# Set $releasever via dnf vars
+[[steps]]
+[steps.shell]
+script = """
+if [ -n "$RELEASEVER" ]; then
+	echo "$RELEASEVER" > /etc/dnf/vars/releasever
+fi
+"""
+[steps.shell.env]
+RELEASEVER = "{{.ReleaseVer}}"
 
 # Set up upstream RHEL repositories
 [[steps]]
@@ -176,7 +188,7 @@ kernel::rpm() {
 		enabled=1
 		EOF
 	elif [ -n "$RHEL_SECRETS_URL" ]; then
-		repos="--repo rhel-baseos"
+		repos="--repo rhel-baseos,rhel-baseos-eus"
 	else
 		die "Neither KERNEL_REPOSITORY_URL nor RHEL_SECRETS_URL is set, refusing to install kernel from distro repositories."
 	fi

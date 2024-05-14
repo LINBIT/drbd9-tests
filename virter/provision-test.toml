@@ -99,7 +99,9 @@ elif [ -n "$DRBD_VERSION" ]; then
 fi
 
 echo "installing packages: $packages"
-install-packages.sh $packages
+# sometimes, dnf will fail to install the package if kernel symbol dependencies are not met.
+# that implies that the drbd module is not compatible, so exit with special status 100 to signalize that.
+install-packages.sh $packages || exit 100
 
 # For convenience, DRBD can be provided as a module rather than a package
 if [ -n "$(find /opt/packages -maxdepth 1 -name '*.ko' -print -quit)" ]; then

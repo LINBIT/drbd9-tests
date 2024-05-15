@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0" }
 
 # This test exercises some events in a three-node cluster with B and C
 # having a backing disk and A being diskless and primary.

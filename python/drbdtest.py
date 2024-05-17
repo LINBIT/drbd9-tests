@@ -1445,7 +1445,9 @@ class Host():
             self.run(base + ['link', 'set', 'dev', devname, 'up'], ignore_netns=True)
 
     def read_drbd_version(self):
-        self.run(['bash', '-c', '[ -e /proc/drbd ] || modprobe drbd'])
+        # cat > /dev/kmsg so we have it in the dmesg stream,
+        # even if the ring buffer wrapped since the module was loaded
+        self.run(['bash', '-c', 'cat /proc/drbd > /dev/kmsg || modprobe drbd'])
         proc_drbd_lines = self.run(['cat', '/proc/drbd'], return_stdout=True).splitlines()
         version_line = proc_drbd_lines[0]
         git_hash_line = proc_drbd_lines[1]

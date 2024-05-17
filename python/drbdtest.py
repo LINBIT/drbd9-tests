@@ -1503,7 +1503,7 @@ class Host():
         condition = threading.Condition()
         self.dmesg_pid_trap = FirstWriteTrap(self.dmesg_out_tee, condition)
 
-        self.dmesg_process = self.ssh.Popen('echo $$ ; dmesg --follow')
+        self.dmesg_process = self.ssh.Popen('echo $$ ; dmesg --follow-new --time-format=iso || dmesg --follow')
         def dmesg_pipe():
             self.ssh.pipeIO(self.dmesg_process, stdout=self.dmesg_pid_trap)
 

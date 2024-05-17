@@ -9,6 +9,7 @@ import errno
 import sys
 import re
 from enum import Flag, auto
+import inspect
 import json
 import time
 import pipes
@@ -1400,6 +1401,13 @@ class Host():
             for address_info in self.netdevs.values():
                 self.addrs.append(address_info['address'])
 
+        init_iptables = ["bash", "--norc", "-xec", inspect.cleandoc('''
+                iptables -F drbd-test-input || iptables -N drbd-test-input
+                iptables -F drbd-test-output || iptables -N drbd-test-output
+                iptables -I INPUT -j drbd-test-input
+                iptables -I OUTPUT -j drbd-test-output
+                ''')]
+
         if netns:
             if not self.netdevs:
                 raise RuntimeError("%s is missing additional netdevs to namespace", self)
@@ -1413,20 +1421,14 @@ class Host():
                 raise RuntimeError("%s has namespaced address", self)
 
             # Also configure IPTABLES in the init_net namespace, some tests might use both
-            self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'])
-            self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'])
-            self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"])
-            self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"])
+            self.run_quiet(init_iptables)
 
             # From now on, all run() commands run in <netns> namespace, unless explicitly excluded
             self.netns = netns
             # Now ensure all netdevs are moved to the right namespace
             self.ensure_netdev(netns=netns)
 
-        self.run(["bash", "-c", 'iptables -F drbd-test-input || iptables -N drbd-test-input'])
-        self.run(["bash", "-c", 'iptables -F drbd-test-output || iptables -N drbd-test-output'])
-        self.run(["iptables", "-I", "INPUT", "-j", "drbd-test-input"])
-        self.run(["iptables", "-I", "OUTPUT", "-j", "drbd-test-output"])
+        self.run_quiet(init_iptables)
 
         self.start_dmesg()
 
@@ -1498,10 +1500,14 @@ class Host():
             with open(os.path.join(self.cluster.logdir, 'tlshd-{}'.format(self.name)), "w") as tlshd_logfile:
                 tlshd_logfile.write(tlshd_log)
 
-        self.run(["iptables", "-D", "INPUT", "-j", "drbd-test-input"])
-        self.run(["iptables", "-D", "OUTPUT", "-j", "drbd-test-output"])
-        self.run(["bash", "-c", 'iptables -F drbd-test-input && iptables -X drbd-test-input || true'])
-        self.run(["bash", "-c", 'iptables -F drbd-test-output && iptables -X drbd-test-output || true'])
+        cleanup_iptables = ["bash", "--norc", "-xec", inspect.cleandoc('''
+                iptables -D INPUT -j drbd-test-input
+                iptables -D OUTPUT -j drbd-test-output
+                iptables -F drbd-test-input && iptables -X drbd-test-input || true
+                iptables -F drbd-test-output && iptables -X drbd-test-output || true
+                ''')]
+
+        self.run_quiet(cleanup_iptables)
 
         if hasattr(self, 'events'):
             self.events.terminate()

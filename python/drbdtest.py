@@ -955,7 +955,7 @@ class Resource(object):
         # wait for completion
         self.initial_resync()
 
-    def up_wait(self, extra_options=[]):
+    def up_wait(self, extra_options=[], expected_disk_states=["Inconsistent", "Diskless"]):
         self.up(extra_options)
 
         ## Each node waits for the other nodes to connect.
@@ -976,7 +976,7 @@ class Resource(object):
                 if n1 != n2:
                     for v in self.nodes[0].volumes:
                         pds.add(PeerDevice(Connection(n1, n2), v))
-        pds.event(r'peer-device .* peer-disk:(Inconsistent|Diskless)', timeout=30)
+        pds.event(r'peer-device .* peer-disk:({})'.format(r'|'.join(expected_disk_states)), timeout=30)
 
         # This can occur while connecting due to receive timeouts during
         # two-phase commit resolution. Add it now that the nodes are connected.

@@ -1037,6 +1037,12 @@ class Resource(object):
     def peer_devices_by_vnr(self, vnr):
         return PeerDevices([pd for pd in self.peer_devices if pd.volume.volume == vnr])
 
+    def log_sync_mark(self, *args, **kwargs):
+            """ Print message to stderr and all nodes /dev/kmsg """
+            log(*args)
+            self.nodes.run(['bash', '-c', 'echo "== " {} > /dev/kmsg'.format(
+                        pipes.quote(' '.join(map(str,args))))])
+
 class Volume(object):
     def __init__(self, node, volume, minor=None):
         if volume is None:

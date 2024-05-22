@@ -141,6 +141,8 @@ package_download_dir = '/opt/package-download'
 silent = False
 debug_level = 0
 skip_cleanup = False
+# possibly set by Cleanup.hook()
+uncaught_exception = None
 
 devnull = open(os.devnull, 'w')
 
@@ -252,6 +254,8 @@ class Cleanup(object):
         if etype == subprocess.CalledProcessError and hasattr(value, 'output') and value.output is not None:
             log(value.output.decode(encoding='utf-8', errors='backslashreplace'))
         traceback.print_exception(etype, value, tb, file=logstream)
+        global uncaught_exception
+        uncaught_exception = { 'exc_type': etype, 'exc_value': value, 'exc_tb': tb }
 
 
 def first(iterable):
@@ -700,6 +704,16 @@ class Cluster(object):
                 host.cleanup()
         for host in self.hosts:
             host.cleanup_framework()
+        # The atexit cleanup handlers may spam the output.
+        # I'd still like to have a clear indication about "test failed"
+        # as the last line on stderr.
+        global uncaught_exception
+        if uncaught_exception:
+            print("\ntest failed:\n{}{}".format(
+		''.join(traceback.format_tb(uncaught_exception["exc_tb"], limit=1)),
+		''.join(traceback.format_exception_only(uncaught_exception["exc_type"], uncaught_exception["exc_value"]))),
+                file=logstream)
+        # else: we cannot be sure about the exit code, so don't claim "Success".
 
     def teardown(self, validate_dmesg=True):
         """

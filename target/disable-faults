@@ -35,7 +35,8 @@ done
 if ! [ -e $parms/enable_faults -a -e $parms/fault_rate -a -e $parms/fault_devs ]; then
     echo "${0##*/}: Fault injection parameters not found in $parms; is the drbd" \
 	 "kernel module compiled with CONFIG_DRBD_FAULT_INJECTION enabled?" >&2
-    exit 1
+    # That's okay, though: we were asked to DISABLE faults.
+    exit 0
 fi
 
 previous_devs=$(< $parms/fault_devs)

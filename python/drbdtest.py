@@ -1704,6 +1704,21 @@ class Host():
         if return_stdout:
             return stdout.getvalue().strip()
 
+    def run_quiet(self, cmd, quote=True, stdin=None, env={}, timeout=None, ignore_netns=False):
+        """
+        Run a command via SSH on the target node, logging output only if it fails.
+
+        See the "run" method for documentation of the arguments.
+        """
+
+        out = StringIO()
+        try:
+            self.run(cmd, quote=quote, stdin=stdin, stdout=out, stderr=out, env=env, timeout=timeout, ignore_netns=ignore_netns)
+        # Catch BaseException to include cases like KeyboardInterrupt
+        except BaseException as e:
+            logstream.write(out.getvalue())
+            raise e
+
     def fio_file(self, filename, base_args={}, **kwargs):
         """
         Run fio on a given file.

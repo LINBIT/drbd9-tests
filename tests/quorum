@@ -138,7 +138,13 @@ while len(partition_b) < len(partition_a):
     except CalledProcessError:
         pass # Expect the IO error in case quorum was lost
 
-    connections_to_cut.event(r'connection .* connection:StandAlone')
+    events = []
+    if len(partition_a) <= len(resource.nodes) // 2:
+        my_log('* Now the partition A lost quorum')
+        events.append(r'device .* quorum:no')
+    for connection in connections_to_cut:
+        events.append(r'connection .* peer-node-id:{} .* connection:StandAlone'.format(connection.nodes[1].id))
+    moving.event(*events)
     connections_witness.event(r'connection .* connection:(BrokenPipe|NetworkFailure|Timeout)')
 
     resource.forbidden_patterns.update([
@@ -151,9 +157,6 @@ while len(partition_b) < len(partition_a):
     connections_new.connect()
 
     partition_b.add(moving)
-
-my_log('* Now the partition A lost quorum')
-primary_a.volumes[0].event(r'quorum:no')
 
 moving = primary_a
 moving.secondary()

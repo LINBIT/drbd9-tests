@@ -1,0 +1,44 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.1" }
+#
+# If a backing device suddenly ceases delivering I/O completions, and
+# in reaction, the user issues a `drbdsetup detach`, the operation
+# will hang when it tries to write internal meta-data.
+#
+# Verify that the hanging detach operation can be interrupted with
+# a signal (Ctrl-C).
+# This empowers the user to continue with `drbdseup --force detach`.
+
+
+import time
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+
+resource = drbdtest.setup_resource(nodes=2)
+A, B = resource.nodes
+
+resource.add_disk('1M')
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+A.primary()
+A.volumes.write(direct=1)
+
+vol = A.volumes[0]
+vol.suspend()
+writer = busywrite.BusyWrite(vol)
+writer.start(fio_base_args='--rw=write --size=4k --direct=1')
+time.sleep(0.3)
+pid = A.run(['setsid', 'bash', '-c',
+    'drbdsetup detach {} < /dev/null &> /dev/null & echo $!'.format(vol.minor)], return_stdout=True)
+time.sleep(0.3)
+A.run(['kill', pid])
+A.run(['tail', '--pid={}'.format(pid), '-f', '/dev/null'], timeout=30)
+vol.resume()
+writer.wait()
+
+resource.down()
+resource.cluster.teardown()

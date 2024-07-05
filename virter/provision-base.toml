@@ -13,6 +13,7 @@ ReleaseRepositoryURL = ""
 VmTags = ""
 NoUpgrade = "" # set to 1 to skip yum/apt upgrade
 ReleaseVer = "" # value to be passed to dnf as $releasever
+RhelSecretsURL = ""
 
 # Disable SELinux
 [[steps]]
@@ -61,7 +62,7 @@ script = """
 units="unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer"
 
 # Disable services which fail anyway
-units="$units kdump.service postfix.service fwupd-refresh.service fwupd-refresh.timer"
+units="$units kdump.service postfix.service fwupd-refresh.service fwupd-refresh.timer ovirt-guest-agent.service"
 
 for u in $units; do
 	if systemctl list-unit-files | grep -Fq $u; then
@@ -95,7 +96,7 @@ dest = "/opt/packages-kernel/"
 
 [[steps]]
 [steps.rsync]
-source = "virter/scripts/*"
+source = "scripts/*"
 dest = "/usr/local/bin/"
 
 # Set $releasever via dnf vars
@@ -120,7 +121,7 @@ fi
 """
 
 [steps.shell.env]
-RHEL_SECRETS_URL = "{{.RhelSecretsUrl}}"
+RHEL_SECRETS_URL = "{{.RhelSecretsURL}}"
 
 # Install kernel
 [[steps]]
@@ -186,7 +187,7 @@ kernel::rpm() {
 	fi
 
 	if [ -n "$KERNEL_REPOSITORY_URL" ]; then
-		repos="--repo drbd-kernel"
+		repos="--disablerepo=* --enablerepo=drbd-kernel"
 		cat <<- EOF > /etc/yum.repos.d/kernel.repo
 		[drbd-kernel]
 		name=Kernel for DRBD Tests
@@ -195,7 +196,7 @@ kernel::rpm() {
 		enabled=1
 		EOF
 	elif [ -n "$RHEL_SECRETS_URL" ]; then
-		repos="--repo rhel-baseos,rhel-baseos-eus"
+		repos="--disablerepo=* --enablerepo=rhel-baseos,rhel-baseos-eus"
 	else
 		die "Neither KERNEL_REPOSITORY_URL nor RHEL_SECRETS_URL is set, refusing to install kernel from distro repositories."
 	fi
@@ -263,7 +264,7 @@ rm -f /tmp/ha{d,ve}
 KERNEL_RELEASE = "{{.KernelRelease}}"
 KERNEL_REPOSITORY_URL = "{{.KernelRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
-RHEL_SECRETS_URL = "{{.RhelSecretsUrl}}"
+RHEL_SECRETS_URL = "{{.RhelSecretsURL}}"
 DEBIAN_FRONTEND = "noninteractive"
 
 # Install packages

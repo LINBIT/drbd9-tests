@@ -83,7 +83,7 @@ KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel8
 
 
 [[vms]]
-base_image = "centos-7-drbd-k1160"
+base_image = "rhel-7-drbd-k1160"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -92,17 +92,17 @@ vm_tags = [ "rdma", "distro" ]
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel7/"
 ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel7/drbd-9/$basearch/"
+RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/7/secrets-x86_64.tar.gz"
 
 [vms.metadata]
 BuildDistribution = "rhel7.9"
 BuildKernel = "3.10.0-1160.el7"
 KernelRelease = "3.10.0-1160.49.1.el7"
-SourceImage = "centos-7"
-KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
+SourceImage = "rhel:7.9"
 
 
 [[vms]]
-base_image = "centos-7-drbd-k862"
+base_image = "rhel-7-drbd-k862"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -111,13 +111,13 @@ vm_tags = [ "rdma", "distro" ]
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel7/"
 ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel7/drbd-9/$basearch/"
+RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/7/secrets-x86_64.tar.gz"
 
 [vms.metadata]
 BuildDistribution = "rhel7.5"
 BuildKernel = "3.10.0-862.el7"
 KernelRelease = "3.10.0-862.14.4.el7"
-SourceImage = "centos-7"
-KernelRepositoryURL = "https://nexus.at.linbit.com/repository/rhel-kernels/rhel7/"
+SourceImage = "rhel:7.5"
 
 
 [[vms]]

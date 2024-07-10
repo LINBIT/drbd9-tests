@@ -16,6 +16,7 @@ base_image_%:
 		--set values.RepositoryDistribution="$$(get_key values.RepositoryDistribution)" \
 		--set values.ReleaseRepositoryURL="$$(get_key values.ReleaseRepositoryURL)" \
 		--set values.RhelSecretsURL="$$(get_key values.RhelSecretsURL)" \
+		--set values.ReleaseVer="$$(get_key values.ReleaseVer)" \
 		--set values.VmTags="$$(get_key vm_tags | jq -r 'join(";")')" \
 		-p provision-base.toml
 

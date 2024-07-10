@@ -114,6 +114,20 @@ enabled_metadata = 1
 sslverifystatus = 1
 skip_if_unavailable = True
 priority = 100 # weaker priority than the "normal" baseos repo so that userspace components are not taken from EUS
+
+[rhel-server-rhscl-7-rpms]
+metadata_expire = 86400
+enabled_metadata = 0
+sslclientcert = $entitlement_cert
+baseurl = https://cdn.redhat.com/content/dist/rhel/server/7/\$releasever/\$basearch/rhscl/1/os
+ui_repoid_vars = releasever basearch
+sslverify = 1
+name = Red Hat Software Collections RPMs for Red Hat Enterprise Linux 7 Server
+sslclientkey = $entitlement_key
+gpgkey = file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release,file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+enabled = 1
+sslcacert = /run/secrets/rhsm/ca/redhat-uep.pem
+gpgcheck = 1
 EOF
 fi
 # The repo file is created in /run (which is a tmpfs) to avoid accidentally

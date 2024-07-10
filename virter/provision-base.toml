@@ -104,7 +104,11 @@ dest = "/usr/local/bin/"
 [steps.shell]
 script = """
 if [ -n "$RELEASEVER" ]; then
-	echo "$RELEASEVER" > /etc/dnf/vars/releasever
+	if command -v dnf > /dev/null; then
+		echo "$RELEASEVER" > /etc/dnf/vars/releasever
+	else
+		echo "$RELEASEVER" > /etc/yum/vars/releasever
+	fi
 fi
 """
 [steps.shell.env]
@@ -299,7 +303,13 @@ if command -v yum > /dev/null; then
 		EOF
 	fi
 
-	packages+=("iptables" "fio" "lvm2" "make" "python3" "gdisk")
+	packages+=("iptables" "fio" "lvm2" "make" "gdisk")
+	if command -v dnf > /dev/null; then
+		packages+=("python3")
+	else
+		packages+=("rh-python36")
+		echo '. scl_source enable rh-python36' > /etc/profile.d/python3.sh
+	fi
 	if ! command -v tc > /dev/null; then
 		packages+=("iproute-tc")
 	fi

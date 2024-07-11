@@ -14,7 +14,7 @@ variables = { Transport = "rdma" }
 
 [[variants]]
 name = "raw"
-vm_tags = [ "distro" ]
+vm_tags = [ "distro", "raw" ]
 variables = { Storage = "raw" }
 
 [[variants]]

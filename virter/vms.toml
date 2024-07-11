@@ -8,7 +8,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not available
-vm_tags = [ "discard-stat", "distro", "tls" ]
+vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
@@ -29,7 +29,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not available
-vm_tags = [ "discard-stat", "distro", "tls" ]
+vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
@@ -51,7 +51,7 @@ memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module prints:
 # Warning: Soft-RoCE Transport Driver - This driver has not undergone sufficient testing by Red Hat for this release and therefore cannot be used in production systems.
-vm_tags = [ "discard-stat", "distro", "tls" ]
+vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
@@ -71,7 +71,7 @@ base_image = "rhel-8-drbd-k147"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-vm_tags = [ "discard-stat", "rdma", "distro", "tls" ]
+vm_tags = [ "discard-stat", "rdma", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
@@ -91,7 +91,7 @@ base_image = "rhel-7-drbd-k1160"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-vm_tags = [ "rdma", "distro" ]
+vm_tags = [ "rdma", "distro", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel7/"
@@ -111,6 +111,7 @@ base_image = "rhel-7-drbd-k862"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
+# No raw, as the provided sgdisk is too old.
 vm_tags = [ "rdma", "distro" ]
 
 [vms.values]
@@ -132,7 +133,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "zfs", "distro" ]
+vm_tags = [ "zfs", "distro", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-bionic/"
@@ -152,7 +153,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat", "zfs", "distro", "tls" ]
+vm_tags = [ "discard-stat", "zfs", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-focal/"
@@ -172,7 +173,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls" ]
+vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-jammy/"
@@ -192,7 +193,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module is part of linux-modules-extra which is not installed.
-vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls" ]
+vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-noble/"
@@ -213,7 +214,7 @@ memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module not installed.
 # No ZFS support in upstream Linux
-vm_tags = [ "discard-stat", "dm-ebs", "mainline", "tls" ]
+vm_tags = [ "discard-stat", "dm-ebs", "mainline", "tls", "raw" ]
 
 [vms.values]
 DrbdRepositoryURL = "https://nexus.at.linbit.com/repository/mainline/"

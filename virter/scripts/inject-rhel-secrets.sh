@@ -21,7 +21,7 @@ if [ -z "$entitlement_key" ] || [ -z "$entitlement_cert" ]; then
 	die "Entitlement key or cert not found."
 fi
 
-if command -v dnf; then
+if command -v dnf > /dev/null; then
 	# Has DNF command, so this is RHEL8+ like
 	cat > /run/secrets/rhel.repo <<EOF
 [rhel-baseos]

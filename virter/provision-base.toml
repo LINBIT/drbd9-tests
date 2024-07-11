@@ -22,16 +22,7 @@ script = """
 if command -v setenforce > /dev/null; then
 	echo "Disabling SELinux"
 	setenforce 0
-	sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
-
-	# If selinux-policy-targeted is installed, drbd-utils will try to pull in drbd-selinux, which in turn depends
-	# on a "recent" version of selinux-policy. This can cause conflicts when --releasever is set to an older version.
-	# Since we're disabling SELinux anyway, we can just remove the package.
-	# We also remove cockpit, as the preinstall/postinstall hooks expect SELinux files to be available, which may
-	# break a later package upgrade.
-	if command -v yum > /dev/null; then
-		yum remove -y selinux-policy-targeted cockpit-ws || true
-	fi
+	sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config
 fi
 """
 

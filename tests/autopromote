@@ -35,6 +35,28 @@ resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failu
 resource.forbidden_patterns.remove(r'connection:BrokenPipe')
 resource.forbidden_patterns.remove(r'connection:Timeout')
 
+
+log('* Test interrupting a process while it auto-promotes a drbd device.')
+# This test verifies that the interrupted process gets its errno set
+# to EINTR when the open() syscall returns. Mature software (like dd)
+# has a loop around open() that retries it as long as it returns
+# EINTR. Any other errno from open() causes dd to fail.
+# DRBD returned here wrongly EROFS before version 9.1.22.
+node_a.block_packet_type(drbdtest.P_TWOPC_YES, from_node=node_b, volume=0xffff)
+cmd = 'dd if=/dev/zero of={} bs=4k count=1 oflag=direct </dev/null &> /tmp/dd_stderr & echo $!'
+pid = node_a.run(['setsid', 'bash', '-c', cmd.format(resource.volumes[0].device())], return_stdout=True)
+time.sleep(0.1) # wait until it blocks in open() trying to promote
+# node_a.run(['setsid', 'bash', '-c', 'strace -p {} -o /tmp/tr </dev/null &> /dev/null'.format(pid)])
+node_a.run(['kill', '-s', 'SIGSTOP', pid])
+node_a.run(['kill', '-s', 'SIGCONT', pid])
+node_a.unblock_packet_type(drbdtest.P_TWOPC_YES, from_node=node_b, volume=0xffff)
+node_a.run(['tail', '--pid={}'.format(pid), '-f', '/dev/null'], timeout=30)
+dd_stderr = node_a.run(['cat', '/tmp/dd_stderr'], return_stdout=True)
+log(dd_stderr)
+if 'failed to open' in dd_stderr:
+    raise RuntimeError("dd's open() got another errno than EINTR!")
+
+
 log('* Tests with peer secondary.')
 
 test_open(node_a, READ_ONLY, SUCCESS)

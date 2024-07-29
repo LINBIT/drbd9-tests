@@ -148,7 +148,7 @@ SourceImage = "ubuntu-bionic"
 
 
 [[vms]]
-base_image = "ubuntu-focal-drbd-k174"
+base_image = "ubuntu-focal-drbd-k190"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -162,13 +162,13 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
-BuildKernel = "5.4.0-174"
-KernelRelease = "5.4.0-174"
+BuildKernel = "5.4.0-190-generic"
+KernelRelease = "5.4.0-190-generic"
 SourceImage = "ubuntu-focal"
 
 
 [[vms]]
-base_image = "ubuntu-jammy-drbd-k101"
+base_image = "ubuntu-jammy-drbd-k117"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -182,13 +182,13 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-jammy"
-BuildKernel = "5.15.0-101-generic"
-KernelRelease = "5.15.0-101-generic"
+BuildKernel = "5.15.0-117-generic"
+KernelRelease = "5.15.0-117-generic"
 SourceImage = "ubuntu-jammy"
 
 
 [[vms]]
-base_image = "ubuntu-noble-drbd-k31"
+base_image = "ubuntu-noble-drbd-k39"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -202,13 +202,13 @@ RepositoryDistribution = "noble"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-noble"
-BuildKernel = "6.8.0-31-generic"
-KernelRelease = "6.8.0-31-generic"
+BuildKernel = "6.8.0-39-generic"
+KernelRelease = "6.8.0-39-generic"
 SourceImage = "ubuntu-noble"
 
 
 [[vms]]
-base_image = "mainline-drbd-k6.3.0"
+base_image = "mainline-drbd-k6.9.0"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -224,7 +224,7 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "mainline"
-BuildKernel = "6.3.0-linbit"
-KernelRelease = "6.3.0-linbit"
+BuildKernel = "6.9.0-linbit"
+KernelRelease = "6.9.0-linbit"
 SourceImage = "ubuntu-jammy"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/mainline-kernels/"

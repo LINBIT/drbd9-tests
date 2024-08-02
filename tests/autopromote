@@ -1,10 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [2], "vms_ci": [2], "vm_tags": ["discard-stat"], "drbd_version_min": "9.0" }
-
-# Note: This test requires the vm_tag discard-stat to avoid that it
-# runs on RHEL7. ERESTARTSYS seems broken on the RHEL7 kernels. The
-# "interrupting a process while it auto-promotes a drbd device" aspect
-# fails on RHEL7.
+### vmshed: { "vms_all": [2], "vms_ci": [2], "drbd_version_min": "9.0" }
 
 # This test checks that autopromote works immediately after
 # conneciton loss to the peer (I.e. before the local node

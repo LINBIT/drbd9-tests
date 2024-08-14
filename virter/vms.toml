@@ -107,27 +107,6 @@ SourceImage = "rhel:7.9"
 
 
 [[vms]]
-base_image = "rhel-7-drbd-k862"
-vcpus = 2
-memory = "1G"
-disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-# No raw, as the provided sgdisk is too old.
-vm_tags = [ "rdma", "distro" ]
-
-[vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel7/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel7.5/drbd-9/$basearch/"
-RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/7/secrets-x86_64.tar.gz"
-ReleaseVer = "7.5"
-
-[vms.metadata]
-BuildDistribution = "rhel7.5"
-BuildKernel = "3.10.0-862.el7"
-KernelRelease = "3.10.0-862.14.4.el7"
-SourceImage = "rhel:7.5"
-
-
-[[vms]]
 base_image = "ubuntu-bionic-drbd-k213"
 vcpus = 2
 memory = "1G"

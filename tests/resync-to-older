@@ -16,18 +16,55 @@ from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
 resource = drbdtest.setup_resource(nodes=3)
+node_a, node_b, node_c = resource.nodes
 resource.resource_options = 'quorum majority; on-no-quorum io-error;'
-resource.disk_options = 'c-max-rate 250k;'
-resource.add_disk('10M')
+resource.disk_options = 'c-max-rate 100M;'
+volume_number = resource.add_disk('10M', diskful_nodes=[node_a, node_b])
 
 resource.up_wait()
 
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
+node_a.primary()
 
-[node_a, node_b, node_c] = resource.nodes
-dev_name = node_a.volumes[0].device()
+# This was broken up to DRBD 9.1.22/9.2.11 inclusive.
+# Fixed by the following DRBD commit:
+# f6613104a37c drbd: inherit history UUIDs from sync source when resync finishes
+log('* Remove a node that will be left behind')
+node_b.down()
 
+log('* Generate a UUID, leaving the removed node behind')
+node_a.write(direct=1)
+
+log('* Add disk to diskless node, allowing it to sync to most recent data')
+node_c.add_disk(volume_number, '10M')
+node_c.volumes[0].create_md()
+resource.touch_config()
+node_a.adjust()
+node_c.adjust()
+peer_devices(node_a, node_c).event(r'peer-device .* peer-disk:UpToDate')
+node_c.volumes.event(r'device .* disk:UpToDate')
+
+log('* Remove the node that was Primary')
+node_a.down()
+
+log('* Bring up node with older data')
+node_b.up()
+
+log('* Expect resync from node with added disk to node with older data')
+peer_devices(node_c, node_b).event(r'peer-device .* replication:SyncSource')
+peer_devices(node_b, node_c).event(r'peer-device .* replication:SyncTarget')
+peer_devices(node_c, node_b, bidir=True).event(r'peer-device .* replication:Established')
+
+log('* Restore the full 3-node cluster')
+node_a.up()
+peer_devices(node_a, bidir=True).event(r'peer-device .* peer-disk:UpToDate')
+
+# No full sync expected after this point
+resource.disk_options = 'c-max-rate 250k;'
+resource.nodes.adjust()
+
+# This was broken up to DRBD 9.0.21 inclusive.
 log('* Create 3 different data generations')
 node_a.primary()
 connections(to_node=node_a).event(r'connection .* role:Primary')

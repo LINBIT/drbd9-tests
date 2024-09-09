@@ -67,7 +67,7 @@ SourceImage = "rhel:8.8"
 
 
 [[vms]]
-base_image = "rhel-8-drbd-k147"
+base_image = "rhel-8-drbd-k193"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -75,15 +75,15 @@ vm_tags = [ "discard-stat", "rdma", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.1/drbd-9/$basearch/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.2/drbd-9/$basearch/"
 RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
-ReleaseVer = "8.1"
+ReleaseVer = "8.2"
 
 [vms.metadata]
-BuildDistribution = "rhel8.1"
-BuildKernel = "4.18.0-147.el8"
-KernelRelease = "4.18.0-147.8.1.el8_1"
-SourceImage = "rhel:8.1"
+BuildDistribution = "rhel8.2"
+BuildKernel = "4.18.0-193.el8"
+KernelRelease = "4.18.0-193.el8"
+SourceImage = "rhel:8.2"
 
 
 [[vms]]

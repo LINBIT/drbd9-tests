@@ -3,7 +3,7 @@ name = "t"
 provision_file = "provision-test.toml"
 
 [[vms]]
-base_image = "rhel-9-drbd-k362"
+base_image = "rhel-9-drbd-k427"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -12,15 +12,15 @@ vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.3/drbd-9/$basearch/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.4/drbd-9/$basearch/"
 RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
-ReleaseVer = "9.3"
+ReleaseVer = "9.4"
 
 [vms.metadata]
-BuildDistribution = "rhel9.3"
-BuildKernel = "5.14.0-362.8.1.el9_3"
-KernelRelease = "5.14.0-362.8.1.el9_3"
-SourceImage = "rhel:9.3"
+BuildDistribution = "rhel9.4"
+BuildKernel = "5.14.0-427.13.1.el9_4"
+KernelRelease = "5.14.0-427.13.1.el9_4"
+SourceImage = "rhel:9.4"
 
 
 [[vms]]

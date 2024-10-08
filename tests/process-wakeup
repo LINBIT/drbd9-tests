@@ -1,0 +1,45 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.1" }
+#
+# This test demonstrates how processes writing to DRBD can lock up
+# forever.
+# This bug is observable from 9.1.2 up to (including) 9.1.22
+# This bug is __not__ observable with 9.0.x or 9.2.11!
+#
+# This test works with the LVM backend only.
+# (Not with ZFS, not with RAW partitions)
+#
+
+import time
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+
+resource = drbdtest.setup_resource(nodes=2)
+resource.add_disk('10M')
+node_a = resource.nodes[0]
+writers = []
+for i in range(5):
+    writers.append(busywrite.BusyWrite(node_a.volumes[0]))
+
+resource.up_wait()
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+node_a.primary()
+node_a.volumes.suspend()
+for w in writers:
+    w.start(fio_base_args='--rw=write --size=4k --direct=1')
+time.sleep(0.5)
+node_a.run(['setsid', 'bash', '-c',
+            '(drbdsetup suspend-io {0} ; sleep 1; drbdsetup resume-io {0}) &>/dev/null </dev/null &'
+            .format(resource.volumes[0].minor)], return_stdout=True)
+node_a.volumes.resume()
+
+for w in writers:
+    w.wait()
+
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

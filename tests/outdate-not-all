@@ -60,8 +60,7 @@ connections(node_c, diskless_a).block()
 diskless_a.volumes.write(size='8M', direct=1)
 connections(node_b, diskless_a).block()
 
-# This line consumes all the NetworkFailure, Timeout and BrokenPipe states
-connections(from_nodes=diskful_nodes, to_node=diskless_a, bidir=True).event(r'connection .* connection:Unconnected')
+connections(from_nodes=diskful_nodes, to_node=diskless_a, bidir=True).event(r'connection .* connection:(Timeout|NetworkFailure|BrokenPipe)')
 
 resource.forbidden_patterns.add(r'connection:Timeout')
 resource.forbidden_patterns.add(r'connection:NetworkFailure')

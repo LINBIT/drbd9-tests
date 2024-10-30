@@ -125,7 +125,7 @@ def part_iii(nodes):
         r'connection:BrokenPipe'
     ])
     ab.disconnect(force=True)
-    ba.event(r'connection .* connection:Unconnected')
+    ba.event(r'connection .* connection:(NetworkFailure|BrokenPipe)')
     resource.forbidden_patterns.update([
         r'connection:NetworkFailure',
         r'connection:BrokenPipe'

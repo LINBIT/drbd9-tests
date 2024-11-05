@@ -12,7 +12,7 @@ from enum import Flag, auto
 import inspect
 import json
 import time
-import pipes
+import shlex
 import threading
 import traceback
 import socket
@@ -1056,7 +1056,7 @@ class Resource(object):
             """ Print message to stderr and all nodes /dev/kmsg """
             log(*args)
             self.nodes.run(['bash', '-c', 'echo "== " {} > /dev/kmsg'.format(
-                        pipes.quote(' '.join(map(str,args))))])
+                        shlex.quote(' '.join(map(str,args))))])
 
 class Volume(object):
     def __init__(self, node, volume, minor=None):
@@ -1692,7 +1692,7 @@ class Host():
             stdout = StringIO()
 
         if quote:
-            cmd_string = ' '.join(pipes.quote(str(x)) for x in cmd)
+            cmd_string = ' '.join(shlex.quote(str(x)) for x in cmd)
         else:
             cmd_string = ' '.join(cmd)
 

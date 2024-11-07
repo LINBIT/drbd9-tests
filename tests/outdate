@@ -85,39 +85,6 @@ def outdate_test(write_between_actions = False):
     first_node.secondary()
     weak_nodes.difference([last_node]).volumes.event(r'device .* disk:UpToDate')
 
-def lost_primary_after_no_writes():
-    first_node = resource.nodes[0]
-    last_node = resource.nodes[-1]
-    weak_nodes = resource.nodes.difference(resource.nodes[:2])
-
-    log("* Make sure we are not on the day0 UUID for predictable resync decisions")
-    first_node.primary()
-    weak_nodes.volumes.event(r'device .* disk:Outdated')
-    write_on_node(first_node)
-    first_node.secondary()
-    weak_nodes.volumes.event(r'device .* disk:UpToDate')
-
-    log("* Connect last_node to primary and write something so that it is ahead of its weak neighbor")
-    connections(first_node, last_node, bidir=True).connect()
-    first_node.primary()
-    weak_nodes.difference([last_node]).volumes.event(r'device .* disk:Outdated')
-    last_node.volumes.event(r'device .* disk:UpToDate')
-    write_on_node(first_node)
-
-    log("* Demote primary to allow weak nodes to receive the latest data via resyncs")
-    first_node.secondary()
-    weak_nodes.difference([last_node]).volumes.event(r'device .* disk:UpToDate')
-
-    log("* Disconnect last_node from primary to ensure that it enters the correct states with its weak neighbor")
-    first_node.primary()
-    connections(first_node, last_node, bidir=True).disconnect(wait=False)
-    last_node.volumes[0].event(r'device .* disk:Outdated')
-
-    log("* Trigger another round of resyncs to validate that the nodes are not stuck in incorrect states")
-    write_on_node(first_node)
-    first_node.secondary()
-    weak_nodes.difference([last_node]).volumes.event(r'device .* disk:UpToDate')
-
 log('* Forming a chain of nodes.')
 chain = drbdtest.Connections()
 for i in range(0, len(resource.nodes) - 1):
@@ -127,7 +94,6 @@ resource.connections.difference(chain).disconnect()
 
 outdate_test()
 outdate_test(write_between_actions=True)
-lost_primary_after_no_writes()
 
 try:
     resource.nodes[0].run(['sleep', '0.5'])

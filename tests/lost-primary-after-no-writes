@@ -1,0 +1,56 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [4], "vms_ci": null, "drbd_version_min": "9.1" }
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+resource = drbdtest.setup_resource(nodes=4)
+
+resource.add_disk('10M')
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+log('* Forming a chain of nodes.')
+chain = drbdtest.Connections()
+for i in range(0, len(resource.nodes) - 1):
+    chain.bidir_add(resource.nodes[i], resource.nodes[i+1])
+
+resource.connections.difference(chain).disconnect()
+
+first_node = resource.nodes[0]
+last_node = resource.nodes[-1]
+weak_nodes = resource.nodes.difference(resource.nodes[:2])
+
+log("* Make sure we are not on the day0 UUID for predictable resync decisions")
+first_node.primary()
+weak_nodes.volumes.event(r'device .* disk:Outdated')
+first_node.write(direct=1)
+first_node.secondary()
+weak_nodes.volumes.event(r'device .* disk:UpToDate')
+
+log("* Connect last_node to primary and write something so that it is ahead of its weak neighbor")
+connections(first_node, last_node, bidir=True).connect()
+first_node.primary()
+weak_nodes.difference([last_node]).volumes.event(r'device .* disk:Outdated')
+last_node.volumes.event(r'device .* disk:UpToDate')
+first_node.write(direct=1)
+
+log("* Demote primary to allow weak nodes to receive the latest data via resyncs")
+first_node.secondary()
+weak_nodes.difference([last_node]).volumes.event(r'device .* disk:UpToDate')
+
+log("* Disconnect last_node from primary to ensure that it enters the correct states with its weak neighbor")
+first_node.primary()
+connections(first_node, last_node, bidir=True).disconnect(wait=False)
+last_node.volumes[0].event(r'device .* disk:Outdated')
+
+log("* Trigger another round of resyncs to validate that the nodes are not stuck in incorrect states")
+first_node.write(direct=1)
+first_node.secondary()
+weak_nodes.volumes.event(r'device .* disk:UpToDate')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

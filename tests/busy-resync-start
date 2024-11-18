@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.2" }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.2" }
 
 # This tests that DRBD resyncs correctly when there are pending writes while
 # starting the resync. It also tests a busy resync with protocol A.

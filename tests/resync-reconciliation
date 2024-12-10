@@ -67,6 +67,7 @@ def do_test(with_promote):
     to_primary_c.event(r'connection .* connection:Connected')
 
     primary_n.primary()
+    primary_n.write(direct=1) # trigger drbd_check_peers() with creating new current-uuid
     to_primary_c.event(r'connection .* role:Primary')
 
     log('* Blocked network connection to one peer & writing')

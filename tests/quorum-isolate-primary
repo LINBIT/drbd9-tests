@@ -34,6 +34,9 @@ def test_write_between_disconnects(resource):
     log('* %s is the primary' % primary_n.name)
     primary_n.primary()
 
+    # trigger drbd_check_peers() with creating new current-uuid
+    primary_n.write(direct=1)
+
     cut1_sec = secondaries_n[0]
     rem_sec = secondaries_n
     rem_sec.remove(cut1_sec)

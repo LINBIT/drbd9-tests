@@ -50,6 +50,8 @@ diskless_a, node_b, node_c = resource.nodes
 
 
 diskless_a.primary()
+diskless_a.write(direct=1) # trigger drbd_check_peers() with creating new current-uuid.
+
 connections(from_nodes=diskful_nodes, to_node=diskless_a).event(r'connection .* role:Primary')
 
 resource.forbidden_patterns.remove(r'connection:Timeout') # network failure is expected

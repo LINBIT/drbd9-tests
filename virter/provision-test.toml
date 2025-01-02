@@ -64,6 +64,7 @@ if command -v yum > /dev/null; then
 		baseurl=$RELEASE_REPOSITORY_URL
 		gpgcheck=0
 		enabled=1
+		skip_if_unavailable=1
 		EOF
 	fi
 

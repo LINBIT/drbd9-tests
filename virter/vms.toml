@@ -3,6 +3,26 @@ name = "t"
 provision_file = "provision-test.toml"
 
 [[vms]]
+base_image = "rhel-10-drbd-krc5"
+vcpus = 2
+memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
+# No RDMA support. rdma_rxe module not available
+vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel10/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel10.0/drbd-9/$basearch/"
+RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
+ReleaseVer = "10.0"
+
+[vms.metadata]
+BuildDistribution = "rhel10.0"
+BuildKernel = "6.11.0-0.rc5.23.el10"
+KernelRelease = "6.11.0-0.rc5.23.el10"
+SourceImage = "rhel:10.0-beta"
+
+[[vms]]
 base_image = "rhel-9-drbd-k427"
 vcpus = 2
 memory = "1G"

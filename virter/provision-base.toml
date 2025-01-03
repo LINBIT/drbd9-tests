@@ -254,6 +254,12 @@ else
 	echo "Unknown package manager"
 	exit 1
 fi
+
+# Some distros (RHEL 10) blacklist netem for enhanced security, so we need to manually remove the blacklist
+if [ -e /etc/modprobe.d/sch_netem-blacklist.conf ]; then
+	sed -i 's/blacklist sch_netem/#blacklist sch_netem/' /etc/modprobe.d/sch_netem-blacklist.conf
+fi
+
 rm -f /tmp/ha{d,ve}
 '''
 

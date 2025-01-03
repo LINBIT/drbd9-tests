@@ -24,6 +24,11 @@ else
 	sed -i 's/^enabled=0/enabled=1/' /etc/yum/pluginconf.d/subscription-manager.conf
 fi
 
+if [ "$dist_major_version" -eq 7 ]; then
+  # RHEL 7 has python3 in the SCL repos
+  yum-config-manager --enable rhel-server-rhscl-7-rpms
+fi
+
 if [ "$dist_major_version" -eq 10 ]; then
   # gdisk package is no longer available from upstream RHEL 10, use EPEL instead
   dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm

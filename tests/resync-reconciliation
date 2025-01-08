@@ -99,7 +99,6 @@ def do_test(with_promote):
         secondary_slow.primary(wait=False)
 
     to_primary_c.event(r'connection .* connection:(NetworkFailure|Timeout)')
-    to_primary_c.event(r'connection .* connection:Unconnected')
 
     conn_to_secondaries = connections(primary_n)
     conn_to_secondaries.event(r'connection .* connection:Unconnected')

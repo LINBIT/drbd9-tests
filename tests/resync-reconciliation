@@ -138,8 +138,8 @@ def do_test(with_promote):
     conn_slow.unblock()
     conn_quick.unblock()
 
-    reconnect_events = [r'peer-node-id:{} .* volume:0 .* peer-disk:UpToDate'.format(secondary_slow.id),
-                r'peer-node-id:{} .* volume:0 .* peer-disk:UpToDate'.format(secondary_quick.id)]
+    reconnect_events = [r'peer-node-id:{} .* volume:0 .* ?peer-disk:UpToDate'.format(secondary_slow.id),
+                r'peer-node-id:{} .* volume:0 .* ?peer-disk:UpToDate'.format(secondary_quick.id)]
 
     primary_n.event(*reconnect_events)
 

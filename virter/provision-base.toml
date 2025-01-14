@@ -193,7 +193,7 @@ kernel::rpm() {
 		enabled=1
 		EOF
 	elif [ -n "$RHEL_SECRETS_URL" ]; then
-		repos="--disablerepo=* --enablerepo=rhel-7-server-rpms,rhel-7-server-els-rpms,rhel-*-baseos-rpms,rhel-*-baseos-beta-rpms,rhel-*-baseos-eus-rpms --skip-broken"
+		repos="--disablerepo=* --enablerepo=rhel-7-server-rpms,rhel-7-server-els-rpms,rhel-*-baseos-rpms,rhel-*-baseos-beta-rpms,rhel-*-baseos-eus-rpms --skip-broken --setopt=skip_if_unavailable=1"
 	else
 		die "Neither KERNEL_REPOSITORY_URL nor RHEL_SECRETS_URL is set, refusing to install kernel from distro repositories."
 	fi

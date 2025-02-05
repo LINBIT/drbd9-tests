@@ -1,0 +1,100 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.3" }
+
+import json
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+from python import trafficcontrol
+
+resource = drbdtest.setup_resource(nodes=2)
+
+resource.add_disk('32M', meta_size='4M')
+resource.disk_options = 'c-max-rate 10M; c-min-rate 0; resync-without-replication yes;'
+resource.net_options = 'protocol A;'
+
+resource.up_wait()
+
+source_n, target_n = resource.nodes
+source_tc = trafficcontrol.TrafficControl(source_n, resource.nodes)
+source_tc.slow_down(target_n, speed='50MiBps')
+
+def validate_resync():
+    peer_devices(source_n, target_n).event(r'peer-device .* replication:SyncSource')
+    peer_devices(target_n, source_n).event(r'peer-device .* replication:SyncTarget')
+    writer.start('--size=8M --bs=128K --rate=40M')
+    peer_devices(source_n, target_n).event(r'peer-device .* replication:Established')
+    peer_devices(target_n, source_n).event(r'peer-device .* replication:Established')
+    writer.stop()
+
+    # Expect approximately this upper bound on the amount written on the target:
+    # 32M # First pass: Out-of-sync region
+    # + 8M # Second pass: Written during first pass
+    # + 8M # Third pass with replication enabled
+    # == 48M
+    #
+    # If we had set "resync-without-replication no;", at least this much would be written:
+    # 8M # Overwritten region
+    # + ((32M - 8M) / 10M) # Time to resync the region not overwritten
+    # * 40M # Rate of writing
+    # == 104M
+    written_upper_bound = 104 * 1024;
+
+    result = target_n.run(['drbdsetup', 'status', '--json'], return_stdout=True)
+    status = json.loads(result)[0]
+    written = status['devices'][0]['written']
+    log('* Written:{}KiB'.format(written))
+
+    if written >= written_upper_bound:
+        raise RuntimeError('Too much written: {} > {}'.format(written, written_upper_bound))
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+source_n.primary()
+writer = busywrite.BusyWrite(source_n.volumes[0])
+
+
+log('* Test resync after connect')
+target_n.down()
+connections(source_n, target_n).event(r'connection .* connection:Connecting')
+source_n.write(size='32M', bs='1M', direct=1)
+
+target_n.up()
+validate_resync()
+
+
+log('* Test resync after Ahead-Behind')
+# Reset written counter
+target_n.down()
+target_n.up()
+connections(source_n, target_n).event(r'connection .* connection:Connected')
+
+# congestion-extents large enough that the writer in validate_resync() does not trigger congestion.
+source_n.drbdadm(['net-options', resource.name, '--on-congestion=pull-ahead', '--congestion-extents=4'])
+# This should not increase the written amount by much because congestion-extents is soon reached.
+writer.start('--size=32M --bs=4K --rate=100M')
+peer_devices(source_n, target_n).event(r'peer-device .* replication:Ahead')
+peer_devices(target_n, source_n).event(r'peer-device .* replication:Behind')
+source_n.write(size='32M', bs='1M', direct=1)
+writer.stop()
+
+validate_resync()
+source_n.drbdadm(['net-options', resource.name, '--on-congestion=block', '--congestion-extents=0'])
+
+
+log('* Test resync by invalidate-remote')
+# Reset written counter
+target_n.down()
+target_n.up()
+connections(source_n, target_n).event(r'connection .* connection:Connected')
+
+source_n.drbdadm(['invalidate-remote', resource.name])
+validate_resync()
+
+
+log('* Shut down and clean up.')
+source_n.secondary()
+resource.down()
+source_tc.reset()
+resource.cluster.teardown()

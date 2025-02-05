@@ -31,3 +31,13 @@ variables = { DrbdOtherNode = "1" }
 [[variants]]
 name = "mainline"
 vm_tags = [ "mainline" ]
+
+# By platform:
+
+[[variants]]
+name = "windows"
+vm_tags = [ "windows" ]
+
+[[variants]]
+name = "cross-plaform"
+vm_tags = [ "cross-plaform" ]

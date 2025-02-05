@@ -19,6 +19,11 @@ echo "===== Get the FQDN from the test nodes"
 # Read TARGETS into array targets without messing up IFS
 IFS=, read -a targets <<< "$TARGETS"
 
+test_args=( "$@" "--logdir" "/log" )
+if [ -f /etc/ssh/ssh_config.virter ] ; then
+    test_args+=( "--ssh-config=/etc/ssh/ssh_config.virter" )
+fi
+
 nodes=()
 for t in "${targets[@]}"; do
     if [ -f /etc/ssh/ssh_config.virter ] ; then
@@ -30,7 +35,6 @@ for t in "${targets[@]}"; do
     nodes+=( "$t_host" )
 done
 
-test_args=( "$@" "--logdir" "/log" )
 [ -n "$DRBD_VERSION" ] && test_args+=( "--drbd-version=$DRBD_VERSION" )
 [ -n "$DRBD_VERSION_OTHER" ] && test_args+=( "--drbd-version-other=$DRBD_VERSION_OTHER" )
 [ -n "$DRBD_OTHER_NODE" ] && test_args+=( "--drbd-other-node=$DRBD_OTHER_NODE" )

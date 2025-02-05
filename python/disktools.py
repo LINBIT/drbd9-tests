@@ -20,6 +20,8 @@ def create_storage_pool(host, backend, backing_device, thin=False, discard_granu
         pool = RawPool(host, backing_device)
     elif backend == 'zfs':
         pool = ZfsPool(host, backing_device, thin, discard_granularity)
+    elif backend == 'storage-spaces':
+        pool = StorageSpacesPool(host, backing_device, thin)
     else:
         raise NotImplementedError('backend "{}" not implemented'.format(backend))
 
@@ -87,6 +89,62 @@ class LvmVolume(object):
         lvs_rep = json.loads(json_str)
 
         return float(lvs_rep['report'][0]['lv'][0]['data_percent'])
+
+class StorageSpacesPool(object):
+    def __init__(self, host, backing_device, thin):
+        self._host = host
+        self._backing_device = backing_device
+        self._thin = thin
+
+    def remove(self):
+        pass
+
+    def create_disk(self, name, size, *, max_size=None):
+        return StorageSpacesVolume(self._host, name, size, self._thin, self._backing_device)
+
+class StorageSpacesVolume(object):
+    @classmethod
+    def size_in_bytes(cls, size):
+        size_str = str(size)
+        unit = size_str[-1:].upper()
+        if unit >= '0' and unit <= '9':
+            return int(size_str)
+
+        size_int = int(size_str[:-1])
+
+        exponent_table = { 'K': 1, 'M': 2, 'G': 3, 'T': 4, 'P': 5 }
+        exponent = exponent_table.get(unit)
+        if not exponent:
+            raise ValueError('Invalid storage size unit in ' + size_str)
+
+        return size_int * 1024 ** exponent
+
+    def __init__(self, host, name, size, thin, backing_device):
+        self._host = host
+        self._name = name
+        self._backing_device = backing_device
+
+        if thin:
+            thin_param = 'thin'
+        else:
+            thin_param = 'thick'
+
+        self._host.run(['./linstor-wmi-helper', 'virtual-disk', 'create', self._backing_device, name, str(StorageSpacesVolume.size_in_bytes(size)), thin_param])
+        line = self._host.run(['bash', '-c', './linstor-wmi-helper virtual-disk list '+name+' 2>&1'], return_stdout=True)
+        print("output is "+line)
+        self._lv = line.split('\t')[4].replace('{', '').replace('}', '')
+
+    def volume_path(self):
+        return self._lv
+
+    def remove(self):
+        self._host.run(['./linstor-wmi-helper', 'virtual-disk', 'delete',  self._name])
+
+    def resize(self, size):
+        self._host.run(['./linstor-wmi-helper', 'virtual-disk', 'resize',  self._name, str(self.size_in_bytes(size))])
+
+    def fill_percentage(self):
+        raise NotImplementedError('storage pool storage volume does not support fill_percentage (yet)')
 
 
 class RawPool(object):

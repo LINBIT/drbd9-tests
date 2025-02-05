@@ -1,6 +1,10 @@
 # This is appended to the base image name to form the test image name
 name = "t"
 provision_file = "provision-test.toml"
+# Those settings are necessary to build Windows VMs
+provision_memory = "8G"
+provision_cpus = 4
+provision_timeout = "30m"
 
 [[vms]]
 base_image = "rhel-10-drbd-krc5"
@@ -192,7 +196,7 @@ vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 # No RDMA support. rdma_rxe module is part of linux-modules-extra which is not installed.
-vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw" ]
+vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw", "cross-platform" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-noble/"
@@ -227,3 +231,17 @@ BuildKernel = "6.9.0-linbit"
 KernelRelease = "6.9.0-linbit"
 SourceImage = "ubuntu-jammy"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/mainline-kernels/"
+
+[[vms]]
+base_image = "windows-server-2019-created-2023"
+vcpus = 4
+memory = "4G"
+disks = ["name=scratch,size=5GiB"] # 5GiB seems to be the minimum for StorageSpaces ...
+vm_tags = ["windows", "cross-platform"]
+user_name = "Administrator"
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/windows"
+
+[vms.metadata]
+

@@ -11,7 +11,8 @@ VMSHED_TEST_TIMEOUT ?=
 docker:
 	docker build --no-cache=$(NOCACHE) -t $(DOCKER_IMAGE_NAME) docker/
 
-virter/tests.toml: tests/* virter/vmshed_tests_generator.py
+# make sure the DRBD_VERSION environment variable is set
+virter/tests.toml: tests/* virter/vmshed_tests_generator.py virter/variants.toml
 	virter/vmshed_tests_generator.py \
 		--tests-dir "$(DRBD_TESTS_DIR)" \
 		--selection "$(VMSHED_TEST_SELECTION)" \

@@ -15,6 +15,18 @@ DrbdOtherNode = ""
 [[steps]]
 [steps.shell]
 script = '''
+
+if uname | grep -q -i '^cygwin' ; then
+
+	# this creates one storage spaces storage pool with all available physical
+	# disks (typically only one). Storage Pool is called scratch in order to
+	# have the same default name as lvm/zfs.
+
+	powershell -Command '$ProgressPreference = "SilentlyContinue" ; $PhysicalDisks = (Get-PhysicalDisk -CanPool $True) ; if ($PhysicalDisks) { New-StoragePool -FriendlyName scratch -StorageSubsystemFriendlyName "Windows Storage*" -PhysicalDisks $PhysicalDisks }'
+
+	exit 0
+fi
+
 set -e
 
 # Create RAM disk automatically for convenience.

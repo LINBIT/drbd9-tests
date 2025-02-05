@@ -24,6 +24,9 @@ done
 
 [ -n "$DRBD_VERSION_OTHER" ] && extra_args+=( "--set" "values.DrbdVersionOther=$DRBD_VERSION_OTHER" )
 
+WINDRBD_VERSION=${WINDRBD_VERSION:-windrbd-1.2-from-gitlab}
+extra_args+=( "--set" "values.WinDrbdVersion=$WINDRBD_VERSION" )
+
 # DRBD_TESTS_DIR is optional. Use default value if empty.
 DRBD_TESTS_DIR="${DRBD_TESTS_DIR:-tests}"
 

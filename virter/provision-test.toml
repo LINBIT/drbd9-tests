@@ -23,6 +23,46 @@ dest = "/usr/local/bin/"
 [[steps]]
 [steps.shell]
 script = '''
+
+if uname | grep -q -i '^cygwin' ; then
+	echo "Downloading installers and certificates from ${REPOSITORY_URL}..."
+
+	echo ${REPOSITORY_URL}/WinDRBD/install-windrbd-${WINDRBD_VERSION}.exe ...
+	curl -s ${REPOSITORY_URL}/WinDRBD/install-windrbd-${WINDRBD_VERSION}.exe > install-windrbd.exe
+
+	echo ${REPOSITORY_URL}/WinDRBD/linbit-self-signed-cert.cer ...
+	curl -s ${REPOSITORY_URL}/WinDRBD/linbit-self-signed-cert.cer > windrbd1.cer
+
+	echo ${REPOSITORY_URL}/WinDRBD/linbit-trusted-cert.cer ...
+	curl -s ${REPOSITORY_URL}/WinDRBD/linbit-trusted-cert.cer > windrbd2.cer
+
+	echo ${REPOSITORY_URL}/LINSTOR/linstor-wmi-helper.exe ...
+	curl -s ${REPOSITORY_URL}/LINSTOR/linstor-wmi-helper.exe > linstor-wmi-helper.exe
+
+	echo ${REPOSITORY_URL}/ThirdParty/fio-3.27-x64.zip
+	curl -s ${REPOSITORY_URL}/ThirdParty/fio-3.27-x64.zip > fio.zip
+
+	echo "Finished downloading installers, now about to install..."
+	chmod a+x install-*.exe
+	chmod a+x linstor-wmi-helper.exe
+
+	echo "WinDRBD certificates"
+	certutil -addstore -f root windrbd1.cer
+	certutil -addstore "TrustedPublisher" windrbd1.cer
+	certutil -addstore -f root windrbd2.cer
+	certutil -addstore "TrustedPublisher" windrbd2.cer
+
+	echo "WinDRBD"
+	time ./install-windrbd.exe /verysilent /norestart
+	sc query windrbd
+
+	echo "fio"
+	powershell -command '$ProgressPreference = "SilentlyContinue" ; Expand-Archive fio.zip'
+	cp fio/fio-3.27-x64/fio.exe /usr/bin
+
+	exit 0
+fi
+
 set -e
 
 die() { >&2 printf "\nError: %s\n" "$*"; exit 1; }
@@ -142,3 +182,4 @@ REPOSITORY_PACKAGES = "{{.RepositoryPackages}}"
 DRBD_PACKAGE = "{{.DrbdPackage}}"
 DRBD_VERSION = "{{.DrbdVersion}}"
 DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
+WINDRBD_VERSION = "{{.WinDrbdVersion}}"

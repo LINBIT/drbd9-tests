@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3, 5], "vms_ci": [3], "samevms": true, "drbd_version_min": "9.0" }
+### vmshed: { "vms_all": [3, 5], "vms_ci": [3], "samevms": true, "drbd_version_min": "9.0", "variants_add": ["windows"] }
 
 # Pass this script a list of host names to use as the test nodes.
 
@@ -8,6 +8,7 @@ from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
 resource = drbdtest.setup_resource(min_nodes=3, max_nodes=5)
+resource.net_options = 'ping-timeout 10;'
 
 diskful_nodes = resource.nodes[1:]
 resource.add_disk('10M', diskful_nodes=diskful_nodes)
@@ -33,84 +34,93 @@ def create_file(node, count):
 
 def verify_files(node):
     global md5_table
-    node.run(['/bin/bash', '-c', 'echo 1 >/proc/sys/vm/drop_caches'])
+    if node.host.is_linux_host():
+        node.run(['/bin/bash', '-c', 'echo 1 >/proc/sys/vm/drop_caches'])
+
     for fnr, write_md5 in enumerate(md5_table):
         read_md5 = node.run(['md5sum', '/mnt/1/f_%d' % (fnr)], return_stdout=True)
         if write_md5 != read_md5:
             raise RuntimeError("Data corruption found file f_%d" % (fnr))
 
 diskless_node = resource.nodes.diskless[0]
-dev_name = diskless_node.volumes[0].device()
-
 
 log('* Test losing all but one server, and reintegrating them in the same order')
-diskless_node.run(['mkfs', '-t', 'ext4', dev_name])
-diskless_node.run(['mkdir', '-p', '/mnt/1'])
-diskless_node.run(['mount', dev_name, '/mnt/1'])
-create_file(diskless_node, 100);
-
-nr_nodes = len(resource.nodes)
-
-# Disconnect nearly all servers
-for n in reversed(resource.nodes.diskful[1:]):
-    log('* taking downing %s' % (n.name))
-    n.down()
+with drbdtest.AutoPromote(diskless_node):
+    diskless_node.volumes[0].mkfs()
+    diskless_node.run(['mkdir', '-p', '/mnt/1'])
+    diskless_node.volumes[0].mount('/mnt/1')
     create_file(diskless_node, 100);
 
-# Reintegrate ony by one
-up_so_far=drbdtest.Nodes([resource.nodes.diskful[0]]);
-for n in resource.nodes.diskful[1:]:
-    n.up_unconnected()
+    nr_nodes = len(resource.nodes)
 
-    log('* re-integrating %s' % (n.name))
-    # TODO Sometimes to diskles first, sometimes to the others first
+    # Disconnect nearly all servers
+    for n in reversed(resource.nodes.diskful[1:]):
+        log('* taking downing %s' % (n.name))
+        n.down()
+        create_file(diskless_node, 100);
 
-    cs = connections(n, to_nodes=resource.nodes.diskful) # Connections from n to all other diskful_nodes
-    cs.connect()
+    # Reintegrate ony by one
+    up_so_far=drbdtest.Nodes([resource.nodes.diskful[0]]);
+    for n in resource.nodes.diskful[1:]:
+        n.up_unconnected()
 
-    # Wait for the connections to connect and my disk to become Inconsistent. Arbitrary order!
-    regexs = []
-    for n2 in up_so_far:
-        regexs.append('connection .* peer-node-id:%d .* connection:Connected' % (n2.id))
+        log('* re-integrating %s' % (n.name))
+        # TODO Sometimes to diskless first, sometimes to the others first
 
-    regexs.append('device .* volume:%d .* disk:Inconsistent' % n.volumes[0].volume)
-    n.event(*regexs)
+        cs = connections(n, to_nodes=resource.nodes.diskful) # Connections from n to all other diskful_nodes
+        cs.connect()
 
-    create_file(diskless_node, 10);     # Write something during resync
+        # Wait for the connections to connect and my disk to become Inconsistent. Arbitrary order!
+        regexs = []
+        for n2 in up_so_far:
+            regexs.append('connection .* peer-node-id:%d .* connection:Connected' % (n2.id))
 
-    # Resync finished
-    n.event(r'response helper .* helper:after-resync-target')
+        regexs.append('device .* volume:%d .* disk:Inconsistent' % n.volumes[0].volume)
+        n.event(*regexs)
 
-    cs = connections(n, diskless_node)
-    cs.connect()
-    cs.event(r'connection .* connection:Connected')
-    n.volumes.event(r'device .* disk:UpToDate')
+        create_file(diskless_node, 10);     # Write something during resync
 
-    # Waiting for the reverse is necessary as well, otherwise the following
-    # disconnect might fail
-    cs = connections(diskless_node, n)
-    cs.event(r'connection .* connection:Connected')
+        # Resync finished
+        n.event(r'response helper .* helper:after-resync-target')
 
-    cs = connections(diskless_node, to_nodes=up_so_far)
-    cs.disconnect()
-    verify_files(diskless_node)
-    cs.connect()
-    cs.event(r'connection .* connection:Connected')
-    up_so_far.event(r'device .* disk:UpToDate')
+        cs = connections(n, diskless_node)
+        cs.connect()
+        cs.event(r'connection .* connection:Connected')
+        n.volumes.event(r'device .* disk:UpToDate')
 
-    up_so_far.add(n)
+        # Waiting for the reverse is necessary as well, otherwise the following
+        # disconnect might fail
+        cs = connections(diskless_node, n)
+        cs.event(r'connection .* connection:Connected')
 
-# Early Exit
-diskless_node.run(['umount', '/mnt/1'])
+        cs = connections(diskless_node, to_nodes=up_so_far)
+        cs.disconnect()
+        verify_files(diskless_node)
+        cs.connect()
+        cs.event(r'connection .* connection:Connected')
+        up_so_far.event(r'device .* disk:UpToDate')
+
+        up_so_far.add(n)
+
+    # Early Exit
+    diskless_node.volumes[0].umount('/mnt/1')
+
+# End of with AutoPromote() expecting secondary
 
 log('* Writing from diskless node.')
 
 diskless_node.primary()
+
+# Wipe NTFS file system. Else we get Access Denied when writing
+# to the disk directly
+diskless_node.volumes[0].wipe_ntfs()
+
 diskless_node.fio(drbdtest.fio_write_args)
 diskless_node.secondary()
 
 log('* Verifying on diskful node.')
-diskful_nodes[0].fio(drbdtest.fio_verify_args)
+with drbdtest.AutoPromote(diskful_nodes[0]):
+    diskful_nodes[0].fio(drbdtest.fio_verify_args)
 
 log('* Disconnecting nodes.')
 diskless_node.primary()
@@ -143,11 +153,12 @@ connections(to_node=diskless_node).event(r'connection .* role:Secondary')
 
 # FIXME: Simulate network outage
 
-try:
-    diskless_node.run(['sleep', '0.5'])
-    diskless_node.run(['udevadm', 'settle', '--timeout=2'])
-except:
-    pass
+if diskless_node.host.is_linux_host():
+    try:
+        diskless_node.run(['sleep', '0.5'])
+        diskless_node.run(['udevadm', 'settle', '--timeout=2'])
+    except:
+        pass
 
 log('* Shut down and clean up.')
 resource.down()

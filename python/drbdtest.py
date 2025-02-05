@@ -9,7 +9,6 @@ import errno
 import sys
 import re
 from enum import Flag, auto
-import inspect
 import json
 import time
 import shlex
@@ -26,11 +25,14 @@ from .ordered_set import OrderedSet
 from . import disktools, tls
 import io
 import fnmatch
+from .linuxplatformhelper import LinuxPlatformHelper
+from .windowsplatformhelper import WindowsPlatformHelper
 
 from io import StringIO
 
 from lbpytest.controlmaster import SSH
 from lbpytest.logscan import Logscan, InputStream
+from . import drbdtestlogger
 
 
 #Contants for set_fault_injection
@@ -136,19 +138,14 @@ fio_write_small_args = {
         'size': '4K',
         'randrepeat': 0}
 
-drbd_config_dir = '/var/lib/drbd-test'
 package_download_dir = '/opt/package-download'
 
 silent = False
-debug_level = 0
 skip_cleanup = False
 # possibly set by Cleanup.hook()
 uncaught_exception = None
 
 devnull = open(os.devnull, 'w')
-
-# stream to write output to
-logstream = None
 
 state_twopc_regex = re.compile(r'Executing tid: (\d+)')
 
@@ -168,34 +165,6 @@ class MetadataFlag(Flag):
     NODE_EXISTS = auto()
     HAVE_BITMAP = auto()
 
-
-class Tee(object):
-    """
-    replicates writes to streams
-    """
-
-    def __init__(self):
-        self.streams = set()
-
-    def add(self, stream):
-        # Do not modify self.streams in place. Another thread may be iterating over it.
-        streams = set(self.streams)
-        streams.add(stream)
-        self.streams = streams
-
-    def remove(self, stream):
-        # Do not modify self.streams in place. Another thread may be iterating over it.
-        streams = set(self.streams)
-        streams.remove(stream)
-        self.streams = streams
-
-    def write(self, message):
-        for stream in self.streams:
-            stream.write(message)
-
-    def flush(self):
-        for stream in self.streams:
-            stream.flush()
 
 
 class FirstWriteTrap(object):
@@ -222,20 +191,13 @@ class FirstWriteTrap(object):
 
 def log(*args, **kwargs):
     """ Print message to stderr """
-    print(*args, file=logstream)
-    logstream.flush()
 
+    return drbdtestlogger.log(*args, **kwargs)
 
 def debug(*args, **kwargs):
     """ Print debug message according to configured debug level. """
 
-    level = 1
-    try:
-        level = kwargs.pop('level')
-    except:
-        pass
-    if level <= debug_level:
-        print(*args, file=logstream)
+    return drbdtestlogger.debug(*args, **kwargs)
 
 
 class Cleanup(object):
@@ -254,7 +216,7 @@ class Cleanup(object):
             skip_cleanup = True
         if etype == subprocess.CalledProcessError and hasattr(value, 'output') and value.output is not None:
             log(value.output.decode(encoding='utf-8', errors='backslashreplace'))
-        traceback.print_exception(etype, value, tb, file=logstream)
+        traceback.print_exception(etype, value, tb, file=drbdtestlogger.logstream)
         global uncaught_exception
         uncaught_exception = { 'exc_type': etype, 'exc_value': value, 'exc_tb': tb }
 
@@ -713,7 +675,7 @@ class Cluster(object):
             print("\ntest failed:\n{}{}".format(
 		''.join(traceback.format_tb(uncaught_exception["exc_tb"], limit=1)),
 		''.join(traceback.format_exception_only(uncaught_exception["exc_type"], uncaught_exception["exc_value"]))),
-                file=logstream)
+                file=drbdtestlogger.logstream)
         # else: we cannot be sure about the exit code, so don't claim "Success".
 
     def teardown(self, validate_dmesg=True):
@@ -755,7 +717,7 @@ class Cluster(object):
                 filters=filters,
                 wordwise=not 'word_boundary' in kwargs or kwargs['word_boundary'],
                 timeout=kwargs.get('timeout'),
-                verbose_out=logstream)
+                verbose_out=drbdtestlogger.logstream)
 
     def validate_drbd_versions(self):
         """
@@ -1071,6 +1033,7 @@ class Volume(object):
         self.meta_volume = None
         self.disk_lv = None
         self.meta_lv = None
+        self.disk_is_online = False
 
     def get_resource(self):
         return self.node.resource
@@ -1117,9 +1080,6 @@ class Volume(object):
         # TODO: metadata-resize?
         self.disk_volume.resize(size)
 
-    def device(self):
-        return '/dev/drbd%d' % self.minor
-
     def write(self, **kwargs):
         """
         Write some data to the volume using fio.
@@ -1160,6 +1120,34 @@ class Volume(object):
 
     def new_minor(self):
         self.node.drbdadm(['new-minor', '{}/{}'.format(self.node.resource.name, self.volume)])
+
+    def disk_native(self):
+        return self.node.host.platform_helper.disk_native(self)
+
+    def device(self):
+        return self.node.host.platform_helper.device(self)
+
+    def device_for_config(self):
+        return self.node.host.platform_helper.device_for_config(self)
+
+    def set_disk_online(self):
+        return self.node.host.platform_helper.set_disk_online(self)
+
+    def mkfs(self):
+        return self.node.host.platform_helper.mkfs(self)
+
+    def mount(self, where):
+        return self.node.host.platform_helper.mount(self, where)
+
+    def set_disk_offline(self):
+        return self.node.host.platform_helper.set_disk_offline(self)
+
+    def umount(self, where, set_offline = False):
+        return self.node.host.platform_helper.umount(self, where, set_offline)
+
+    def wipe_ntfs(self):
+        return self.node.host.platform_helper.wipe_ntfs(self)
+
 
 class Connection(object):
     def __init__(self, node1, node2):
@@ -1267,6 +1255,17 @@ class AsPrimary(object):
         # are patched to exclude DRBD from blkid
         self.node.secondary()
 
+class AutoPromote(object):
+
+    def __init__(self, node):
+        self.node = node
+
+    def __enter__(self):
+        self.node.prepare_auto_promote()
+
+    def __exit__(self, *ignore_exception):
+        self.node.cleanup_auto_demote()
+
 
 class ConfigBlock(object):
     INDENT = "     "
@@ -1336,7 +1335,7 @@ class Host():
     """
 
     def __init__(self, cluster, name, volume_group, storage_backend, backing_device,
-                 first_port=7789, addr=None, multi_paths=None, netns=None):
+                 first_port=7789, addr=None, multi_paths=None, netns=None, ssh_config=None):
         self.cluster = cluster
         self.name = name
         self.port = first_port
@@ -1347,7 +1346,7 @@ class Host():
             raise RuntimeError('Could not determine IP for host %s' % name)
 
         try:
-            self.ssh = SSH(self.addr, timeout=30)
+            self.ssh = SSH(self.addr, timeout=30, user=None if ssh_config else 'root', ssh_config=ssh_config)
         except subprocess.CalledProcessError as e:
             print(e.stderr.decode('utf-8'), file=sys.stderr)
             raise e
@@ -1357,9 +1356,8 @@ class Host():
         self.minors = 0
         self.storage_pool = None
         self.volume_group = volume_group
-        self.storage_backend = storage_backend
-        self.backing_device = backing_device
         self.has_other_version = False
+        self.platform_helper = self.get_platform_helper()
         self.read_drbd_version()
 
         if self.drbd_version_tuple < (9, 0, 0):
@@ -1368,75 +1366,54 @@ class Host():
             hostname_cmd = ['hostname', '-f']
         self.hostname = self.run(hostname_cmd, return_stdout=True)
 
-        self.os_id, self.os_version_id = self.run(
-                ['bash', '-c', '. /etc/os-release ; echo $ID ; echo $VERSION_ID'],
-                return_stdout=True).splitlines()
-        log("host {} is running '{}' version '{}'".format(name, self.os_id, self.os_version_id))
-
         self.addrs = [self.addr]
         self.netdevs = {}
 
-        addresses = self.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True)
-        log("got all addresses %s", addresses)
-        for line in addresses.splitlines():
-            m = re.search(r'^\s*\d+:\s+(\w+)\s+inet\s+([\d\.]+)/(\d+)', line)
-            if not m:
-                continue
-            devname = m.group(1)
-            addr = m.group(2)
-            prefix = m.group(3)
-            if addr == "127.0.0.1" or addr == self.addr:
-                continue
+        # Platform specific initialization
+        self.platform_helper.init_host(self, storage_backend, backing_device, multi_paths, netns)
 
-            self.netdevs[devname] = {
-                'address': addr,
-                'prefix': prefix,
-            }
-
-        if multi_paths:
-            if not self.netdevs:
-                raise RuntimeError("%s has no additional address", self)
-
-            log("got all addresses %s", addresses)
-            for address_info in self.netdevs.values():
-                self.addrs.append(address_info['address'])
-
-        init_iptables = ["bash", "--norc", "-xec", inspect.cleandoc('''
-                iptables -F drbd-test-input || iptables -N drbd-test-input
-                iptables -F drbd-test-output || iptables -N drbd-test-output
-                iptables -I INPUT -j drbd-test-input
-                iptables -I OUTPUT -j drbd-test-output
-                ''')]
-
-        if netns:
-            if not self.netdevs:
-                raise RuntimeError("%s is missing additional netdevs to namespace", self)
-
-            self.addrs = []
-            self.run(['ip', 'netns', 'add', netns])
-            for address_info in self.netdevs.values():
-                self.addrs.append(address_info['address'])
-
-            if len(self.addrs) < 1:
-                raise RuntimeError("%s has namespaced address", self)
-
-            # Also configure IPTABLES in the init_net namespace, some tests might use both
-            self.run_quiet(init_iptables)
-
-            # From now on, all run() commands run in <netns> namespace, unless explicitly excluded
-            self.netns = netns
-            # Now ensure all netdevs are moved to the right namespace
-            self.ensure_netdev(netns=netns)
-
-        self.run_quiet(init_iptables)
+        log("host {} is running '{}' version '{}'".format(name, self.os_id, self.os_version_id))
 
         self.start_dmesg()
 
-        self.run(['mkdir', '-p', drbd_config_dir])
+        self.run(['mkdir', '-p', self.drbd_config_dir])
         global_config = 'global { usage-count no; }\n' + 'include "{}/{}*";\n'.format(
-                drbd_config_dir, cluster.job)
+                self.drbd_config_dir, cluster.job)
         self.run(['bash', '-c', "cat > " + self.drbd_global_config_file_path()],
                 stdin=StringIO(global_config))
+
+    def get_platform_helper(self):
+        stdout = StringIO()
+        self.ssh.run("uname", stdout=stdout, timeout=30)
+        uname = stdout.getvalue().strip().upper()
+
+        if uname == "LINUX":
+            return LinuxPlatformHelper()
+        if uname.startswith("CYGWIN"):
+            return WindowsPlatformHelper()
+        raise RuntimeError("Unsupported platform: "+uname)
+
+    def is_linux_host(self):
+        return self.platform_helper.__class__ == LinuxPlatformHelper
+
+    def is_windows_host(self):
+        return self.platform_helper.__class__ == WindowsPlatformHelper
+
+    def read_drbd_version(self):
+        return self.platform_helper.read_drbd_version(self)
+
+    def native_filename(self, filename):
+        return self.platform_helper.native_filename(self, filename)
+
+    def start_dmesg(self):
+        return self.platform_helper.start_dmesg(self)
+
+    def rmmod(self):
+        if not no_rmmod:
+            self.platform_helper.rmmod(self)
+
+    def disable_faults(self):
+        return self.platform_helper.disable_faults(self)
 
     def ensure_netdev(self, netns=None):
         """
@@ -1460,25 +1437,6 @@ class Host():
 
             self.run(base + ['link', 'set', 'dev', devname, 'up'], ignore_netns=True)
 
-    def read_drbd_version(self):
-        # cat > /dev/kmsg so we have it in the dmesg stream,
-        # even if the ring buffer wrapped since the module was loaded
-        self.run(['bash', '-c', 'cat /proc/drbd > /dev/kmsg || modprobe drbd'])
-        proc_drbd_lines = self.run(['cat', '/proc/drbd'], return_stdout=True).splitlines()
-        version_line = proc_drbd_lines[0]
-        git_hash_line = proc_drbd_lines[1]
-
-        version_line_match = re.match(r'version: ([^ -]+).*', version_line)
-        self.drbd_version = version_line_match.group(1)
-
-        version_match = re.match(r'([0-9]+)\.([0-9]+)\.([0-9]+).*', self.drbd_version)
-        self.drbd_version_tuple = int(version_match.group(1)), int(version_match.group(2)), int(version_match.group(3))
-
-        # out-of-tree drbd uses "GIT-hash: 0a1b2c3d",
-        # in-tree uses "srcversion: 0A1B2C3D"; allow both formats.
-        hash_match = re.match(r'(?:srcversion|GIT-hash): ([0-9A-Fa-f]+).*', git_hash_line)
-        self.drbd_git_hash = hash_match.group(1).lower()
-
     def cleanup(self):
         """
         Clean up resource artifacts. This may or may not be run depending on
@@ -1495,19 +1453,7 @@ class Host():
 
         self.stop_dmesg()
 
-        tlshd_log = self.run(["journalctl", "-u", "tlshd", "-b", "0", "-q"], return_stdout=True)
-        if tlshd_log:
-            with open(os.path.join(self.cluster.logdir, 'tlshd-{}'.format(self.name)), "w") as tlshd_logfile:
-                tlshd_logfile.write(tlshd_log)
-
-        cleanup_iptables = ["bash", "--norc", "-xec", inspect.cleandoc('''
-                iptables -D INPUT -j drbd-test-input
-                iptables -D OUTPUT -j drbd-test-output
-                iptables -F drbd-test-input && iptables -X drbd-test-input || true
-                iptables -F drbd-test-output && iptables -X drbd-test-output || true
-                ''')]
-
-        self.run_quiet(cleanup_iptables)
+        self.platform_helper.cleanup_framework(self)
 
         if hasattr(self, 'events'):
             self.events.terminate()
@@ -1518,20 +1464,21 @@ class Host():
         log('{}: Closing connection to {}'.format(self.name, self.ssh.host))
         self.ssh.close()
 
-    def start_dmesg(self):
+    def start_dmesg_with_cmd(self, cmd):
         self.dmesg_out_stream = io.StringIO()
 
         out_path = os.path.join(self.cluster.logdir, 'dmesg-{}'.format(self.name))
         self.dmesg_out_file = open(out_path, 'w', encoding='utf-8')
 
-        self.dmesg_out_tee = Tee()
+        self.dmesg_out_tee = drbdtestlogger.Tee()
         self.dmesg_out_tee.add(self.dmesg_out_stream)
         self.dmesg_out_tee.add(self.dmesg_out_file)
 
         condition = threading.Condition()
         self.dmesg_pid_trap = FirstWriteTrap(self.dmesg_out_tee, condition)
 
-        self.dmesg_process = self.ssh.Popen('echo $$ ; dmesg --follow-new --time-format=iso || dmesg --follow')
+        self.dmesg_process = self.ssh.Popen(cmd)
+
         def dmesg_pipe():
             self.ssh.pipeIO(self.dmesg_process, stdout=self.dmesg_pid_trap)
 
@@ -1542,10 +1489,9 @@ class Host():
             condition.wait()
 
     def stop_dmesg(self):
+        self.platform_helper.stop_dmesg(self)
+
         if self.dmesg_process:
-            # Kill entire remote session
-            self.run(['bash', '-c', 'kill $(ps -s {} -o pid=)'.format(
-                self.dmesg_pid_trap.first_message.strip())])
             self.dmesg_process.terminate()
             self.dmesg_process.wait()
             self.dmesg_process = None
@@ -1599,28 +1545,6 @@ class Host():
         self.install_helper(helper_name, target_path)
         return self.run([target_path, *args], timeout=timeout, return_stdout=return_stdout)
 
-    def rmmod(self):
-        if no_rmmod:
-            return
-        if self.drbd_version_tuple >= (9, 0, 0):
-            # might not even be loaded
-            try:
-                self.run(['rmmod', 'drbd_transport_tcp'])
-            except:
-                pass
-            try:
-                self.run(['rmmod', 'drbd_transport_lb-tcp'])
-            except:
-                pass
-            try:
-                self.run(['rmmod', 'drbd_transport_rdma'])
-            except:
-                pass
-        try:
-            self.run(['rmmod', 'drbd'])
-        except:
-            pass
-
     def install_drbd(self, version):
         self.rmmod()
         self.run_helper('install-drbd', [package_download_dir, version], timeout=90)
@@ -1651,7 +1575,7 @@ class Host():
         self.storage_pool = None
 
     def drbd_global_config_file_path(self):
-        return '{}/{}.conf'.format(drbd_config_dir, self.cluster.job)
+        return '{}/{}.conf'.format(self.drbd_config_dir, self.cluster.job)
 
     def listen_to_events(self):
         if self.events_file:
@@ -1684,8 +1608,8 @@ class Host():
         :returns: nothing, or a string if return_stdout is True
         :raise CalledProcessError: when the command fails (unless catch is True)
         """
-        stdout = stdout or logstream
-        stderr = stderr or logstream
+        stdout = stdout or drbdtestlogger.logstream
+        stderr = stderr or drbdtestlogger.logstream
         stdin = stdin or False # False means no stdin
         if return_stdout:
             # if stdout should be returned, do not log stdout to logstream too
@@ -1703,7 +1627,7 @@ class Host():
         result = self.ssh.run(cmd_string, env=env, stdin=stdin, stdout=stdout, stderr=stderr, timeout=timeout)
         if result != 0:
             if catch:
-                print('error: {} failed ({})'.format(cmd[0], result), file=logstream)
+                print('error: {} failed ({})'.format(cmd[0], result), file=drbdtestlogger.logstream)
             else:
                 raise CalledProcessError(result, cmd_string)
 
@@ -1722,7 +1646,7 @@ class Host():
             self.run(cmd, quote=quote, stdin=stdin, stdout=out, stderr=out, env=env, timeout=timeout, ignore_netns=ignore_netns)
         # Catch BaseException to include cases like KeyboardInterrupt
         except BaseException as e:
-            logstream.write(out.getvalue())
+            drbdtestlogger.logstream.write(out.getvalue())
             raise e
 
     def fio_file(self, filename, base_args={}, **kwargs):
@@ -1733,8 +1657,17 @@ class Host():
 
         The remaining keyword arguments also specify fio parameters. These
         parameters override the base_args.
+
+        Expects that the caller made the resource already primary on
+        platforms that do not support auto promote (Windows)
         """
-        arg_dict = {'filename': filename, **base_args, **kwargs}
+        native_filename = self.native_filename(filename)
+
+        # All colons have special meaning for fio: file name
+        # separator (similar to UNIX PATH variable).
+        escaped_filename = native_filename.replace(":", "\\:")
+
+        arg_dict = {'filename': escaped_filename, **base_args, **kwargs}
         fio_args = ['--{}={}'.format(key, value) for (key, value) in arg_dict.items()]
 
         cmd = ['fio',
@@ -1743,6 +1676,9 @@ class Host():
                 '--max-jobs=16',
                 '--name=test',
                 *fio_args]
+
+        if self.is_windows_host():
+            cmd += ['--thread']	        # silences a fio warning
 
         result = self.run(cmd, return_stdout=True)
 
@@ -1790,6 +1726,9 @@ class Node():
         self.resource.nodes.add(self)
         self.config_changed = True
         self.connections = Connections()
+
+        self.host.platform_helper.init_node(self)
+
 
     def cleanup(self):
         """
@@ -1902,7 +1841,7 @@ class Node():
 
             for index, disk in enumerate(node.disks):
                 with ConfigBlock(t='volume %d' % index) as V:
-                    V.write("device %s;" % disk.device())
+                    V.write("device %s;" % disk.device_for_config())
                     V.write("disk %s;" % (disk.disk or "none"))
                     if disk.disk:
                         V.write("meta-disk %s;" % (disk.meta or "internal"))
@@ -1969,7 +1908,7 @@ class Node():
         return "".join(text)
 
     def drbd_config_file_path(self):
-        return '{}/{}-{}.res'.format(drbd_config_dir, self.resource.cluster.job, self.resource.name)
+        return '{}/{}-{}.res'.format(self.host.drbd_config_dir, self.resource.cluster.job, self.resource.name)
 
     def update_config(self):
         """ Create or update the configuration file on the node when needed. """
@@ -2086,6 +2025,14 @@ class Node():
             if wait:
                 self.event(r'resource .* role:Primary')
 
+        self.host.platform_helper.after_becoming_primary(self)
+
+    def prepare_auto_promote(self):
+        self.host.platform_helper.prepare_auto_promote(self)
+
+    def cleanup_auto_demote(self):
+        self.host.platform_helper.cleanup_auto_demote(self)
+
     def secondary(self, wait=True, force=False):
         self.drbdadm(['secondary', self.resource.name] + (['--force'] if force else []))
         if wait:
@@ -2176,18 +2123,10 @@ class Node():
         return r
 
     def block_path(self, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
-        """Uses iptables to block one network path."""
-        log("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
-        cmds = self._iptables_cmd(other_node, jump_to, net_number, "-I", iptables_filter)
-        for c in cmds:
-            self.run(c)
+        return self.host.platform_helper.block_path(self, other_node, net_number, jump_to, iptables_filter)
 
     def unblock_path(self, other_node, net_number=0, jump_to="DROP"):
-        """Uses iptables to unblock one network path."""
-        log("Unblocking path #%d from %s to %s" % (net_number, self, other_node))
-        cmds = self._iptables_cmd(other_node, jump_to, net_number, "-D")
-        for c in cmds:
-            self.run(c)
+        return self.host.platform_helper.unblock_path(self, other_node, net_number, jump_to)
 
     def _block_packet_type(self, packet, op, from_node, volume):
         cmdline = ['iptables', op, 'drbd-test-input', '-p']
@@ -2288,6 +2227,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     parser.add_argument('--drbd-version', help='validate that this DRBD version is installed')
     parser.add_argument('--drbd-version-other')
     parser.add_argument('--drbd-other-node', type=int, default=0, help='index of node to install "other" version on')
+    parser.add_argument('--ssh-config', type=str, help='Use this ssh-config to connect to test nodes')
     args = parser.parse_args()
 
     if nodes is not None:
@@ -2310,9 +2250,8 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     global silent
     silent = args.silent
 
-    global debug_level
     if args.debug is not None:
-        debug_level = args.debug
+        drbdtestlogger.set_debug_level(args.debug)
 
     if args.job is None:
         args.job = re.sub(r'.*/(.*?)(?:\.py)?$', r'\1', sys.argv[0]) + \
@@ -2342,12 +2281,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
                 raise e
         os.symlink(args.job, os.path.join('log', job_symlink))
 
-    logfile = open(os.path.join(args.logdir, 'test.log'), 'w', encoding='utf-8')
-    # no need to close logfile - it is kept open until the program terminates
-    global logstream
-    logstream = Tee()
-    logstream.add(sys.stderr)
-    logstream.add(logfile)
+    drbdtestlogger.open_logstream(os.path.join(args.logdir, 'test.log'))
 
     global proxy_enable
     proxy_enable = args.proxy
@@ -2417,7 +2351,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     for i, host_name in enumerate(args.host):
         host = Host(cluster, host_name,
             args.volume_group, args.storage_backend, args.backing_device,
-            multi_paths=multi_paths, netns=netns)
+            multi_paths=multi_paths, netns=netns, ssh_config=args.ssh_config)
 
         cluster.hosts.append(host)
 
@@ -2438,7 +2372,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     cluster.listen_to_events()
 
     for host in cluster.hosts:
-        host.run_helper('disable-faults')
+        host.disable_faults()
 
     return cluster
 

@@ -31,10 +31,15 @@ class BusyWrite(object):
         """
         self._output_filename = 'fio-{}-{}-async.json'.format(self._node.name, self._node.host.fio_count)
 
+        if self._node.host.is_linux_host():
+            platform_args = '--ioengine=libaio '
+        else:
+            platform_args = '--ioengine=windowsaio --thread '
+
         # run fio in background
         fio_cmd = ['setsid', 'bash', '-c',
-                'fio --output-format=json --max-jobs=16 --name=test --ioengine=libaio ' +
-                '--filename={} '.format(self._volume.device()) +
+                'fio --output-format=json --name=test --max-jobs=4 ' + platform_args +
+                '--filename={} '.format(self._node.host.native_filename(self._volume.device()).replace(":", "\\:").replace("\\", "\\\\")) +
                 fio_base_args + ' ' + fio_arg_str +
                 ' < /dev/null > /tmp/{} 2> /dev/null & echo $!'.format(self._output_filename)]
         self._fio_pid = self._node.run(fio_cmd, return_stdout=True)

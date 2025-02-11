@@ -1,0 +1,118 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.2" }
+
+# Demonstrate the necessity of flushing requests before finishing a resync.
+
+import time
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+resource = drbdtest.setup_resource(nodes=3)
+diskless_n, source_n, target_n = resource.nodes
+diskful_nodes = [source_n, target_n]
+
+resource.resource_options = 'peer-ack-delay 3000;'
+resource.add_disk('32M', diskful_nodes=diskful_nodes)
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+diskless_n.down()
+
+
+log('*** Case: 2 nodes')
+
+log('* Initialize first 1MiB')
+source_n.primary()
+source_n.fio_file(source_n.volumes[0].device(), rw='write', zero_buffers=1, bs='1M', size='1M', direct=1)
+
+log('* Create new UUID without target node to prepare empty resync')
+target_n.down()
+connections(source_n, target_n).event(r'connection .* connection:Connecting')
+source_n.drbdadm(['new-current-uuid', '{}/{}'.format(resource.name, source_n.volumes[0].volume)])
+
+log('* Connect until bitmap sent to source')
+# Prevent source_n from reaching state SyncSource and seeing the disk of
+# target_n as Inconsistent.
+source_n.block_packet_type(drbdtest.P_COMPRESSED_BITMAP, from_node=target_n)
+target_n.up()
+peer_devices(source_n, target_n).event(r'peer-device .* replication:WFBitMapS')
+peer_devices(target_n, source_n).event(r'peer-device .* replication:SyncTarget')
+
+log('* Allow time for the resync to finish if there is no flush')
+# There was a bug in DRBD up to version 9.2.13 that allowed the resync to
+# finish here, even though out-of-sync packets may later be received.
+time.sleep(1.0)
+
+log('* Write new data to first 1MiB; will be sent as out-of-sync packet to target')
+source_n.write(direct=1, size='1M', bs='1M')
+
+log('* Allow resync to run')
+source_n.unblock_packet_type(drbdtest.P_COMPRESSED_BITMAP, from_node=target_n)
+peer_devices(source_n, target_n).event(r'peer-device .* replication:SyncSource')
+peer_devices(source_n, target_n).event(r'peer-device .* replication:Established')
+peer_devices(target_n, source_n).event(r'peer-device .* replication:Established')
+
+log('* Check data')
+source_n.secondary()
+datatools.verify_data(diskful_nodes, size_mb=1)
+
+
+log('*** Case: 3 nodes')
+
+log('* Initialize first 1MiB')
+diskless_n.up()
+peer_devices(diskless_n, bidir=True).event(r'peer-device .* replication:Established')
+diskless_n.primary()
+diskless_n.fio_file(source_n.volumes[0].device(), rw='write', zero_buffers=1, bs='1M', size='1M', direct=1)
+
+log('* Write some data without target node to trigger resync')
+target_n.down()
+connections(to_node=target_n).event(r'connection .* connection:Connecting')
+diskless_n.write(direct=1, size='1M', offset='1M', bs='1M')
+
+log('* Bring target up but only connected to diskless')
+target_n.up_unconnected()
+connections(target_n, diskless_n).connect()
+connections(diskless_n, target_n).event(r'peer-device .* peer-disk:Outdated')
+
+# The peer-ack-delay value should prevent P_PEER_ACK being sent sooner than
+# expected. Block the packet to make sure it does not cause bits to be set.
+source_n.block_packet_type(drbdtest.P_PEER_ACK, from_node=diskless_n, volume=0xffff)
+
+log('* Connect until bitmap sent to target')
+# Prevent target_n from reaching state SyncTarget and becoming Inconsistent.
+target_n.block_packet_type(drbdtest.P_COMPRESSED_BITMAP, from_node=source_n)
+connections(target_n, source_n).connect()
+peer_devices(source_n, target_n).event(r'peer-device .* replication:WFBitMapS')
+
+log('* Write new data to first 1MiB; will not be sent to target')
+diskless_n.write(direct=1, size='1M', bs='1M')
+
+log('* Let resync start')
+target_n.unblock_packet_type(drbdtest.P_COMPRESSED_BITMAP, from_node=source_n)
+peer_devices(target_n, source_n).event(r'peer-device .* replication:SyncTarget')
+peer_devices(source_n, target_n).event(r'peer-device .* replication:SyncSource')
+
+log('* Allow time for the resync to finish if there is no flush')
+# There was a bug in DRBD up to version 9.2.13 that allowed the resync to
+# finish here, even though out-of-sync packets may later be received.
+time.sleep(1.0)
+
+log('* Allow resync to finish if there is a flush')
+source_n.unblock_packet_type(drbdtest.P_PEER_ACK, from_node=diskless_n, volume=0xffff)
+
+peer_devices(target_n, source_n).event(r'peer-device .* replication:Established')
+peer_devices(source_n, target_n).event(r'peer-device .* replication:Established')
+
+log('* Check data')
+diskless_n.secondary()
+datatools.verify_data(diskful_nodes, size_mb=1)
+
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

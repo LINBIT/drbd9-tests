@@ -1,0 +1,28 @@
+#! /usr/bin/env python3
+
+import argparse
+import socket
+import time
+from ipaddress import ip_address
+
+
+def do_read(bytes_to_read):
+    total_bytes_read = 0
+    while True:
+        bytes_read = client_sock.recv(bytes_to_read)
+        total_bytes_read += len(bytes_read)
+        if total_bytes_read >= bytes_to_read:
+            break
+
+arg_parser = argparse.ArgumentParser()
+arg_parser.add_argument('--port', '-p', type=int, help='TCP port number to connect to')
+arg_parser.add_argument('--server-ip', '-s', type=ip_address, help='IPv4 address to connect to')
+args = arg_parser.parse_args()
+
+client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client_sock.connect((str(args.server_ip), args.port))
+client_sock.setblocking(True)
+
+while True:
+    do_read(1)
+    time.sleep(0.001)

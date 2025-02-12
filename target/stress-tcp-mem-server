@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+
+import argparse
+import socket
+import errno
+import time
+
+payload = b'a' * 1448
+
+arg_parser = argparse.ArgumentParser()
+arg_parser.add_argument('--port', '-p', type=int, help='TCP port number to listen on')
+args = arg_parser.parse_args()
+
+listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+listen_sock.bind(('0.0.0.0', args.port))
+
+# listen backlog
+listen_sock.listen(32)
+listen_sock.setblocking(True)
+
+sock, _ = listen_sock.accept()
+sock.setblocking(True)
+
+# do forever (until client disconnects)
+while True:
+    try:
+        sock.send(payload)
+        time.sleep(0.001)
+    except Exception as e:
+        print(e)
+        sock.close()
+        break

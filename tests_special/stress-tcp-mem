@@ -1,0 +1,100 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.0" }
+
+# This test establishes many TCP connections, where the consumer reads
+# 1000 times slower than the producer sends data into the established
+# TCP connection. This creates TCP memory pressure on both sides, as
+# those connections have large and filled socket send and receive
+# buffers.
+#
+# This test verifies that a DRBD connection stays connected and
+# continues to do its in-DRBD-protocol pings under such a condition.
+
+import re
+import time
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+sockstat_re = re.compile(r'TCP: inuse \d+ orphan \d+ tw \d+ alloc \d+ mem (\d+)', re.MULTILINE)
+server_prg = 'stress-tcp-mem-server'
+client_prg = 'stress-tcp-mem-client'
+server_path = '/tmp/' + server_prg
+client_path = '/tmp/' + client_prg
+
+
+def tcp_mem_in_use(node):
+    sockstat_str = node.run(['cat', '/proc/net/sockstat'], return_stdout=True)
+    tcp_mem = sockstat_re.findall(sockstat_str)[0]
+    log('{}: tcp_mem: {}'.format(node.name, tcp_mem))
+
+
+def start_tcp_session(node_a, node_b, port):
+    server_cmd = ['setsid', 'bash', '-c',
+                  '{} --port {} < /dev/null > /tmp/null 2> /dev/null & echo $!'.format(server_path, port)]
+    pid_a = node_a.run(server_cmd, return_stdout=True)
+
+    client_cmd = ['setsid', 'bash', '-c',
+                  '{} --server-ip {} --port {} < /dev/null > /tmp/null 2> /dev/null & echo $!'
+                  .format(client_path, node_a.host.addr, port)]
+    pid_b = node_b.run(client_cmd, return_stdout=True)
+
+    return (pid_a, pid_b)
+
+
+def stop_tcp_session(node_a, node_b, pid_a, pid_b):
+    try:
+        # Kill the client
+        node_b.run(['kill', pid_b])
+    except:
+        # If there is not client, try to kill the server
+        try:
+            node_a.run(['kill', pid_a])
+        except:
+            # no client, no server, nothing to do
+            pass
+    else:
+        # Wait until server exited after killing the client
+        node_a.run(['tail', '--pid={}'.format(pid_a), '-f', '/dev/null'])
+
+
+resource = drbdtest.setup_resource(nodes=2)
+resource.net_options = 'ping-int 1; connect-int 1;'
+resource.add_disk('10M')
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync();
+
+node_a, node_b, = resource.nodes
+node_a.host.install_helper(server_prg, server_path)
+node_b.host.install_helper(client_prg, client_path)
+
+node_a.primary()
+node_a.write(direct=1)
+
+pid_pairs = []
+for port in range(2000, 2500):
+    start_time = time.time()
+    pid_pairs.append(start_tcp_session(node_a, node_b, port))
+    tcp_mem_in_use(node_a)
+    tcp_mem_in_use(node_b)
+    end_time = time.time()
+    if end_time - start_time > 3.0:
+        log('* Looks like the systems are under TCP memory pressure.')
+        break;
+
+time.sleep(5)
+node_a.write(direct=1)
+node_a.write(direct=1)
+time.sleep(5)
+
+log('* Closing TCP sessions.')
+for pid_pair in pid_pairs:
+    stop_tcp_session(node_a, node_b, *pid_pair)
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()
+
+

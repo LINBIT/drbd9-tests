@@ -141,8 +141,8 @@ RepositoryDistribution = "bionic"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-bionic"
-BuildKernel = "4.15.0-213"
-KernelRelease = "4.15.0-213"
+BuildKernel = "4.15.0-213-generic"
+KernelRelease = "4.15.0-213-generic"
 SourceImage = "ubuntu-bionic"
 
 

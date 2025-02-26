@@ -18,9 +18,27 @@ FAILURE = 'FAILED'
 
 def test_open(node, mode, expect):
     r = node.run(['bash', '-c',
-                  'time : %s %s && echo OK || echo FAILED' %
+                  'echo -n "$$ "; time : %s %s && echo OK || echo FAILED' %
                   (mode, resource.volumes[0].device())], return_stdout=True)
-    assert r == expect
+    [pid, res] = r.split()
+    log("pid = {}".format(pid))
+    assert res == expect
+
+
+def block_net(resource):
+    resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
+    resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+    resource.forbidden_patterns.remove(r'connection:Timeout')
+    resource.connections.block(jump_to="DROP")
+
+
+def unblock_net(resource):
+    resource.connections.unblock(jump_to="DROP")
+    resource.connections.event(r'connection .* connection:Connecting')
+    resource.peer_devices.event(r'peer-device .* replication:Established')
+    resource.forbidden_patterns.add(r'connection:Timeout')
+    resource.forbidden_patterns.add(r'connection:BrokenPipe')
+    resource.forbidden_patterns.add(r'connection:NetworkFailure')
 
 ###
 
@@ -31,12 +49,10 @@ resource.add_disk('10M')
 log('* Make up-to-date data available.')
 resource.up_wait()
 resource.skip_initial_sync()
-resource.forbidden_patterns.remove(r'connection:NetworkFailure') # network failure is expected
-resource.forbidden_patterns.remove(r'connection:BrokenPipe')
-resource.forbidden_patterns.remove(r'connection:Timeout')
-
 
 log('* Test interrupting a process while it auto-promotes a drbd device.')
+resource.net_options = 'ping-timeout 10;'
+resource.nodes.adjust()
 # This test verifies that the interrupted process gets its errno set
 # to EINTR when the open() syscall returns. Mature software (like dd)
 # has a loop around open() that retries it as long as it returns
@@ -56,26 +72,34 @@ log(dd_stderr)
 if 'failed to open' in dd_stderr:
     raise RuntimeError("dd's open() got another errno than EINTR!")
 
+# Consume the events from the autopromote above. By that, we ensure that
+# the forbidden patterns gets checked (== Connection was not lost!)
+node_a.event(r'resource .* role:Primary')
+node_a.event(r'resource .* role:Secondary')
+connections(node_b, node_a).event(r'connection .* role:Primary')
+connections(node_b, node_a).event(r'connection .* role:Secondary')
+
+resource.net_options = 'ping-timeout 5;'
+resource.nodes.adjust()
 
 log('* Tests with peer secondary.')
 
 test_open(node_a, READ_ONLY, SUCCESS)
-resource.connections.block(jump_to="DROP")
+block_net(resource)
 test_open(node_a, READ_ONLY, SUCCESS)
 test_open(node_a, READ_WRITE, SUCCESS)
 test_open(node_a, READ_ONLY, SUCCESS)
-resource.connections.unblock(jump_to="DROP")
-resource.peer_devices.event(r'peer-device .* replication:Established')
+unblock_net(resource)
+
 
 log('* Tests with peer primary.')
 node_b.primary()
 test_open(node_a, READ_ONLY, FAILURE)
-resource.connections.block(jump_to="DROP")
+block_net(resource)
 test_open(node_a, READ_ONLY, SUCCESS)
 test_open(node_a, READ_WRITE, SUCCESS)
 test_open(node_a, READ_ONLY, SUCCESS)
-resource.connections.unblock(jump_to="DROP")
-resource.peer_devices.event(r'peer-device .* replication:Established')
+unblock_net(resource)
 node_b.secondary()
 
 # This was broken from DRBD 9.1.7 to 9.1.16 inclusive.

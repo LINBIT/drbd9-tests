@@ -21,7 +21,11 @@ IFS=, read -a targets <<< "$TARGETS"
 
 nodes=()
 for t in "${targets[@]}"; do
-    t_host=$(ssh $t hostname -f)
+    if [ -f /etc/ssh/ssh_config.virter ] ; then
+        t_host=$(ssh -F /etc/ssh/ssh_config.virter $t hostname -f)
+    else
+        t_host=$(ssh $t hostname -f)
+    fi
     echo "=== Target $t => $t_host"
     nodes+=( "$t_host" )
 done

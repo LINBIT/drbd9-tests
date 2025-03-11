@@ -7,7 +7,7 @@ variables:
   VMSHED_ARGS: ""
   DRBD_TEST_SERIES: "none" # To distinguish regular stability tests from other scheduled tests.
   DRBD_TESTS_DIR: "tests"
-  DRBD_VERSION: 9.2.0.latest
+  DRBD_VERSION: 9.3.0.latest
   DRBD_VERSION_OTHER: "" # For compatibility testing. For example: 8.4.12
   DRBD_UTILS_VERSION: 9.0.0.latest-*
 
@@ -86,7 +86,7 @@ build:rebuild_drbd:
     - |
       parallel --will-cite --line-buffer --tag \
         trigger -h https://gitlab.at.linbit.com -a $LINBOT_API_TOKEN -p $CI_JOB_TOKEN -t {} -e DRBD9_TESTS_REF=$CI_COMMIT_REF_NAME drbd/drbd \
-        ::: drbd-9.1 master
+        ::: drbd-9.2 master
 
 build:drbd:
   stage: build
@@ -158,8 +158,14 @@ build:docker:
 
         docker image pull $DRBD_TEST_DOCKER_IMAGE
 
+        local extra_args=""
+        if [[ "$DRBD_VERSION" = 9.3.* ]] || [[ "$DRBD_VERSION_OTHER" = 9.3.* ]]; then
+            # DRBD 9.3 is no longer compatible with RHEL 7, manually exclude the base image
+            extra_args="--exclude-base-image=rhel-7-drbd-k1160"
+        fi
+
         export DRBD9_TESTS_VERSION=$CI_COMMIT_SHA
-        ./virter/run-test.sh "$@"
+        ./virter/run-test.sh "$extra_args" "$@"
       }
   needs:
     - job: build:docker

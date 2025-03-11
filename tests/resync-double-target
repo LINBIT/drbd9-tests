@@ -1,0 +1,136 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.2" }
+#
+# This test verifies that the P_PEERS_IN_SYNC and P_OUT_OF_SYNC
+# packets do what they should do during resync operations.
+
+import json
+import time
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+
+#     A-->B
+#      \  |
+#       \ |
+#        vv
+#         C
+#
+# A resync operation runs from A to B and concurrently from A to C. The
+# connection from B to C is in a paused resync state.
+# The paused resync from B to C starts with out-of-sync of 0. While the
+# resync from A to B progresses, the out-of-sync number between B and
+# C increases.
+# This test ensures that all this works. It is run with and without
+# resync discards enabled.
+def test1(resource, size_mb):
+    node_a, node_b, node_c = resource.nodes
+    size_str = '{}M'.format(size_mb)
+
+    node_a.write(size=size_str, bs='1M', direct=1)
+
+    log('* Write new data on only the source node')
+    connections(node_a).disconnect()
+    connections(to_node=node_a).event(r'connection .* connection:Connecting')
+
+    connections(node_c, node_b).disconnect()
+    connections(node_b, node_c).event(r'connection .* connection:Connecting')
+
+    node_a.fio_file(node_a.volumes[0].device(), rw='write', zero_buffers=1, size=size_str, bs='1M',
+                    direct=1)
+
+    log('* Start resyncs')
+    connections(node_a, node_b).connect()
+    peer_devices(node_a, node_b).event(r'peer-device .* replication:SyncSource')
+    peer_devices(node_b, node_a).event(r'peer-device .* replication:SyncTarget')
+
+    connections(node_c, node_b).connect()
+    peer_devices(node_b, node_c).event(r'peer-device .* replication:PausedSyncS')
+    peer_devices(node_c, node_b).event(r'peer-device .* replication:PausedSyncT')
+
+    connections(node_a, node_c).connect()
+    peer_devices(node_a, node_c).event(r'peer-device .* replication:SyncSource')
+    peer_devices(node_c, node_a).event(r'peer-device .* replication:SyncTarget')
+
+    log('* Start writing')
+    node_c.fio_file(node_c.volumes[0].device(), rw='randwrite', size='10M', bs='64K', direct=1,
+                    ioengine='libaio', iodepth=16, time_based=1, runtime=10)
+    resource.peer_devices.event(r'peer-device .* replication:Established')
+
+    resource.down()
+    datatools.verify_data(resource.nodes, size_mb=size_mb, backing_disk=True)
+    resource.up_wait(expected_disk_states=["UpToDate"])
+
+
+def get_out_of_syncs(node):
+    result = node.run(['drbdsetup', 'status', resource.name, '--json'], return_stdout=True)
+    status = json.loads(result)[0]
+    return [connection['peer_devices'][0]['out-of-sync'] for connection in status['connections']]
+
+
+#     A-->B
+#      \  ^
+#       \ |
+#        \|
+#         C
+#
+# Resync operations run from A to B and C to B. Only one actively
+# executes the resync, and the other is in a resync-paused state. The
+# active one must clear the bits in the paused resync using
+# P_PEERS_IN_SYNC packets. This test verifies that no out-of-sync bits
+# are visible after the resync operations.
+def test2(resource):
+    node_a, node_b, node_c = resource.nodes
+
+    log('* Write new data without one node')
+    node_b.down()
+    connections(to_node=node_b).event(r'connection .* connection:Connecting')
+    node_a.write(size='40M', bs='1M', direct=1)
+
+    log('* Bring the node without the new data back')
+    node_b.up()
+    peer_devices(to_node=node_b).event(r'peer-device .* replication:(SyncSource|PausedSyncS)')
+    peer_devices(node_b).event(r'peer-device .* replication:(SyncTarget|PausedSyncT)')
+    peer_devices(node_b, bidir=True).event(r'peer-device .* replication:Established')
+
+    log('* Check out-of-sync')
+    for _ in range(10):
+        total_out_of_sync = sum([sum(get_out_of_syncs(node)) for node in resource.nodes])
+        if total_out_of_sync == 0:
+            break;
+        time.sleep(0.2)
+    else:
+        raise RuntimeError('Some bits remain out-of-sync')
+
+    resource.down()
+    datatools.verify_data(resource.nodes, size_mb=40, backing_disk=True)
+    resource.up_wait(expected_disk_states=["UpToDate"])
+
+
+resource = drbdtest.setup_resource(nodes=3)
+
+resource.cluster.create_storage_pool(thin=True)
+resource.add_disk('560M')
+resource.disk_options = 'c-max-rate 40M; c-min-rate 0;'
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+test1(resource, 54)
+test2(resource)
+
+resource.disk_options = 'c-max-rate 40M; c-min-rate 0; rs-discard-granularity 64K;'
+resource.nodes.update_config()
+resource.nodes.adjust()
+
+test1(resource, 54)
+test1(resource, 540)
+test2(resource)
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

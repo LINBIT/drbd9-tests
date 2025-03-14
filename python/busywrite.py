@@ -30,6 +30,7 @@ class BusyWrite(object):
         fio_base_args -- arguments to pass to fio; defaults to writing busily for a long time
         """
         self._output_filename = 'fio-{}-{}-async.json'.format(self._node.name, self._node.host.fio_count)
+        self._stderr_filename = 'fio-{}-{}-async-stderr'.format(self._node.name, self._node.host.fio_count)
 
         if self._node.host.is_linux_host():
             platform_args = '--ioengine=libaio '
@@ -41,7 +42,7 @@ class BusyWrite(object):
                 'fio --output-format=json --max-jobs=4 --name=test ' + platform_args +
                 '--filename={} '.format(self._node.host.native_filename(self._volume.device()).replace(":", "\\:").replace("\\", "\\\\")) +
                 fio_base_args + ' ' + fio_arg_str +
-                ' < /dev/null > /tmp/{} 2> /dev/null & echo $!'.format(self._output_filename)]
+                ' < /dev/null > /tmp/{} 2> /tmp/{} & echo $!'.format(self._output_filename, self._stderr_filename)]
         self._fio_pid = self._node.run(fio_cmd, return_stdout=True)
 
         self._node.host.fio_count += 1
@@ -64,11 +65,16 @@ class BusyWrite(object):
         """ Wait for fio to terminate and collect results. """
         self._node.run(['tail', '--pid={}'.format(self._fio_pid), '-f', '/dev/null'], timeout=timeout)
         self._fio_pid = None
+
         self._fio_out_str = self._node.run(['cat', '/tmp/{}'.format(self._output_filename)], return_stdout=True)
         # Some fio versions write non-json messages before the json output
         self._fio_out_str = self._fio_out_str[self._fio_out_str.find('{'):]
         with open(os.path.join(self._node.resource.cluster.logdir, self._output_filename), 'w') as output_file:
             output_file.write(self._fio_out_str)
+
+        fio_stderr = self._node.run(['cat', '/tmp/{}'.format(self._stderr_filename)], return_stdout=True)
+        with open(os.path.join(self._node.resource.cluster.logdir, self._stderr_filename), 'w') as output_file:
+            output_file.write(fio_stderr)
 
     def kill_jobs(self):
         if self._fio_pid is None:

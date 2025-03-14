@@ -38,7 +38,7 @@ class BusyWrite(object):
 
         # run fio in background
         fio_cmd = ['setsid', 'bash', '-c',
-                'fio --output-format=json --name=test --max-jobs=4 ' + platform_args +
+                'fio --output-format=json --max-jobs=4 --name=test ' + platform_args +
                 '--filename={} '.format(self._node.host.native_filename(self._volume.device()).replace(":", "\\:").replace("\\", "\\\\")) +
                 fio_base_args + ' ' + fio_arg_str +
                 ' < /dev/null > /tmp/{} 2> /dev/null & echo $!'.format(self._output_filename)]

@@ -9,6 +9,7 @@ RepositoryPackages = "" # comma separated
 DrbdPackage = ""
 DrbdVersion = ""
 DrbdVersionOther = ""
+WinDrbdVersion = ""
 
 [[steps]]
 [steps.rsync]

@@ -50,7 +50,7 @@ connections(node_b, node_a).connect()
 peer_devices(node_a, node_b).event(r'peer-device .* replication:PausedSyncS')
 peer_devices(node_b, node_a).event(r'peer-device .* replication:PausedSyncT')
 log('* C promotes, A becomes weak and outdated')
-node_c.volumes.write(size='4k')
+node_c.volumes.write(size='1M')
 
 log('* B gives up wanting a resync from A (because A became weak)')
 # Look for the line "My sync source became a weak node, aborting resync!"

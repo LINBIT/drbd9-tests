@@ -25,9 +25,13 @@ from python import datatools
 # C increases.
 # This test ensures that all this works. It is run with and without
 # resync discards enabled.
-def test1(resource, size_mb):
+def test1(resource, size_mb, c_max_rate_mb=None):
     node_a, node_b, node_c = resource.nodes
     size_str = '{}M'.format(size_mb)
+
+    if c_max_rate_mb:
+        c_max_rate_str = '{}M'.format(c_max_rate_mb)
+        peer_devices(node_b, node_a).peer_device_options('--c-max-rate=' + c_max_rate_str)
 
     node_a.write(size=size_str, bs='1M', direct=1)
 
@@ -120,14 +124,14 @@ resource.up_wait()
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
 
-test1(resource, 54)
+test1(resource, 54, 10)
 test2(resource)
 
 resource.disk_options = 'c-max-rate 40M; c-min-rate 0; rs-discard-granularity 64K;'
 resource.nodes.update_config()
 resource.nodes.adjust()
 
-test1(resource, 54)
+test1(resource, 54, 10)
 test1(resource, 540)
 test2(resource)
 

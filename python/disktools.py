@@ -66,11 +66,12 @@ class LvmVolume(object):
         self._host = host
         self._name = name
         self._lv = '/dev/{}/{}'.format(host.volume_group, name)
+        self._lvsize = str(size)
 
         if thin:
-            lvcreate_args = ['--virtualsize', str(size), '--thin', '{}/drbdthinpool'.format(self._host.volume_group)]
+            lvcreate_args = ['--virtualsize', self._lvsize, '--thin', '{}/drbdthinpool'.format(self._host.volume_group)]
         else:
-            lvcreate_args = ['--size', str(size), self._host.volume_group]
+            lvcreate_args = ['--size', self._lvsize, self._host.volume_group]
 
         lvcreate_args += ['--wipesignatures', 'y', '--yes']
         self._host.run(['lvcreate', '--name', self._name] + lvcreate_args)
@@ -90,9 +91,9 @@ class LvmVolume(object):
 
         return float(lvs_rep['report'][0]['lv'][0]['data_percent'])
 
-    def snapshot(self, snapshot_size, name_ext='snap'):
+    def snapshot(self, name_ext='snap'):
         self._host.run(['lvcreate', '--config', 'devices { filter=["r|^/dev/drbd.*|"] }', '--snapshot', '--name',
-                        self._name + '-' + name_ext, '--size', snapshot_size, self._lv])
+                        self._name + '-' + name_ext, '--size', self._lvsize, self._lv])
         return '/dev/{}/{}-{}'.format(self._host.volume_group, self._name, name_ext)
 
 class StorageSpacesPool(object):
@@ -258,7 +259,7 @@ class ZfsVolume(object):
         volsize = int(lines[1].split()[2])
         return used / volsize * 100
 
-    def snapshot(self, snapshot_size, name_ext='snap'):
+    def snapshot(self, name_ext='snap'):
         self._host.run(['zfs', 'set', 'snapdev=visible', self._dataset_name])
         self._host.run(['zfs', 'snapshot', self._dataset_name + '@' + name_ext])
         return '/dev/zvol/' + self._dataset_name + '@' + name_ext

@@ -1,0 +1,81 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2, 3], "drbd_version_min": "9.0" }
+
+# Tests the behaviour of resources created from a snapshot of the backing disk
+# (including metadata) while DRBD is performing IO.
+#
+# First, we start writing data to the original volume.
+#
+# Then, we suspend io and copy the content of the backing disk to simulate
+# taking a snapshot. This snapshot is taken once on the current Primary, once
+# on a secondary node. Now we can resume-io and stop the writes.
+#
+# Now, we bring up the clones, which start syncing from the snapshots.
+# We verify that these resyncs result in the expected data from the
+# original volume being present.
+
+from python import drbdtest, datatools
+from python.drbdtest import MetadataFlag
+
+cluster = drbdtest.setup()
+
+def create_resource(name, max_peers, *preexisting_data):
+    """Create a new resource with a disk flagged as UP_TO_DATE.
+
+    Optionally, copy over pre-existing data to the backing volume on specific nodes.
+    """
+    r = cluster.create_resource(name)
+    r.add_disk(size="100M", max_peers=max_peers)
+
+    for n in r.nodes:
+        n.set_gi(
+            n.volumes[0], '87236C45CB784220',
+            flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE
+        )
+        for node, source in preexisting_data:
+            if n.name == node:
+                n.run(['dd', 'if={}'.format(source),
+                'of={}'.format(r.volumes[0].disk),
+                'bs=1M', 'oflag=direct,sync'])
+
+    return r
+
+
+def run_test(prefix, max_peers):
+    original_resource = create_resource(prefix + "original", max_peers)
+
+    original_resource.up_wait(expected_disk_states=['UpToDate'])
+    node_a, node_b = original_resource.nodes[:2]
+    node_a.primary()
+
+    drbdtest.log("Fill the original volume with random data")
+    node_a.write(size='99M', bs='1M', end_fsync=1)
+
+    drbdtest.log("suspend-io to take a snapshot on primary and a secondary node")
+    original_resource.nodes.drbdadm(['suspend-io', original_resource.name])
+    snap_a, snap_b = original_resource.volumes.snapshot()[:2]
+    original_resource.nodes.drbdadm(['resume-io', original_resource.name])
+
+    drbdtest.log("Bring up cloned resources and verify their contents")
+    clone_primary = create_resource(prefix + "clone-primary", max_peers, (node_a.name, snap_a))
+    clone_secondary = create_resource(prefix + "clone-secondary", max_peers, (node_b.name, snap_b))
+    clone_primary.up_wait(expected_disk_states=['UpToDate'])
+    clone_secondary.up_wait(expected_disk_states=['UpToDate'])
+
+    drbdtest.log("Verify that data resynced from clone on primary is identical")
+    datatools.verify_data(clone_primary.nodes)
+
+    drbdtest.log("Verify that data resynced from clone on secondary is identical")
+    datatools.verify_data(clone_secondary.nodes)
+
+    drbdtest.log("Verify that data on all resources is identical")
+    datatools.verify_data([
+        original_resource.nodes[0],
+        clone_primary.nodes[0],
+        clone_secondary.nodes[0]
+    ])
+    node_a.secondary()
+
+
+# Run test with a spare day0 bitmap slot
+run_test("with-spare-bitmap-", len(cluster.hosts))

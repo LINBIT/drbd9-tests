@@ -485,6 +485,9 @@ class Volumes(Collection):
     def resize(self, size):
         return [v.resize(size) for v in self if v.disk is not None]
 
+    def snapshot(self, *args, **kwargs):
+        return [v.snapshot(*args, **kwargs) for v in self if v.disk is not None]
+
     def write(self, **kwargs):
         """ Write some data to each of the volumes using fio. """
         for v in self:
@@ -1079,6 +1082,9 @@ class Volume(object):
     def resize(self, size):
         # TODO: metadata-resize?
         self.disk_volume.resize(size)
+
+    def snapshot(self, *args, **kwargs):
+        return self.disk_volume.snapshot(*args, **kwargs)
 
     def write(self, **kwargs):
         """
@@ -2122,8 +2128,8 @@ class Node():
         r.append(Node._iptables_cmd_1('drbd-test-input',  node2.host.addrs[path_nr], node2.port,  self.host.addrs[path_nr],       None, jump, add_remove, 'tcp'))
         return r
 
-    def block_path(self, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
-        return self.host.platform_helper.block_path(self, other_node, net_number, jump_to, iptables_filter)
+    def block_path(self, other_node, net_number=0, jump_to="DROP", lead_seconds=None, for_seconds=None, iptables_filter=[]):
+        return self.host.platform_helper.block_path(self, other_node, net_number, jump_to, lead_seconds, for_seconds, iptables_filter)
 
     def unblock_path(self, other_node, net_number=0, jump_to="DROP"):
         return self.host.platform_helper.unblock_path(self, other_node, net_number, jump_to)

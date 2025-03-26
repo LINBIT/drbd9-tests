@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import inspect
 from .drbdtestlogger import log
 
@@ -154,12 +155,27 @@ class LinuxPlatformHelper(object):
     def after_becoming_primary(self, node):
         pass
 
-    def block_path(self, node, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
+    def block_path(self, node, other_node, net_number=0, jump_to="DROP", lead_seconds=None,
+                   for_seconds=None, iptables_filter=[]):
         """Uses iptables to block one network path."""
         log("BLOCKING path #%d from %s to %s" % (net_number, node, other_node))
         cmds = node._iptables_cmd(other_node, jump_to, net_number, "-I", iptables_filter)
-        for c in cmds:
-            node.run(c)
+        if for_seconds is not None:
+            if lead_seconds is None:
+                lead_seconds = 0.3
+            if for_seconds <= lead_seconds:
+                raise RuntimeError('for_seconds needs to be larger than lead_seconds')
+            del_cmds = node._iptables_cmd(other_node, jump_to, net_number, "-D")
+            cmdline = ['setsid', 'bash', '-c', '('+
+                       '; '.join([' '.join(l) for l in cmds]) +
+                       '; sleep {}; '.format(for_seconds) +
+                       '; '.join([' '.join(l) for l in del_cmds]) +
+                       ') </dev/null &>/dev/null &']
+            node.run(cmdline)
+            time.sleep(lead_seconds)
+        else:
+            for c in cmds:
+                node.run(c)
 
     def unblock_path(self, node, other_node, net_number=0, jump_to="DROP"):
         """Uses iptables to unblock one network path."""

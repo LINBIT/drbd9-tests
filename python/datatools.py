@@ -1,7 +1,11 @@
 from .drbdtest import log
 
 
-def _read_md5sum(node, filename, count_arg):
+def read_md5sum(node, filename, size_mb):
+    count_arg = ''
+    if size_mb:
+        count_arg = 'count={}'.format(size_mb)
+
     return node.run(['/bin/bash', '-c', 'set -o pipefail ; dd if={} bs=1M iflag=direct {} | md5sum'
         .format(filename, count_arg)],
         return_stdout=True)
@@ -12,10 +16,7 @@ def verify_data(nodes, size_mb=None, backing_disk=False):
 
     log('* Validate data is same on nodes {}'.format(nodes))
 
-    count_arg = ''
-    if size_mb:
-        count_arg = 'count={}'.format(size_mb)
-    elif backing_disk:
+    if backing_disk and size_mb is None:
         raise RuntimeError('verifying data on backing disk requires explicit size')
 
     md5sums=[]
@@ -24,10 +25,10 @@ def verify_data(nodes, size_mb=None, backing_disk=False):
 
         if n.host.drbd_version_tuple < (9, 0, 0) and not backing_disk:
             n.primary()
-            md5sums.append(_read_md5sum(n, filename, count_arg))
+            md5sums.append(read_md5sum(n, filename, size_mb))
             n.secondary()
         else:
-            md5sums.append(_read_md5sum(n, filename, count_arg))
+            md5sums.append(read_md5sum(n, filename, size_mb))
 
     if len(set(md5sums)) > 1:
         log(md5sums)

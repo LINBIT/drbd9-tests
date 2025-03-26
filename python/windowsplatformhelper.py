@@ -73,9 +73,11 @@ class WindowsPlatformHelper(object):
         for v in node.disks:
             v.set_disk_online()
 
-    def block_path(self, node, other_node, net_number=0, jump_to="DROP", iptables_filter=[]):
+    def block_path(self, node, other_node, net_number=0, jump_to="DROP", for_seconds=None, iptables_filter=[]):
         """Uses netsh to block one network path."""
         log("BLOCKING path #%d from %s to %s" % (net_number, self, other_node))
+        if for_seconds is not None:
+            raise RuntimeError("for_seconds not implemented")
         node.run(['netsh', 'advfirewall', 'firewall', 'set', 'rule', 'name=DRBDTest'+str(self.port), 'new', 'enable=no'])
         other_node.run(['netsh', 'advfirewall', 'firewall', 'set', 'rule', 'name=DRBDTest'+str(other_node.port), 'new', 'enable=no'])
 

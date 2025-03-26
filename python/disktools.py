@@ -90,6 +90,11 @@ class LvmVolume(object):
 
         return float(lvs_rep['report'][0]['lv'][0]['data_percent'])
 
+    def snapshot(self, snapshot_size, name_ext='snap'):
+        self._host.run(['lvcreate', '--config', 'devices { filter=["r|^/dev/drbd.*|"] }', '--snapshot', '--name',
+                        self._name + '-' + name_ext, '--size', snapshot_size, self._lv])
+        return '/dev/{}/{}-{}'.format(self._host.volume_group, self._name, name_ext)
+
 class StorageSpacesPool(object):
     def __init__(self, host, backing_device, thin):
         self._host = host
@@ -252,6 +257,11 @@ class ZfsVolume(object):
         used = int(lines[0].split()[2])
         volsize = int(lines[1].split()[2])
         return used / volsize * 100
+
+    def snapshot(self, snapshot_size, name_ext='snap'):
+        self._host.run(['zfs', 'set', 'snapdev=visible', self._dataset_name])
+        self._host.run(['zfs', 'snapshot', self._dataset_name + '@' + name_ext])
+        return '/dev/zvol/' + self._dataset_name + '@' + name_ext
 
 
 class DeviceMapperTarget(object):

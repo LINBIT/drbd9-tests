@@ -7,7 +7,7 @@ provision_cpus = 4
 provision_timeout = "30m"
 
 [[vms]]
-base_image = "rhel-10-drbd-k54"
+base_image = "rhel-10-drbd-k55"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -22,8 +22,8 @@ ReleaseVer = "10.0"
 
 [vms.metadata]
 BuildDistribution = "rhel10.0"
-BuildKernel = "6.12.0-54.el10"
-KernelRelease = "6.12.0-54.el10"
+BuildKernel = "6.12.0-55.7.1.el10_0"
+KernelRelease = "6.12.0-55.7.1.el10_0"
 SourceImage = "rhel:10.0-beta"
 
 [[vms]]

@@ -21,7 +21,7 @@ base_image_%:
 		-p provision-base.toml
 
 pull_source_images:
-	IMAGES="$$(rq -t < vms.toml | jq -r '[.vms[].metadata.SourceImage] | unique[]')" && \
+	IMAGES="$$(rq -t < vms.toml | jq -r '[.vms[].metadata.SourceImage | select(.)] | unique[]')" && \
 		parallel -k virter image pull {} $$LINBIT_DOCKER_REGISTRY/vm/{} ::: $$IMAGES
 
 all_base_images: $(BASE_IMAGE_TARGETS)

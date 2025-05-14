@@ -22,9 +22,9 @@ ReleaseVer = "10.0"
 
 [vms.metadata]
 BuildDistribution = "rhel10.0"
-BuildKernel = "6.12.0-55.7.1.el10_0"
-KernelRelease = "6.12.0-55.7.1.el10_0"
-SourceImage = "rhel:10.0-beta"
+BuildKernel = "6.12.0-55.9.1.el10_0"
+KernelRelease = "6.12.0-55.9.1.el10_0"
+SourceImage = "rhel:10.0"
 
 [[vms]]
 base_image = "rhel-9-drbd-k427"

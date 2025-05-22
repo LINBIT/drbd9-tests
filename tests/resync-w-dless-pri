@@ -33,9 +33,9 @@ class ResyncType(Enum):
     ONGOING_WRITES = 2
 
 resource = drbdtest.setup_resource(nodes=3)
-resource.disk_options = 'c-max-rate 500k;'
+resource.disk_options = 'c-max-rate 1M;'
 diskful_nodes = resource.nodes[1:]
-resource.add_disk('10M', diskful_nodes=diskful_nodes)
+resource.add_disk('12M', diskful_nodes=diskful_nodes)
 
 resource.up_wait()
 log('* Make up-to-date data available.')

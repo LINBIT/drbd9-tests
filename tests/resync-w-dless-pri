@@ -64,7 +64,7 @@ def prelude(resync: ResyncType, text):
         diskless_v.write(size='1M', bs='1M', offset='1M', direct=1)
     elif resync == ResyncType.ONGOING_WRITES:
         resync_target_pd.peer_device_options("--c-max-rate=100M")
-        background_writer.start('--iodepth=4 --runtime=60')
+        background_writer.start('--iodepth=4 --runtime=15')
         time.sleep(0.5) # Give the background writer a chance to have some requests in flight
 
 def postlude(resync: ResyncType):
@@ -108,7 +108,7 @@ def test3(resync: ResyncType):
 
     # 5 seconds longer than FIO runs; That ensures DRBD finishes the resync,
     # if it is not locked up. It avoids false test failures.
-    timeout = 65 if resync == ResyncType.ONGOING_WRITES else None
+    timeout = 20 if resync == ResyncType.ONGOING_WRITES else None
     resync_target_pd.event(r'peer-device .* replication:Established', timeout=timeout)
 
     # The source should see the event simultaneously; therefore, only 5 seconds.

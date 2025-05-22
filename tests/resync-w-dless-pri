@@ -65,7 +65,7 @@ def prelude(resync: ResyncType, text):
     elif resync == ResyncType.ONGOING_WRITES:
         resync_target_pd.peer_device_options("--c-max-rate=100M")
         background_writer.start('--iodepth=4 --runtime=60')
-        time.sleep(0.1) # Give the background writer a chance to have some requests in flight
+        time.sleep(0.5) # Give the background writer a chance to have some requests in flight
 
 def postlude(resync: ResyncType):
     if resync == ResyncType.ONGOING_WRITES:

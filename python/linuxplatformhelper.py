@@ -1,3 +1,4 @@
+from subprocess import CalledProcessError
 import os
 import re
 import time
@@ -139,10 +140,12 @@ class LinuxPlatformHelper(object):
                 host.run(['rmmod', 'drbd_transport_rdma'])
             except:
                 pass
+
         try:
             host.run(['rmmod', 'drbd'])
-        except:
-            pass
+        except CalledProcessError as e:
+            host.run(['cat', '/sys/kernel/debug/drbd/reference_counts'], catch=True)
+            raise e
 
     def disable_faults(self, host):
         host.run_helper('disable-faults')

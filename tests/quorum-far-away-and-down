@@ -78,4 +78,5 @@ A.secondary()
 A.drbdadm(['del-peer', '%s:%s' % (resource.name, C.name)])
 A.primary()
 
+resource.down()
 resource.cluster.teardown()

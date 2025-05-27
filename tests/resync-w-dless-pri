@@ -131,4 +131,5 @@ for r in resync_cases:
     test(r)
 
 log('* Shut down and clean up.')
+resource.down()
 resource.cluster.teardown()

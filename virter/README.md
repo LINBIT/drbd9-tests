@@ -9,12 +9,12 @@ installed.
 
 All images:
 ```
-make all_base_images
+make -C virter/ all_base_images
 ```
 
 Or just a specific image:
 ```
-make base_image_ubuntu-focal-drbd-k40
+make -C virter/ base_image_ubuntu-noble-drbd-k39
 ```
 
 ### Test image
@@ -34,13 +34,13 @@ by `=`. This will be converted to `-` for `yum` based distributions.
 An Ubuntu-based test image can be built using a comand command like:
 
 ```
-virter image build ubuntu-focal-drbd-k40 ubuntu-focal-drbd-k40-t -p virter/provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/ubuntu-focal/ --set values.RepositoryDistribution=focal --set values.DrbdVersion=9.0.0.0369cc16dded15d28007cfd2e90776820f842890
+virter image build ubuntu-noble-drbd-k39 ubuntu-noble-drbd-k39-a -p virter/provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/ubuntu-noble/ --set values.RepositoryDistribution=noble --set values.DrbdVersion=9.2.14 --set 'values.RepositoryPackages=drbd-utils=9.31.0-*'
 ```
 
 And similarly for RedHat-based images:
 
 ```
-virter image build centos-8-drbd-k193 centos-8-drbd-k193-t -p provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/ci-yum/rhel8/ --set values.DrbdVersion=9.0.0.0db548ca455a85569031337991f1527cbe34c437
+virter image build rhel-9-drbd-k427 rhel-9-drbd-k427-a -p virter/provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/ci-yum/rhel9/ --set values.DrbdVersion=9.2.14 --set values.RepositoryPackages=drbd-utils=9.31.0
 ```
 
 ### Start cluster
@@ -48,5 +48,5 @@ virter image build centos-8-drbd-k193 centos-8-drbd-k193-t -p provision-test.tom
 From the test image, a cluster can be started.
 
 ```
-virter vm run --count 2 --id 130 ubuntu-focal-drbd-k40-t -w
+virter vm run --count 2 --id 130 ubuntu-noble-drbd-k39-a -w
 ```

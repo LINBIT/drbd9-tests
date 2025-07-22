@@ -316,7 +316,11 @@ if command -v yum > /dev/null; then
 	[ "$NO_UPGRADE" = 1 ] || yum update -y --exclude=kernel*
 	yum install -y ${packages[*]}
 elif command -v apt-get > /dev/null; then
-	[ -n "$RELEASE_REPOSITORY_URL" ] && echo deb [trusted=yes] $RELEASE_REPOSITORY_URL $REPOSITORY_DISTRIBUTION drbd-9 > /etc/apt/sources.list.d/linbit.list
+	if [ -n "$RELEASE_REPOSITORY_URL" ]; then
+		wget -O /tmp/linbit-keyring.deb https://packages.linbit.com/public/linbit-keyring.deb
+		dpkg -i /tmp/linbit-keyring.deb
+		echo deb [signed-by=/etc/apt/trusted.gpg.d/linbit-keyring.gpg] $RELEASE_REPOSITORY_URL $REPOSITORY_DISTRIBUTION drbd-9 > /etc/apt/sources.list.d/linbit.list
+	fi
 
 	packages+=("fio" "thin-provisioning-tools" "make" "gdisk")
 	apt-get update

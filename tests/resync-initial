@@ -11,8 +11,7 @@ from python import drbdtest
 from python.drbdtest import connections, log
 
 resource = drbdtest.setup_resource(max_nodes=5)
-first_node = resource.nodes[0]
-other_nodes = resource.nodes.difference([first_node])
+first_node, *other_nodes = resource.nodes
 
 resource.add_disk('10M')
 
@@ -30,11 +29,8 @@ log('* make the first node primary, and write defined data onto all volumes.')
 first_node.primary(force=True)
 first_node.volumes.fio(drbdtest.fio_write_args)
 
-log('* adjust first node so peers are recreated')
-first_node.adjust()
-
-log('* Bring up all other nodes as well, wait until they have all the data.')
-other_nodes.adjust()
+log('* Bring up other nodes, connect and wait until they have all the data.')
+resource.nodes.adjust()
 resource.initial_resync(timeout=10) # it really should not take long to resync 10M
 
 log('* Make the first node secondary again to allow read access on the other nodes.')

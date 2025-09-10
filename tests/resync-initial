@@ -8,7 +8,7 @@
 # keeping the peers Inconsistent without completing the sync.
 
 from python import drbdtest
-from python.drbdtest import log
+from python.drbdtest import connections, log
 
 resource = drbdtest.setup_resource(max_nodes=5)
 first_node = resource.nodes[0]
@@ -18,9 +18,13 @@ resource.add_disk('10M')
 
 log('* Bring up the first node and make it forget about the peers joining later')
 first_node.up_wait()
-for node in other_nodes:
-    first_node.drbdadm(['del-peer', '{}:{}'.format(resource.name, node.name)])
-    first_node.drbdadm(['forget-peer', '{}:{}'.format(resource.name, node.name)])
+# DRBD 8.4 requires a peer - it does not understand the del-peer command
+if first_node.host.drbd_version_tuple >= (9, 0, 0):
+    for node in other_nodes:
+        first_node.drbdadm(['del-peer', '{}:{}'.format(resource.name, node.name)])
+        first_node.drbdadm(['forget-peer', '{}:{}'.format(resource.name, node.name)])
+else:
+    connections(first_node).disconnect()
 
 log('* make the first node primary, and write defined data onto all volumes.')
 first_node.primary(force=True)
@@ -30,7 +34,7 @@ log('* adjust first node so peers are recreated')
 first_node.adjust()
 
 log('* Bring up all other nodes as well, wait until they have all the data.')
-other_nodes.up()
+other_nodes.adjust()
 resource.initial_resync(timeout=10) # it really should not take long to resync 10M
 
 log('* Make the first node secondary again to allow read access on the other nodes.')

@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--tests-dir', default='tests',
             help='directory containing test scripts')
-    parser.add_argument('--selection', choices=['all', 'ci'], default='all',
+    parser.add_argument('--selection', choices=['all', 'ci', 'rdma_ci'], default='all',
             help='which selection of tests to generate (default "all")')
     parser.add_argument('--drbd-version', help='only output tests for this DRBD version')
     parser.add_argument('--drbd-version-other', help='only output tests also supported by this DRBD version')
@@ -64,7 +64,7 @@ def main():
 
     # Write tests
     for name, vmshed_config in sorted(test_configs, key=lambda a: a[0]):
-        vms_key = 'vms_all' if args.selection == 'all' else 'vms_ci'
+        vms_key = 'vms_{}'.format(args.selection)
         vms = vmshed_config.get(vms_key)
         if vms is None:
             continue

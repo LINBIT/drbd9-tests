@@ -115,7 +115,8 @@ base_image = "rhel-7-drbd-k1160"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-vm_tags = [ "rdma", "distro", "raw" ]
+# No RDMA support. Unexplained failures occur with this base image and RDMA.
+vm_tags = [ "distro", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel7/"

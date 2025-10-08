@@ -92,7 +92,15 @@ class LvmVolume(object):
         return float(lvs_rep['report'][0]['lv'][0]['data_percent'])
 
     def snapshot(self, name_ext='snap'):
-        self._host.run(['lvcreate', '--config', 'devices { filter=["r|^/dev/drbd.*|"] }', '--snapshot', '--name',
+        devicesfile = self._host.run(['lvmconfig', '-l', 'devices/use_devicesfile'], catch=True, return_stdout=True)
+        if len(devicesfile):
+            #modern LVM that has the devicesfile:
+            extra_config = 'devices { search_for_devnames = "none" }'
+        else:
+            #old style LVM filter
+            extra_config = 'devices { filter=["r|^/dev/drbd.*|"] }'
+
+        self._host.run(['lvcreate', '--config', extra_config, '--snapshot', '--name',
                         self._name + '-' + name_ext, '--size', self._lvsize, self._lv])
         return '/dev/{}/{}-{}'.format(self._host.volume_group, self._name, name_ext)
 

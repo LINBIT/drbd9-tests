@@ -92,12 +92,12 @@ class LvmVolume(object):
         return float(lvs_rep['report'][0]['lv'][0]['data_percent'])
 
     def snapshot(self, name_ext='snap'):
-        devicesfile = self._host.run(['lvmconfig', '-l', 'devices/use_devicesfile'], catch=True, return_stdout=True)
-        if len(devicesfile):
-            #modern LVM that has the devicesfile:
+        devicesfile = self._host.run(['lvmconfig', '--typeconfig=full', 'devices/use_devicesfile'], catch=True, return_stdout=True)
+        if devicesfile == 'use_devicesfile=1':
+            # modern LVM that has the devicesfile; enabled by default on RHEL
             extra_config = 'devices { search_for_devnames = "none" }'
         else:
-            #old style LVM filter
+            # old style LVM or devicesfile disabled; Ubuntu Noble has it disabled
             extra_config = 'devices { filter=["r|^/dev/drbd.*|"] }'
 
         self._host.run(['lvcreate', '--config', extra_config, '--snapshot', '--name',

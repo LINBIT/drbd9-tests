@@ -831,7 +831,7 @@ class Resource(object):
         self.num_volumes = 0
         self.cluster.remove_storage_pool()
 
-    def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, max_peers=None, delay_ms=None, logical_block_size=None):
+    def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, max_peers=None, delay_ms=None, logical_block_size=None, bitmap_block_sizes=None):
         """
         Create and add a new disk on some or all nodes.
 
@@ -856,7 +856,11 @@ class Resource(object):
                 node.add_disk(volume_number)
 
         for volume in diskful_volumes:
-            volume.create_md(max_peers)
+            if bitmap_block_sizes is not None and volume.node in bitmap_block_sizes.keys():
+                bitmap_block_size = bitmap_block_sizes[volume.node]
+            else:
+                bitmap_block_size = None
+            volume.create_md(max_peers, bitmap_block_size)
 
         return volume_number
 
@@ -1069,12 +1073,12 @@ class Volume(object):
     def meta(self):
         return self.meta_volume.volume_path() if self.meta_volume else None
 
-    def create_md(self, max_peers=None):
+    def create_md(self, max_peers=None, bitmap_block_size=None):
         if max_peers is None:
             max_peers = len(self.node.resource.nodes) - 1
             if max_peers < 1:
                 max_peers = 1
-        disktools.create_md(self.node, self.volume, max_peers=max_peers)
+        disktools.create_md(self.node, self.volume, max_peers=max_peers, bitmap_block_size=bitmap_block_size)
 
     def event(self, *args, **kwargs):
         return Volumes([self]).event(*args, **kwargs)
@@ -1536,6 +1540,13 @@ class Host():
     def __repr__(self):
         # return '%s:%s' % (self.resource, self.name)
         return self.name
+
+    def install_file(self, file_path, target_path):
+        """ Install a file to this node. """
+        with open(file_path) as f:
+            file = f.read()
+            self.run(['bash', '-c', 'cat > {0}'.format(target_path)],
+                stdin=StringIO(file))
 
     def install_helper(self, helper_name, target_path):
         """ Install a helper script to this node. """

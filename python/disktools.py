@@ -3,10 +3,13 @@ import json
 import uuid
 
 
-def create_md(node, volume_number, *, max_peers):
+def create_md(node, volume_number, *, max_peers, bitmap_block_size):
     args = ['create-md', '--force', '{}/{}'.format(node.resource.name, volume_number)]
     if node.host.drbd_version_tuple >= (9, 0, 0):
         args.append('--max-peers={}'.format(max_peers))
+    if bitmap_block_size is not None:
+        assert node.host.drbd_version_tuple >= (9, 3, 0)
+        args.append('--bitmap-block-size={}'.format(bitmap_block_size))
     node.drbdadm(args)
 
 

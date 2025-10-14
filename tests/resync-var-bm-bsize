@@ -1,0 +1,95 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.3" }
+
+# This test creates two DRBD peers with one having a bitmap block size
+# of 8k and the other one 64KiB. After disconnecting the peers, it
+# writes a single 4k block every 64k with a all possible offsets in that 64k
+# range, and lets it resync.
+# It also tests the basic behavioural properties of the --bitmap=no setting.
+
+import subprocess
+from python import datatools
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+
+resource = drbdtest.setup_resource(nodes=2)
+BLKSZ_A_KB = 8
+BLKSZ_B_KB = 64
+
+node_a, node_b = resource.nodes
+resource.add_disk('100M', bitmap_block_sizes={node_a: BLKSZ_A_KB * 1024, node_b: f'{BLKSZ_B_KB}k'})
+resource.disk_options = 'c-min-rate 0; resync-without-replication no;'
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+log('* Testing resync with different bitmap block size')
+node_a.write(direct=1, zero_buffers=1, size='99M', bs='1M')
+connections(node_a, node_b).disconnect()
+
+with open('/tmp/access_pattern.ilog', 'w') as f:
+    dev = node_b.volumes[0].device()
+    f.write('fio version 2 iolog\n')
+    f.write(f'{dev} add\n')
+    f.write(f'{dev} open\n')
+    for i in range(0, 1000):
+        offset_kb = i * BLKSZ_B_KB + (i * 4) % BLKSZ_B_KB
+        f.write(f'{dev} write {offset_kb * 1024} 4096\n')
+    f.write(f'{dev} close\n')
+
+node_b.host.install_file('/tmp/access_pattern.ilog', '/tmp/access_pattern.ilog')
+node_b.fio(direct=1, read_iolog='/tmp/access_pattern.ilog')
+
+connections(node_a, node_b).connect()
+peer_devices(node_a, node_b).event(r'peer-device .* replication:WFBitMapT')
+peer_devices(node_a, node_b).event(r'peer-device .* replication:SyncTarget')
+
+node_a.fio({}, rw='write', size='10M', bs='4k', direct=1)
+
+peer_devices(node_a, node_b).event(r'peer-device .* replication:Established')
+
+datatools.verify_data(resource.nodes, size_mb=99)
+
+
+log('* Testing --bitmap-no')
+connections(node_a, node_b).disconnect()
+try:
+    node_a.drbdadm(['disk-options', '--bitmap=no', resource.name])
+except subprocess.CalledProcessError:
+    pass
+else:
+    raise RuntimeError('disk-options --bitmap=no should fail when a peer exists')
+
+node_a.drbdadm(['del-peer', f'{resource.name}:{node_b.name}'])
+node_a.drbdadm(['detach', f'{resource.name}/0'])
+node_a.drbdadm(['attach', '--bitmap=no', f'{resource.name}/0'])
+
+node_a.primary()
+# We need at least a single write, to have a different UUID, for triggering the resync
+node_a.write(direct=1)
+
+try:
+    node_a.drbdadm(['new-peer', resource.name])
+except subprocess.CalledProcessError:
+    pass
+else:
+    raise RuntimeError('new-peer should fail when --bitmap=no')
+
+node_a.drbdadm(['disk-options', '--bitmap=yes', f'{resource.name}/0'])
+node_a.adjust()
+
+node_a.secondary()
+
+size_sectors = int(node_a.run(['blockdev', '--getsz', node_a.volumes[0].device()], return_stdout=True))
+ev = peer_devices(node_a, node_b).event(r'peer-device .* replication:SyncSource .* out-of-sync:(\d+)')
+out_of_sync_kb = int(ev[0][0])
+full_resync = out_of_sync_kb * 2 == size_sectors
+assert full_resync
+peer_devices(node_a, node_b).event(r'peer-device .* replication:Established')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()
+

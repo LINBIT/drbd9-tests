@@ -1191,10 +1191,10 @@ class Connection(object):
                            (self.resource.name, self.nodes[1].host.hostname)])
 
     def pause_sync(self):
-        self.run_cmd(['pause-sync'])
+        self.run_cmd('pause-sync')
 
     def resume_sync(self):
-        self.run_cmd(['resume-sync'])
+        self.run_cmd('resume-sync')
 
     def block(self, *args, **kwargs):
         self.nodes[0].block_path(self.nodes[1], *args, **kwargs)

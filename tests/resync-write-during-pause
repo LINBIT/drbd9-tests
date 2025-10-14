@@ -27,7 +27,7 @@ backward_c.disconnect()
 
 log('* Writing while other node offline')
 source_n.volumes[0].write(size='1M', bs='1M', direct=1)
-source_n.drbdadm(['pause-sync', '%s:%s' % (resource.name, target_n.name)])
+forward_c.pause_sync()
 
 log('* Write while resync paused (not yet started)')
 backward_c.connect()
@@ -35,7 +35,7 @@ forward_c.event(r'connection .* connection:Connected')
 source_n.volumes[0].write(size='1M', bs='1M', offset='1M', direct=1)
 
 log('* Resume resync and wait for it')
-source_n.drbdadm(['resume-sync', '%s:%s' % (resource.name, target_n.name)])
+forward_c.resume_sync()
 target_n.volumes[0].event(r'device .* disk:UpToDate')
 
 datatools.verify_data(resource.nodes, size_mb=2)

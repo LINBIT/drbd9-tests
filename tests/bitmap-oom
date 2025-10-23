@@ -1,0 +1,56 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [1], "vms_ci": null, "drbd_version_min": "9.1" }
+
+from subprocess import CalledProcessError
+import time
+
+from python import drbdtest
+from python.drbdtest import log
+
+resource = drbdtest.setup_resource(nodes=1)
+node = resource.nodes[0]
+resource.cluster.create_storage_pool(thin=True)
+
+meminfo_output = node.run(['cat', '/proc/meminfo'], return_stdout=True)
+meminfo_words_by_line = [line.split() for line in meminfo_output.splitlines()]
+meminfo = { words[0].rstrip(':'): words[1] for words in meminfo_words_by_line }
+
+log('* Allocate 60% of the available memory using the helper')
+available_kib = int(meminfo['MemAvailable'])
+alloc_kib = (available_kib * 6) // 10
+
+node.host.install_helper('mem_alloc.py', '/tmp/mem_alloc.py')
+pid = node.run(['setsid', 'bash', '-c',
+    '/tmp/mem_alloc.py --alloc-kib {} < /dev/null &> /dev/null & echo $!'.format(alloc_kib)], return_stdout=True)
+
+log('* Allow helper to allocate memory')
+for i in range(60):
+    rss = int(node.run(['ps', '-q', pid, '--no-headers', '-o', 'rss'], return_stdout=True))
+    log('Used: {}'.format(rss))
+    if rss >= alloc_kib:
+        break
+    time.sleep(0.5)
+else:
+    raise RuntimeError('Timed out waiting for memory to be used')
+
+log('* Prepare DRBD disk')
+# Bitmap has size alloc_kib, that is 60% of the originally available memory
+resource.add_disk('{}K'.format((alloc_kib * 32768) // 16), max_peers=16)
+
+log('* Start to bring DRBD up')
+node.new_resource()
+node.new_minor()
+
+log('* Attach should fail because it requires 60% of the originally available memory, which is no longer available')
+# The test assumes that the node has no swap memory.
+try:
+    node.attach()
+    raise RuntimeError('"attach" succeeded unexpectedly')
+except CalledProcessError:
+    pass
+
+log('* Check that the helper is still running and has not been killed due to OOM')
+node.run(['kill', '-SIGINT', pid])
+
+resource.down()
+resource.cluster.teardown()

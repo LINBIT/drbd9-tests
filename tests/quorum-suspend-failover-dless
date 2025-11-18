@@ -1,0 +1,71 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+
+# This test creates a fully connected three-node cluster in which A
+# and B have backing disks, and C is a diskless node.
+#
+#  A---B
+#   \ /
+#    C
+#
+# Initially, node B is primary. After it gets isolated from A and B,
+# it freezes I/O. Then the diskless node C becomes a new primary node
+# and creates a new current UUID. Then A and B reestablish the
+# connection. B realizes it is outdated and forces itself into
+# secondary role.
+#
+# The last step was not implemented in DRBD up to (including) 9.2.15.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import busywrite
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a, node_b, node_c = resource.nodes
+resource.add_disk('10M', diskful_nodes=[node_a, node_b])
+resource.resource_options = 'quorum majority; on-no-quorum suspend-io; on-no-data-accessible suspend-io; on-suspended-primary-outdated force-secondary;'
+resource.net_options = 'ping-int 1; rr-conflict retry-connect;'
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+resource.forbidden_patterns.difference_update([
+    r'connection:NetworkFailure',
+    r'connection:BrokenPipe',
+    r'connection:ProtocolError'
+])
+
+log('* Preparing initial primary node')
+
+node_b.primary()
+node_b.write(direct=1)
+connections(to_node=node_b).block(jump_to="REJECT")
+connections(to_node=node_b).disconnect(wait = False, force = True)
+
+log('* Waiting until primary realized that it is isolated')
+connections(from_node=node_b).event(r'connection .* connection:Unconnected')
+connections(to_node=node_b).event(r'connection .* connection:StandAlone')
+connections(to_node=node_b).unblock(jump_to="REJECT")
+
+log('* The diskless is the new primary in the surviving partition')
+node_c.primary()
+node_c.write(direct=1)
+
+connections(node_a, node_b).connect()
+
+log('* Wait for suspended primary to be forced to be secondary')
+node_b.event(r'resource .* role:Secondary')
+connections(node_a, node_b, bidir=True).event(r'connection .* connection:Connected')
+
+log('* Last connection')
+connections(node_c, node_b).connect()
+connections(node_c, node_b, bidir=True).event(r'connection .* connection:Connected')
+
+node_c.secondary()
+connections(to_node=node_c).event(r'connection .* role:Secondary')
+
+resource.down()
+resource.cluster.teardown()
+

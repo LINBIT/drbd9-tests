@@ -1,0 +1,63 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [1], "drbd_version_min": "9.3" }
+import subprocess
+
+# Tests the behaviour of suspend-io, ensuring filesystem changes are synced
+# when calling suspend-io, or remain unsynced when explicitly requesting no
+# sync to happen.
+
+from python import drbdtest, datatools
+
+cluster = drbdtest.setup(min_nodes=1)
+
+
+def create_filesystem_resource(name):
+    """Create a new resource with a filesystem and mount it
+    """
+    r = cluster.create_resource(name)
+    r.add_disk(size="100M", meta_size='4M')
+    r.up_wait()
+    r.nodes[0].primary(force=True)
+    r.volumes[0].mkfs()
+
+    return r
+
+
+def write_and_snapshot(r: drbdtest.Resource, snap_ext, *suspend_io_args):
+    node = r.nodes[0]
+    node.run(["mkdir", "-p", "/mnt/{}".format(r.name)])
+    node.volumes[0].mount("/mnt/{}".format(r.name))
+    node.fio_file("/mnt/{}/fio".format(r.name), drbdtest.fio_write_args, size=4096 * 4096)
+
+    node.drbdadm(["suspend-io", r.name] + list(suspend_io_args))
+    snap = r.volumes.snapshot(name_ext=snap_ext)[0]
+    node.drbdadm(["resume-io", r.name])
+
+    node.volumes[0].umount("/mnt/{}".format(r.name))
+
+    return snap
+
+
+res = create_filesystem_resource("res")
+node = res.nodes[0]
+
+drbdtest.log(" * Snapshot without calling bdev_freeze does not contain perfect data")
+snap_no_freeze = write_and_snapshot(res, "no_freeze", "--bdev-freeze=no")
+node.run(["mount", snap_no_freeze, "/mnt/{}".format(res.name)])
+try:
+    node.fio_file("/mnt/{}/fio".format(res.name), drbdtest.fio_verify_args, size=4096 * 4096)
+except subprocess.CalledProcessError:
+    pass
+else:
+    raise RuntimeError("snapshot contains perfect data without bdev_freeze ?!")
+
+node.run(["umount", "/mnt/{}".format(res.name)])
+
+drbdtest.log(" * Snapshot calling bdev_freeze does contain perfect data")
+snap_freeze = write_and_snapshot(res, "freeze") # Default argument is --bdev-freeze=yes
+node.run(["mount", snap_freeze, "/mnt/{}".format(res.name)])
+node.fio_file("/mnt/{}/fio".format(res.name), drbdtest.fio_verify_args, size=4096 * 4096)
+node.run(["umount", "/mnt/{}".format(res.name)])
+
+res.down()
+cluster.teardown()

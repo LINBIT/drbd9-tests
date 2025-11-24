@@ -30,6 +30,10 @@ node_c.down()
 node_c.set_gi(node_a.volumes[0], '4', flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE)
 node_c.up_unconnected()
 
+# I need one bit set in the bitmap, to get node_c to reject the resync
+# necessary since b406199ec425 'drbd: ignore role vs resnyc target conflicts for empty resyncs'
+node_a.write(direct=1)
+
 # Prepare node_c to abort the connect two-pc by making it primary
 # and setting rr-conflict=retry-connect.
 node_c.primary()

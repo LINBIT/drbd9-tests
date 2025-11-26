@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0" }
 
 # This test creates a fully connected three-node cluster in which A
 # and B have backing disks, and C is a diskless node.
@@ -18,7 +18,6 @@
 
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
-from python import busywrite
 
 resource = drbdtest.setup_resource(nodes=3)
 node_a, node_b, node_c = resource.nodes
@@ -68,4 +67,3 @@ connections(to_node=node_c).event(r'connection .* role:Secondary')
 
 resource.down()
 resource.cluster.teardown()
-

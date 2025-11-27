@@ -1,0 +1,37 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0" }
+
+from python import drbdtest
+from python.drbdtest import MetadataFlag, connections, log, peer_devices
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a, node_b, node_c = resource.nodes
+resource.disk_options = 'c-max-rate 20M;'
+resource.add_disk('40M', max_peers=7)
+
+log('* Start node B with UpToDate data')
+node_b.set_gi(node_b.volumes[0], 'B538C3C871A9B22E',
+        flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE)
+
+log('* Bring up nodes, but do not connect them yet')
+resource.nodes.up_unconnected()
+
+log('* Let resync run B->A')
+connections(node_a, node_b, bidir=True).connect()
+peer_devices(node_b, node_a).event(r'peer-device .* replication:SyncSource')
+peer_devices(node_a, node_b).event(r'peer-device .* replication:SyncTarget')
+peer_devices(node_a, node_b, bidir=True).event(r'peer-device .* replication:Established')
+
+log('* Start resync B->C')
+connections(node_b, node_c, bidir=True).connect()
+peer_devices(node_b, node_c).event(r'peer-device .* replication:SyncSource')
+peer_devices(node_c, node_b).event(r'peer-device .* replication:SyncTarget')
+
+log('* Connect A-C')
+connections(node_a, node_c, bidir=True).connect()
+# This failed until DRBD 9.2.16. Both nodes got stuck in SyncSource towards each other.
+peer_devices(node_a, node_c, bidir=True).event(r'peer-device .* replication:Established')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

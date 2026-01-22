@@ -46,6 +46,7 @@ DF_DATA_READ_AHEAD = 64
 DF_BITMAP_ALLOC = 128
 DF_PEERREQ_ALLOC = 256
 DF_RECEIVE_CURRUPT = 512
+DF_BIO_TOO_SMALL = 1024
 
 #DRBD's packet types for block_packet_type()
 P_DATA                = 0x00

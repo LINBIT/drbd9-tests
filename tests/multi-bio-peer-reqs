@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.3" }
+#
+# In modern Linux kernels, under normal circumstances, a DRBD
+# peer_request is handled by a single BIO. But the kernel foresees
+# that bio_add_page() might fail. DRBD contains the code to handle
+# that. Only a regular run of the full test suite does not exercise
+# the code for multiple BIOs per peer_request.
+#
+# When we add zero-copy receive in the future, the likelihood rises
+# that bio_add_page() might fail. The example is when the network
+# splits the data stream into many small packets. On the receiving
+# machine, the network stack will have that in sk-bufs, containing
+# data chunks intermitted with TCP/IP headers. When we consume that in
+# the future into many small chunks in a bvec, then we might exceed
+# the number of bvec entries, thus resulting into multipe BIOs per
+# peer_request.
+#
+# This test exercises this otherwise untested code.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+resource = drbdtest.setup_resource(nodes=2)
+resource.add_disk('12M')
+
+resource.up_wait()
+resource.skip_initial_sync()
+
+for node in resource.nodes:
+    node.set_fault_injection(resource.volumes[0], drbdtest.DF_BIO_TOO_SMALL)
+
+for node in resource.nodes:
+    node.write(size='10M', bs='1M', direct=1)
+
+node_a, node_b = resource.nodes
+node_a.detach()
+node_b.peer_devices.event(r'peer-device .* peer-disk:Diskless')
+node_a.fio(rw='read', size='10M', bs='1M', direct=1)
+
+node_a.write(size='6M', bs='1M', direct=1)
+node_a.attach()
+node_a.peer_devices.event(r'peer-device .* replication:SyncTarget')
+node_b.peer_devices.event(r'peer-device .* replication:SyncSource')
+node_a.peer_devices.event(r'peer-device .* replication:Established')
+node_b.peer_devices.event(r'peer-device .* replication:Established')
+
+for node in resource.nodes:
+    result = node.run(['cat', '/sys/kernel/debug/drbd/resources/{}/volumes/0/multi_bio_cnt'.format(resource.name)],
+                      return_stdout=True)
+    count = int(result.strip())
+    log('Node {} multi_bio_cnt: {}'.format(node, count))
+    if count == 0:
+        raise RuntimeError('Expected multi_bio_cnt > 0 on {} with fault injection enabled'.format(node))
+
+log('multi_bio_cnt verified positive on all nodes')
+
+datatools.verify_data(resource.nodes)
+
+resource.down()
+resource.cluster.teardown()

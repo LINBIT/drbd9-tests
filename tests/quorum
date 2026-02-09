@@ -182,6 +182,9 @@ if len(partition_b) == len(partition_a):
 else:
     # Partition b is already bigger than a
     primary_b.volumes[0].event(r'quorum:yes')
+    # primary_b may have stale data from when it was in partition_a before quorum loss.
+    # It needs to resync from newer nodes before becoming primary.
+    primary_b.volumes[0].event(r'disk:UpToDate')
 
 my_log('* %s is the new primary' % primary_b.name)
 primary_b.primary()
@@ -198,10 +201,9 @@ resource.forbidden_patterns.difference_update([
 ])
 
 connections_new.connect()
-connections_witness.event(r'connection .* connection:Connected')
-connections_new.event(r'connection .* connection:Connected')
-
-# ensure that partition_b sees the just joined disks as D_UP_TO_DATE
+# Wait for partition_b to see partition_a as UpToDate.
+# Don't wait for connection:Connected separately as it can race ahead of
+# peer-disk:UpToDate events, causing the test to miss them.
 peer_devices = peer_devices(from_nodes=partition_b, to_nodes=partition_a)
 peer_devices.event(r'peer-device .* peer-disk:UpToDate')
 

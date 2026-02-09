@@ -72,8 +72,26 @@ def reset(to_unblock):
     log_everywhere(resource.nodes, 'Resetting cluster state')
     always_blocked = connections(from_nodes=[A, B, C], to_node=B)
     all_blocked = always_blocked.extend(to_unblock)
-    all_blocked.unblock()
-    all_blocked.event(r'connection .* connection:Connected')
+    # The combination of 'quorum majority' and adding new nodes to the cluster
+    # makes it possible to create data divergence. In particular, test_2 does
+    # this. DRBD only has partial support for recovering from this. It uses the
+    # quorum state to determine the resync direction. This is limited, however:
+    #
+    # * The diskless node refuses to connect to a diskful node with a current
+    #   UUID that differs from its exposed UUID.
+    # * Once one connection has been established between the partitions, both
+    #   partitions have quorum and so this can no longer be used to determine the
+    #   resync direction.
+    #
+    # Connect the partitions very carefully to avoid the problematic situations
+    # described above.
+    diskful_blocked = all_blocked.difference(connections(C, bidir=True))
+    diskless_blocked = all_blocked.difference(diskful_blocked)
+    for c in diskful_blocked:
+        c.unblock()
+        drbdtest.PeerDevice(c, c[0].volumes[0]).event(r'peer-device .* replication:Established')
+    diskless_blocked.unblock()
+    diskless_blocked.event(r'connection .* connection:Connected')
 
     resource.down()
     resource.nodes.remove(D)

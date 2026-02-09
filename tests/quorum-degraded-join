@@ -8,12 +8,6 @@ from python import drbdtest
 from python.drbdtest import log, connections
 
 
-def log_everywhere(nodes, str):
-    log(str)
-    for node in nodes:
-        node.run(["echo", str])
-
-
 def expect_no_quorum(node):
     try:
         node.volumes.write(direct=1)
@@ -31,22 +25,22 @@ resource.add_disk('10M', diskful_nodes=[A, B, D])
 resource.remove_node(D)
 resource.up_wait()
 
-log_everywhere(resource.nodes, '* Make up-to-date data available.')
+resource.log_sync_mark('* Make up-to-date data available.')
 resource.skip_initial_sync()
-log_everywhere(resource.nodes, '* All nodes connected')
+resource.log_sync_mark('* All nodes connected')
 
 
 def degrade_cluster():
     """
     Degrades cluster by having node B be isolated
     """
-    log_everywhere(resource.nodes, 'Checking current cluster state')
+    resource.log_sync_mark('Checking current cluster state')
     # All have quorum
     A.volumes.write(direct=1)
     B.volumes.write(direct=1)
     C.volumes.write(direct=1)
 
-    log_everywhere(resource.nodes, 'Isolating node B')
+    resource.log_sync_mark('Isolating node B')
     resource.forbidden_patterns.difference_update([
         r'connection:NetworkFailure',
         r'connection:BrokenPipe',
@@ -59,17 +53,17 @@ def degrade_cluster():
 
     A.volumes.write(direct=1)
     C.volumes.write(direct=1)
-    log_everywhere([A, C], '* Nodes A & C still have quorum')
+    resource.log_sync_mark('* Nodes A & C still have quorum')
 
     expect_no_quorum(B)
-    log_everywhere([B], '* Isolated node B lost quorum')
+    resource.log_sync_mark('* Isolated node B lost quorum')
 
 
 def reset(to_unblock):
     """
     Resets the cluster to it's 3 node, all connected state
     """
-    log_everywhere(resource.nodes, 'Resetting cluster state')
+    resource.log_sync_mark('Resetting cluster state')
     always_blocked = connections(from_nodes=[A, B, C], to_node=B)
     all_blocked = always_blocked.extend(to_unblock)
     # The combination of 'quorum majority' and adding new nodes to the cluster
@@ -115,11 +109,11 @@ def test_1():
     | /   \ |
     C - X - D
     """
-    log_everywhere(resource.nodes, 'Test 1')
+    resource.log_sync_mark('Test 1')
     degrade_cluster()
 
     resource.add_node(D)
-    log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
+    resource.log_sync_mark('* Adding new node D, also isolated from B')
 
     blocked = connections(D, B)
     blocked.block()
@@ -127,17 +121,17 @@ def test_1():
 
     A.event(r'quorum:no')
     C.event(r'quorum:no')
-    log_everywhere([A, C], '* Nodes A & C temporarily lose quorum')
+    resource.log_sync_mark('* Nodes A & C temporarily lose quorum')
     A.event(r'quorum:yes')
     C.event(r'quorum:yes')
     D.event(r'quorum:yes')
     A.volumes.write(direct=1)
     C.volumes.write(direct=1)
     D.volumes.write(direct=1)
-    log_everywhere([A, C], '* Nodes A, C & D gain quorum')
+    resource.log_sync_mark('* Nodes A, C & D gain quorum')
 
     expect_no_quorum(B)
-    log_everywhere([B], '* Node B is still isolated')
+    resource.log_sync_mark('* Node B is still isolated')
 
     reset(blocked)
 
@@ -152,11 +146,11 @@ def test_2():
     | /   \ |
     C - X - D
     """
-    log_everywhere(resource.nodes, 'Test 2')
+    resource.log_sync_mark('Test 2')
     degrade_cluster()
 
     resource.add_node(D)
-    log_everywhere(resource.nodes, '* Adding new node D, isolated from A & C, connecting to B')
+    resource.log_sync_mark('* Adding new node D, isolated from A & C, connecting to B')
 
     blocked = connections(from_nodes=[A, C], to_node=D)
     blocked.block()
@@ -164,16 +158,16 @@ def test_2():
 
     A.event(r'quorum:no')
     C.event(r'quorum:no')
-    log_everywhere([A, C], '* Nodes A & C lose quorum')
+    resource.log_sync_mark('* Nodes A & C lose quorum')
     B.event(r'quorum:yes')
     D.event(r'quorum:yes')
     B.volumes.write(direct=1)
     D.volumes.write(direct=1)
-    log_everywhere([B, D], '* Nodes B & D gain quorum')
+    resource.log_sync_mark('* Nodes B & D gain quorum')
 
     expect_no_quorum(A)
     expect_no_quorum(C)
-    log_everywhere([A, C], '* Nodes A & C still lost quorum')
+    resource.log_sync_mark('* Nodes A & C still lost quorum')
 
     reset(blocked)
 
@@ -188,26 +182,26 @@ def test_3():
     | /   \ |
     C - - - D
     """
-    log_everywhere(resource.nodes, 'Test 3')
+    resource.log_sync_mark('Test 3')
     degrade_cluster()
 
     resource.add_node(D)
-    log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
+    resource.log_sync_mark('* Adding new node D, also isolated from B')
 
     blocked = connections(D, B)
     blocked.block()
     resource.nodes.adjust()
 
-    log_everywhere([D], '* Node D should gain quorum')
+    resource.log_sync_mark('* Node D should gain quorum')
     D.event(r'quorum:yes')
 
     A.volumes.write(direct=1)
     C.volumes.write(direct=1)
     D.volumes.write(direct=1)
-    log_everywhere([A, C], '* Nodes A, C & D have quorum')
+    resource.log_sync_mark('* Nodes A, C & D have quorum')
 
     expect_no_quorum(B)
-    log_everywhere([B], '* Node B is still isolated')
+    resource.log_sync_mark('* Node B is still isolated')
 
     reset(blocked)
 
@@ -222,11 +216,11 @@ def test_4():
     | /   \ |
     C - X - D
     """
-    log_everywhere(resource.nodes, 'Test 4')
+    resource.log_sync_mark('Test 4')
     degrade_cluster()
 
     resource.add_node(D)
-    log_everywhere(resource.nodes, '* Adding new node D, also isolated from B')
+    resource.log_sync_mark('* Adding new node D, also isolated from B')
 
     blocked = connections(from_nodes=[A, C], to_node=D)
     blocked.block()
@@ -234,13 +228,13 @@ def test_4():
 
     A.volumes.write(direct=1)
     C.volumes.write(direct=1)
-    log_everywhere([A, C], '* Nodes A, C have quorum')
+    resource.log_sync_mark('* Nodes A, C have quorum')
 
-    log_everywhere([D], '* Node D should not gain quorum')
+    resource.log_sync_mark('* Node D should not gain quorum')
 
     expect_no_quorum(B)
     expect_no_quorum(D)
-    log_everywhere([B], '* Node B, D are isolated')
+    resource.log_sync_mark('* Node B, D are isolated')
 
     reset(blocked)
 

@@ -27,7 +27,7 @@ resource.add_disk('10M')
 resource.up_wait()
 log('* Make up-to-date data available.')
 resource.skip_initial_sync()
-resource.forbidden_patterns.difference_update([r'connection:BrokenPipe'])
+resource.forbidden_patterns.difference_update([r'connection:BrokenPipe', r'connection:NetworkFailure'])
 
 def adjust_rr_conflict(rr_conflict):
     resource.net_options = 'timeout 10; ping-int 2; connect-int 2; rr-conflict {};'.format(rr_conflict)

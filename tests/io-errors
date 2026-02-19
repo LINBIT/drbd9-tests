@@ -66,6 +66,33 @@ def test_writes(fault_type):
     secondary_n.peer_devices.event(r'peer-device .* replication:Established')
     # Expect 4M resync. One AL-extent. That ensure it is a bitmap-based resync and not a full resync
 
+def test_reads():
+    # Test that a local read error on primary causes detach without crashing.
+    # This exercises the READ_COMPLETED_WITH_ERROR path in __req_mod(), which
+    # used to dereference a NULL peer_device in drbd_set_out_of_sync().
+    log('* Testing read error on primary, should detach')
+    primary_n.primary()
+    primary_n.set_fault_injection(vol, drbdtest.DF_DATA_READ)
+    try:
+        primary_n.run(['dd', 'if=%s' % (vol.device()), 'of=/dev/null', 'bs=4096', 'iflag=direct', 'count=1'])
+    except CalledProcessError:
+        pass  # Read may fail or succeed via remote read; either is fine
+
+    primary_n.volumes.event(r'device .* disk:Failed')
+    primary_n.volumes.event(r'device .* disk:Diskless')
+    secondary_n.peer_devices.event(r'peer-device .* peer-disk:Failed')
+    secondary_n.peer_devices.event(r'peer-device .* peer-disk:Diskless')
+    if primary_n.host.drbd_version_tuple < (9, 0, 0):
+        time.sleep(1.0)
+    primary_n.secondary()
+
+    log('* down/up primary, check recovery after read error')
+    primary_n.disable_fault_injection(vol)
+    primary_n.down()
+    primary_n.up()
+    primary_n.volumes.event(r'device .* disk:UpToDate')
+    secondary_n.peer_devices.event(r'peer-device .* replication:Established')
+
 def test_tracking_writes(mode):
     # check the resync of blocks while the disk on the primary is away. Do it in a way the
     # AL does not get applied, so that we verify that the diskfull secondary tracked the
@@ -120,7 +147,9 @@ if primary_n.host.drbd_version_tuple >= (9, 0, 0):
     test_tracking_writes(M_REATTACH)
     test_tracking_writes(M_RECREATE_MD)
 
-# TODOs: read errors, IO errors during resync, allocation errors
+test_reads()
+
+# TODOs: IO errors during resync, allocation errors
 
 log('* Shut down and clean up.')
 resource.down()

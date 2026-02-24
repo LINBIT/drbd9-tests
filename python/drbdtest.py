@@ -2145,23 +2145,35 @@ class Node():
     def unblock_path(self, other_node, net_number=0, jump_to="DROP"):
         return self.host.platform_helper.unblock_path(self, other_node, net_number, jump_to)
 
-    def _block_packet_type(self, packet, op, from_node, volume):
+    def __block_packet_type_cmd(self, op, packet, volume, from_node):
         cmdline = ['iptables', op, 'drbd-test-input', '-p']
         cmdline.append('udp' if self.resource.transport == 'rdma' else 'tcp')
         if from_node is not None:
             cmdline += ['-s', from_node.host.addrs[0]]
-        cmdline += [ '-m', 'string', '--algo', 'bm', '--from', '0',
-                     '--hex-string', '|8620ec20 %04X %04X 0000|' % (volume, packet)]
+        cmdline += ['-m', 'string', '--algo', 'bm', '--from', '0',
+                    '--hex-string', '|8620ec20 %04X %04X 0000|' % (volume, packet)]
+        return cmdline
+
+    def _block_packet_type(self, packet, op, from_node, volume):
+        cmdline = self.__block_packet_type_cmd(op, packet, volume, from_node)
         for ipt_target in ['LOG', 'DROP']:
             self.run(cmdline + ['-j', ipt_target])
 
-    def block_packet_type(self, packet, from_node=None, volume=0):
+    def block_packet_type(self, packet, from_node=None, volume=0, for_seconds=None):
         """
         Block a specific DRBD packet from being received on this node.
 
         Warning: The packet will be blocked for all resources.
         """
         self._block_packet_type(packet, '-A', from_node, volume)
+        if for_seconds is not None:
+            d = self.__block_packet_type_cmd('-D', packet, volume, from_node)
+            s = ['setsid', 'bash', '-c', '(' +
+                 ' sleep {}; '.format(for_seconds) +
+                 ' '.join(shlex.quote(w) for w in d) + ' -j LOG; ' +
+                 ' '.join(shlex.quote(w) for w in d) + ' -j DROP' +
+                 ') </dev/null &>/dev/null &']
+            self.run(s)
 
     def unblock_packet_type(self, packet, from_node=None, volume=0):
         self._block_packet_type(packet, '-D', from_node, volume)

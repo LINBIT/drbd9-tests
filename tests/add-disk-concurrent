@@ -1,0 +1,48 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2" }
+
+# Test that adding a volume concurrently on two connected nodes works
+# correctly with new-current-uuid --force-resync.
+# The test blocks P_STATE packets briefly, so that both nodes consider
+# the other node as still not yet having the volume. This race is the
+# key point of the test.
+
+# This was broken up to (including drbd-9.2.16)
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+resource = drbdtest.setup_resource(nodes=2)
+node_a, node_b = resource.nodes
+
+resource.add_disk('10M', max_peers=7)
+resource.up_wait()
+
+log('* Make vol 0 UpToDate.')
+resource.skip_initial_sync()
+
+log('* Add vol 1 config and backing disks on both nodes.')
+vol_nr = resource.add_disk('10M', max_peers=7)
+
+log('* Apply vol 1 on node_a only.')
+node_a.volumes[vol_nr].new_minor()
+node_a.volumes[vol_nr].attach()
+node_a.volumes[vol_nr].event(r'device .* disk:Inconsistent')
+
+node_a.block_packet_type(drbdtest.P_STATE, from_node=node_b, volume=vol_nr, for_seconds=2)
+
+log('* Now apply vol 1 on node_b.')
+node_b.volumes[vol_nr].new_minor()
+node_b.volumes[vol_nr].attach()
+node_b.volumes[vol_nr].event(r'device .* disk:Inconsistent')
+
+log('* Force resync on node_a for vol 1.')
+node_a.drbdadm(['new-current-uuid', '--force-resync', f'{resource.name}/{vol_nr}'])
+node_a.volumes[vol_nr].event(r'device .* disk:UpToDate')
+
+log('* Verify node_b vol 1 becomes UpToDate via resync.')
+node_b.volumes[vol_nr].event(r'device .* disk:UpToDate', timeout=6)
+
+log('* Success.')
+resource.down()
+resource.cluster.teardown()

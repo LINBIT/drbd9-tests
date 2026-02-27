@@ -1041,6 +1041,15 @@ class Volume(object):
         self.disk_lv = None
         self.meta_lv = None
         self.disk_is_online = False
+        self._tiebreaker = None  # None = default, True/False = explicit
+
+    def get_tiebreaker(self):
+        return self._tiebreaker
+
+    def set_tiebreaker(self, value):
+        self._tiebreaker = value
+        self.node.resource.touch_config()
+    tiebreaker = property(get_tiebreaker, set_tiebreaker)
 
     def get_resource(self):
         return self.node.resource
@@ -1862,6 +1871,8 @@ class Node():
                     V.write("disk %s;" % (disk.disk or "none"))
                     if disk.disk:
                         V.write("meta-disk %s;" % (disk.meta or "internal"))
+                    if disk.tiebreaker is not None:
+                        V.write("tiebreaker %s;" % ("yes" if disk.tiebreaker else "no"))
 
     def config(self):
         text = []

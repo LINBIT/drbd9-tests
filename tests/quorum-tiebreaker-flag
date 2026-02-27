@@ -1,0 +1,121 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [4], "vms_ci": null, "drbd_version_min": "9.3" }
+#
+# Test per-connection tiebreaker config flag.
+#
+# Topology:
+#   A (diskful, site 1)
+#   B (diskful, site 2)
+#   C (diskless tiebreaker, site 3)
+#   D (diskless access node, site 1)
+#
+# When site 1 (A + D) is lost, B should keep quorum via tiebreaker C because
+# D is excluded from tiebreaker calculations. Without the flag, the same
+# partition causes B to lose quorum.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+
+def test_with_flag():
+    log('* Test: tiebreaker=no -- B keeps quorum when site 1 lost')
+
+    resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+    resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+    resource.forbidden_patterns.remove(r'connection:Timeout')
+
+    log('* Blocking site 1 (A and D)')
+    site_1 = [A, D]
+    others = [B, C]
+    site_link = connections(from_nodes=others, to_nodes=site_1, bidir=True)
+    site_link.block()
+
+    # Wait for B to see both connections fail
+    site_link.event(r'connection:(NetworkFailure|BrokenPipe|Timeout)')
+
+    # B should still have quorum -- verify by promoting and writing
+    A.secondary()
+    B.primary(wait=True)
+    B.volumes.write(direct=1)
+
+    log('* Reconnecting site 1')
+    site_link.unblock()
+
+    # Wait for reconnection per-node to avoid event cursor conflicts on B
+    # (B needs to see both connection:Connected and replication:Established)
+    connections(from_nodes=site_1, to_nodes=others).event(r'connection .* connection:Connected')
+    connections(C, to_nodes=site_1).event(r'connection .* connection:Connected')
+
+    # Wait for resync B->A (B has newer data from the write)
+    peer_devices(B, to_nodes=site_1).event(r'peer-device .* replication:Established')
+
+    # Restore original roles
+    B.secondary()
+    A.primary(wait=True)
+
+    log('* All nodes connected again')
+    resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:BrokenPipe')
+    resource.forbidden_patterns.add(r'connection:Timeout')
+
+
+def test_without_flag():
+    log('* Test: tiebreaker=yes -- B loses quorum when site 1 lost')
+
+    resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+    resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+    resource.forbidden_patterns.remove(r'connection:Timeout')
+
+    log('* Blocking site 1 (A and D)')
+    site_1 = [A, D]
+    others = [B, C]
+    connections(from_nodes=others, to_nodes=site_1, bidir=True).block()
+
+    # B should lose quorum
+    B.event(r'quorum:no')
+
+    log('* Reconnecting site 1')
+    connections(from_nodes=others, to_nodes=site_1, bidir=True).unblock()
+
+    # Consume events from all nodes
+    connections(from_nodes=site_1, to_nodes=others).event(r'connection .* connection:Connected')
+    connections(C, to_nodes=site_1).event(r'connection .* connection:Connected')
+    B.event(r'quorum:yes')
+
+    log('* All nodes connected again')
+    resource.forbidden_patterns.add(r'connection:NetworkFailure')
+    resource.forbidden_patterns.add(r'connection:BrokenPipe')
+    resource.forbidden_patterns.add(r'connection:Timeout')
+
+
+resource = drbdtest.setup_resource(nodes=4)
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+resource.net_options = 'ping-timeout 5; ping-int 1; connect-int 1;'
+
+A, B, C, D = resource.nodes
+resource.add_disk('1M', diskful_nodes=[A, B])
+
+D.disks[0].tiebreaker = False
+
+resource.up_wait()
+
+log('* Make up-to-date data available.')
+resource.skip_initial_sync()
+
+A.primary()
+log('* All nodes connected, A is primary')
+
+test_with_flag()
+
+D.disks[0].tiebreaker = True
+resource.nodes.adjust()
+
+test_without_flag()
+
+# Clean up
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+resource.forbidden_patterns.remove(r'connection:BrokenPipe')
+resource.forbidden_patterns.remove(r'connection:Timeout')
+
+resource.down()
+resource.cluster.teardown()

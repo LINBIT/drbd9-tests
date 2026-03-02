@@ -1,0 +1,44 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.3" }
+
+# Verify that the discard-granularity device option is correctly reflected
+# in the block device queue parameters for both diskless and diskful nodes.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+
+def get_discard_granularity(node, volume):
+    output = node.run(['lsblk', '-rbno', 'DISC-GRAN', volume.device()], return_stdout=True)
+    return int(output.strip())
+
+
+resource = drbdtest.setup_resource(nodes=2)
+diskful_nodes = resource.nodes[1:]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+diskless_node = resource.nodes.diskless[0]
+
+log('* Test 1: discard-granularity=0 disables discards.')
+resource.disk_options = 'discard-granularity 0;'
+resource.up_wait()
+
+actual = get_discard_granularity(diskless_node, resource.volumes[0])
+assert actual == 0, 'diskless node: expected discard_granularity=0, got %d' % actual
+
+resource.down()
+
+log('* Test 2: discard-granularity=12288 is reflected in queue parameters.')
+resource.disk_options = 'discard-granularity 12k;'
+resource.up_wait()
+resource.skip_initial_sync()
+
+actual = get_discard_granularity(diskless_node, resource.volumes[0])
+assert actual == 12288, 'diskless node: expected discard_granularity=12288, got %d' % actual
+
+actual = get_discard_granularity(diskful_nodes[0], resource.volumes[0])
+assert actual == 12288, 'diskful node: expected discard_granularity=12288, got %d' % actual
+
+resource.down()
+
+log('* Shut down and clean up.')
+resource.cluster.teardown()

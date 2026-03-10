@@ -1,0 +1,46 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.0" }
+
+# Regression test for https://gitlab.at.linbit.com/drbd/drbd/-/issues/33
+#
+# When two nodes are configured with only a connection (no volumes/disks),
+# they should establish a stable connection. A bug introduced in 9.0.23
+# caused the connection to cycle through Connected -> BrokenPipe ->
+# Connecting repeatedly, with "sock_recvmsg returned -11" in dmesg.
+#
+# As of drbd-9.3.1 the bug manifests as unexpected socket shutdown
+# during disconnect.
+
+from python import drbdtest
+from python.drbdtest import connections, log
+
+resource = drbdtest.setup_resource(nodes=2)
+node_a, node_b = resource.nodes
+# Do NOT add any disks -- that is the scenario under test.
+
+resource.nodes.up_wait()
+resource.connections.event(r'connection .* role:Secondary')
+
+resource.forbidden_patterns.update([
+    r'connection:BrokenPipe',
+    r'connection:NetworkFailure',
+    r'connection:Timeout',
+    r'connection:ProtocolError',
+])
+
+# Test promote/demote without a volume
+with node_a.asPrimary():
+    node_b.connections.event(r'connection .* role:Primary')
+node_b.connections.event(r'connection .* role:Secondary')
+
+node_a.connections.disconnect(wait=False)
+node_a.connections.event(r'connection .* connection:Disconnecting')
+# The bug strikes here, node_b gets an NetworkFailure instead of TearDown
+# The forbidden_patterns catch this timely
+node_b.connections.event(r'connection .* connection:TearDown')
+node_a.connections.event(r'connection .* connection:StandAlone')
+node_b.connections.event(r'connection .* connection:Connecting')
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

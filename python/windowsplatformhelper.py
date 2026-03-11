@@ -21,6 +21,11 @@ class WindowsPlatformHelper(object):
         host.os_id = "Windows"
         host.os_version_id = host.run(['uname'], return_stdout=True).split("_")[1]
 
+        host.addr = host.run(['powershell', '-command',
+            '(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway } | Select-Object -First 1).IPv4Address.IPAddress'],
+            return_stdout=True).strip()
+        host.addrs = [host.addr]
+
     def read_drbd_version(self, host):
         version_lines = host.run(['drbdadm', '--version'], return_stdout=True).splitlines()
         for l in version_lines:

@@ -1355,21 +1355,17 @@ class Host():
     """
 
     def __init__(self, cluster, name, volume_group, storage_backend, backing_device,
-                 first_port=7789, addr=None, multi_paths=None, netns=None, ssh_config=None):
+                 first_port=7789, multi_paths=None, netns=None, ssh_config=None):
         self.cluster = cluster
         self.name = name
         self.port = first_port
         self.netns = None
-        try:
-            self.addr = addr if addr else socket.gethostbyname(name)
-        except:
-            raise RuntimeError('Could not determine IP for host %s' % name)
 
         try:
-            self.ssh = SSH(self.addr, timeout=30, user=None if ssh_config else 'root', ssh_config=ssh_config)
+            self.ssh = SSH(name, timeout=30, user=None if ssh_config else 'root', ssh_config=ssh_config)
         except subprocess.CalledProcessError as e:
-            print(e.stderr.decode('utf-8'), file=sys.stderr)
-            raise e
+            log('Could not start SSH connection for host {}:\n{}'.format(name, e.stderr.decode('utf-8')))
+            raise
 
         self.events_file = None
         self.fio_count = 0
@@ -1386,7 +1382,6 @@ class Host():
             hostname_cmd = ['hostname', '-f']
         self.hostname = self.run(hostname_cmd, return_stdout=True)
 
-        self.addrs = [self.addr]
         self.netdevs = {}
 
         # Platform specific initialization

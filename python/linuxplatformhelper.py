@@ -20,6 +20,9 @@ class LinuxPlatformHelper(object):
                 ['bash', '-c', '. /etc/os-release ; echo $ID ; echo $VERSION_ID'],
                 return_stdout=True).splitlines()
 
+        host.addr = get_default_addr(host)
+        host.addrs = [host.addr]
+
         addresses = host.run(['ip', '-oneline', 'addr', 'show'], return_stdout=True)
         log("got all addresses %s", addresses)
         for line in addresses.splitlines():
@@ -32,18 +35,16 @@ class LinuxPlatformHelper(object):
             if addr == "127.0.0.1" or addr == host.addr:
                 continue
 
+            if multi_paths:
+                host.addrs.append(addr)
+
             host.netdevs[devname] = {
                 'address': addr,
                 'prefix': prefix,
             }
 
-        if multi_paths:
-            if not host.netdevs:
-                raise RuntimeError("%s has no additional address", host)
-
-            log("got all addresses %s", addresses)
-            for address_info in host.netdevs.values():
-                host.addrs.append(address_info['address'])
+        if multi_paths and not host.netdevs:
+            raise RuntimeError("{} has no additional address".format(host))
 
         init_iptables = ["bash", "--norc", "-xec", inspect.cleandoc('''
                 iptables -F drbd-test-input || iptables -N drbd-test-input
@@ -221,3 +222,23 @@ class LinuxPlatformHelper(object):
 
     def wipe_ntfs(self, volume):
         pass
+
+
+def get_default_addr(host):
+    try:
+        # Use 'get 1' to query the default route's src address.
+        # Older iproute2 rejects 0.0.0.1, but '1' works everywhere.
+        route_out = host.run(['ip', '-4', 'route', 'get', '1'], return_stdout=True)
+    except CalledProcessError as e:
+        log('Could not get default route for host {}'.format(host.name))
+        raise
+
+    route_words = route_out.strip().split(' ')
+    src_addrs = [value
+            for key, value in zip(route_words, route_words[1:])
+            if key == 'src']
+
+    if len(src_addrs) != 1:
+        raise RuntimeError('Default route does not contain src address: {}'.format(route_out))
+
+    return src_addrs[0]

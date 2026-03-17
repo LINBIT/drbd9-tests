@@ -7,6 +7,12 @@ die() {
 	exit 1
 }
 
+drbd_tests_absolute_dir="$(dirname "$(dirname "$(readlink -f "$0")")")"
+
+[[ "$drbd_tests_absolute_dir" == "$(pwd)"* ]] || die "Must run from ancestor of drbd9-tests directory"
+# Use relative path because test container has the working directory mapped to /virter/workspace/
+drbd_tests_root_dir=".${drbd_tests_absolute_dir#"$(pwd)"}"
+
 [ -z "$DRBD_TEST_DOCKER_IMAGE" ] && die "Missing \$DRBD_TEST_DOCKER_IMAGE"
 [ -z "$DRBD_VERSION" ] && die "Missing \$DRBD_VERSION"
 [ -z "$DRBD_UTILS_VERSION" ] && die "Missing \$DRBD_UTILS_VERSION"
@@ -27,12 +33,12 @@ done
 WINDRBD_VERSION=${WINDRBD_VERSION:-windrbd-1.2-from-gitlab}
 extra_args+=( "--set" "values.WinDrbdVersion=$WINDRBD_VERSION" )
 
-# DRBD_TESTS_DIR is optional. Use default value if empty.
-DRBD_TESTS_DIR="${DRBD_TESTS_DIR:-tests}"
+# DRBD_TESTS_SUB_DIR is optional. Use default value if empty.
+DRBD_TESTS_SUB_DIR="${DRBD_TESTS_SUB_DIR:-tests}"
 
 echo "=== generate vmshed test configuration" >&2
-make virter/tests.toml \
-	DRBD_TESTS_DIR="$DRBD_TESTS_DIR" \
+make -C "$drbd_tests_root_dir" virter/tests.toml \
+	DRBD_TESTS_SUB_DIR="$DRBD_TESTS_SUB_DIR" \
 	VMSHED_TEST_SELECTION="${VMSHED_TEST_SELECTION:-ci}" \
 	DRBD_VERSION="$DRBD_VERSION" \
 	DRBD_VERSION_OTHER="$DRBD_VERSION_OTHER" \
@@ -47,7 +53,7 @@ vmshed --version >&2
 if [ -z "$SKIP_PULL" ]; then
 	echo "=== Pull images" >&2
 
-	for BASE_IMAGE in $(rq -t < virter/vms.toml | jq -r '.vms[] | .base_image'); do
+	for BASE_IMAGE in $(rq -t < "$drbd_tests_root_dir/virter/vms.toml" | jq -r '.vms[] | .base_image'); do
 		virter image pull $BASE_IMAGE $LINBIT_DOCKER_REGISTRY/vm/drbd9-tests/$BASE_IMAGE:latest
 	done
 fi
@@ -59,10 +65,11 @@ vmshed										\
 	--out-dir "$(readlink -f tests-out)"					\
 	--startvm 40								\
 	--nvms "${LINBIT_CI_MAX_CPUS:-20}"						\
-	--vms virter/vms.toml					\
-	--tests virter/tests.toml				\
+	--vms "$drbd_tests_root_dir/virter/vms.toml"				\
+	--tests "$drbd_tests_root_dir/virter/tests.toml"				\
 	--set values.TestSuiteImage=$DRBD_TEST_DOCKER_IMAGE \
-	--set values.TestsDir="$DRBD_TESTS_DIR"					\
+	--set values.DrbdTestsRootDir="$drbd_tests_root_dir"			\
+	--set values.DrbdTestsSubDir="$DRBD_TESTS_SUB_DIR"			\
 	--set values.DrbdVersion=$DRBD_VERSION					\
 	--set values.RepositoryPackages=drbd-utils=$DRBD_UTILS_VERSION		\
 	"${extra_args[@]}"

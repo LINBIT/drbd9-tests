@@ -3,7 +3,8 @@ version = 1
 [values]
 ScratchDisk = "/dev/sda"
 TestSuiteImage = "drbd9-tests"
-TestsDir = "tests"
+DrbdTestsRootDir = "."
+DrbdTestsSubDir = "tests"
 Transport = "" # For example: rdma
 TLS = "no" # Set to 'yes' to enable TLS
 Storage = "lvm" # Also possible: raw and zfs
@@ -68,7 +69,8 @@ DRBD_TEST_TRANSPORT = "{{.Transport}}"
 [steps.container]
 image = "{{.TestSuiteImage}}"
 [steps.container.env]
-DRBD_TESTS_DIR = "{{.TestsDir}}"
+DRBD_TESTS_ROOT_DIR = "{{.DrbdTestsRootDir}}"
+DRBD_TESTS_SUB_DIR = "{{.DrbdTestsSubDir}}"
 SCRATCH_DISK = "{{.ScratchDisk}}"
 DRBD_TEST_STORAGE = "{{.Storage}}"
 DRBD_TEST_TRANSPORT = "{{.Transport}}"

@@ -1,6 +1,7 @@
 version = 1
 
 [values]
+DrbdTestsRootDir = "."
 RepositoryURL = ""
 DrbdRepositoryURL = ""
 ReleaseRepositoryURL = ""
@@ -18,7 +19,7 @@ dest = "/opt/packages/"
 
 [[steps]]
 [steps.rsync]
-source = "virter/scripts/*"
+source = "{{.DrbdTestsRootDir}}/virter/scripts/*"
 dest = "/usr/local/bin/"
 
 [[steps]]

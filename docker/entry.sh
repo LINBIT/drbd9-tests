@@ -2,15 +2,17 @@
 
 set -e
 
-[ -n "$TEST_NAME" ] && TEST_PATH="${DRBD_TESTS_DIR:-tests}/$TEST_NAME"
+cd "/virter/workspace/$DRBD_TESTS_ROOT_DIR"
+
+[ -n "$TEST_NAME" ] && TEST_PATH="${DRBD_TESTS_SUB_DIR:-tests}/$TEST_NAME"
 
 if [ -z "$TEST_PATH" ]; then
     echo "No test specified"
     exit 1
 fi
 
-if [ ! -e /virter/workspace/"$TEST_PATH" ]; then
-    echo "Unknown test '$TEST_PATH'"
+if [ ! -e "$TEST_PATH" ]; then
+    echo "Unknown test '$TEST_PATH' in '$(pwd)'"
     exit 1
 fi
 
@@ -44,6 +46,4 @@ done
 [ -n "$DRBD_TEST_TLS" ] && test_args+=( "--tls=$DRBD_TEST_TLS" )
 
 echo "===== Run test '$TEST_PATH' with args '${test_args[*]}' on nodes '${nodes[*]}'"
-
-cd /virter/workspace/
 ./"$TEST_PATH" "${test_args[@]}" "${nodes[@]}"

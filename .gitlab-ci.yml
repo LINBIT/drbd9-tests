@@ -6,7 +6,7 @@ variables:
   DRBD_TEST_COUNT: 1
   VMSHED_ARGS: ""
   DRBD_TEST_SERIES: "none" # To distinguish regular stability tests from other scheduled tests.
-  DRBD_TESTS_DIR: "tests"
+  DRBD_TESTS_SUB_DIR: "tests"
   DRBD_VERSION: 9.3.0.latest
   DRBD_VERSION_OTHER: "" # For compatibility testing. For example: 8.4.12
   DRBD_UTILS_VERSION: 9.0.0.latest-*

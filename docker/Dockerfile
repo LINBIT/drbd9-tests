@@ -1,6 +1,6 @@
 FROM ubuntu:jammy
 
-ARG LBPYTEST_VERSION=0.4.0
+ARG LBPYTEST_VERSION=0.5.1
 
 RUN apt-get update && apt-get -y install \
     python3 \

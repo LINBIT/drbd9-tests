@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [4], "vms_ci": null, "drbd_version_min": "9.1" }
+### vmshed: { "vms_all": [4], "vms_ci": [4], "drbd_version_min": "9.1" }
 # Tests that adding a node to a degraded cluster with quorum correctly
 # causes loss and preservation of quorum.
 import subprocess

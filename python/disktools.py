@@ -3,13 +3,37 @@ import json
 import uuid
 
 
-def create_md(node, volume_number, *, max_peers, bitmap_block_size):
+def _drbdmeta_supports_uuid_options(node):
+    """Return True if drbdmeta supports --initial-current-uuid and related UUID options."""
+    if not hasattr(node.host, '_drbdmeta_uuid_options'):
+        out = node.host.run(
+            ['bash', '-c',
+             'drbdmeta - v09 /dev/null internal create-md 3 --initial-current-uuid 2>&1 || true'],
+            return_stdout=True)
+        node.host._drbdmeta_uuid_options = 'requires an argument' in out
+    return node.host._drbdmeta_uuid_options
+
+
+def create_md(node, volume_number, *, max_peers, bitmap_block_size=None, initial_current_uuid=None, consistent=None, uptodate=None, peers_outdated=None, rotate_uuids=None):
     args = ['create-md', '--force', '{}/{}'.format(node.resource.name, volume_number)]
     if node.host.drbd_version_tuple >= (9, 0, 0):
         args.append('--max-peers={}'.format(max_peers))
     if bitmap_block_size is not None:
         assert node.host.drbd_version_tuple >= (9, 3, 0)
         args.append('--bitmap-block-size={}'.format(bitmap_block_size))
+    if any((initial_current_uuid, consistent, uptodate, peers_outdated, rotate_uuids)):
+        if not _drbdmeta_supports_uuid_options(node):
+            raise RuntimeError('drbdmeta on {} does not support --initial-current-uuid and related options'.format(node.host))
+    if initial_current_uuid:
+        args.append(f'--initial-current-uuid={initial_current_uuid}')
+    if consistent:
+        args.append('--consistent')
+    if uptodate:
+        args.append('--uptodate')
+    if peers_outdated:
+        args.append('--peers-outdated')
+    if rotate_uuids:
+        args.append('--rotate-uuids')
     node.drbdadm(args)
 
 

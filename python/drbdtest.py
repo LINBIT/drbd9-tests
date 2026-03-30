@@ -791,6 +791,9 @@ class Cluster(object):
             host.remove_storage_pool()
 
 
+_NODE_DISK_KWARGS = frozenset({'meta_size', 'max_size', 'delay_ms', 'logical_block_size'})
+
+
 class Resource(object):
     """
     A single DRBD resource spanning multiple hosts.
@@ -832,27 +835,42 @@ class Resource(object):
         self.num_volumes = 0
         self.cluster.remove_storage_pool()
 
-    def add_disk(self, size, *, meta_size=None, diskful_nodes=None, max_size=None, max_peers=None, delay_ms=None, logical_block_size=None, bitmap_block_sizes=None):
+    def add_disk(self, size, *, diskful_nodes=None, max_peers=None, bitmap_block_sizes=None, **kwargs):
         """
         Create and add a new disk on some or all nodes.
 
-        Keyword arguments:
+        Arguments:
         size            -- size of the data device
-        meta_size       -- size of the meta-data device,
-                           or "None" for internal meta-data
-        diskful_nodes   -- nodes which shall have a local lower-level device
-                           (defaults to all nodes)
-        max_size        -- maximum we expect this disk to be resized to
-        max_peers       -- maximum number of peers to reserve metadata for
+
+        Disk-creation kwargs (forwarded to node.add_disk / volume.create_disks):
+        meta_size       -- size of the metadata device
+        max_size        -- maximum size the disk may be resized to
+        delay_ms        -- I/O delay in milliseconds (wraps device in dm-delay)
+        logical_block_size -- logical block size of the underlying device
+
+        create-md kwargs (forwarded to volume.create_md / drbdadm create-md):
+        max_peers          -- maximum number of peers to reserve metadata for
+        bitmap_block_sizes -- per-node bitmap block size overrides (dict mapping
+                              node to block size); handled locally, not forwarded
+        initial_current_uuid -- set the initial current UUID (hex string)
+        consistent         -- mark the local disk as consistent
+        uptodate           -- mark the local disk as up-to-date
+        peers_outdated     -- mark all peer bitmaps as outdated
+        rotate_uuids       -- rotate UUIDs (shifts current into history)
+
+        Disk-creation kwargs are identified by name via _NODE_DISK_KWARGS; all
+        remaining kwargs are passed to create_md.
         """
+
+        disk_kwargs = {k: v for k, v in kwargs.items() if k in _NODE_DISK_KWARGS}
+        md_kwargs   = {k: v for k, v in kwargs.items() if k not in _NODE_DISK_KWARGS}
 
         volume_number = self.next_volume()
         diskful_volumes = []
 
         for node in self.nodes:
             if diskful_nodes is None or node in diskful_nodes:
-                diskful_volumes.append(node.add_disk(
-                    volume_number, size, meta_size=meta_size, max_size=max_size, delay_ms=delay_ms, logical_block_size=logical_block_size))
+                diskful_volumes.append(node.add_disk(volume_number, size, **disk_kwargs))
             else:
                 node.add_disk(volume_number)
 
@@ -861,7 +879,7 @@ class Resource(object):
                 bitmap_block_size = bitmap_block_sizes[volume.node]
             else:
                 bitmap_block_size = None
-            volume.create_md(max_peers, bitmap_block_size)
+            volume.create_md(max_peers=max_peers, bitmap_block_size=bitmap_block_size, **md_kwargs)
 
         return volume_number
 
@@ -1083,12 +1101,12 @@ class Volume(object):
     def meta(self):
         return self.meta_volume.volume_path() if self.meta_volume else None
 
-    def create_md(self, max_peers=None, bitmap_block_size=None):
+    def create_md(self, max_peers=None, **kwargs):
         if max_peers is None:
             max_peers = len(self.node.resource.nodes) - 1
             if max_peers < 1:
                 max_peers = 1
-        disktools.create_md(self.node, self.volume, max_peers=max_peers, bitmap_block_size=bitmap_block_size)
+        disktools.create_md(self.node, self.volume, max_peers=max_peers, **kwargs)
 
     def event(self, *args, **kwargs):
         return Volumes([self]).event(*args, **kwargs)
@@ -1768,12 +1786,19 @@ class Node():
 
     def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None, delay_ms=None, logical_block_size=None):
         """
-        Keyword arguments:
+        Create the block device for a volume on this node. Does not initialise
+        DRBD metadata; callers are responsible for calling volume.create_md()
+        separately (Resource.add_disk() does this automatically).
+
+        Arguments:
         volume_number -- volume number of the new disk
-        size -- size of the data device or None for a diskless node
-        meta_size -- size of the meta-data device
-        max_size -- maximum we expect this disk to be resized to
-        thin -- whether to create a thin provisioned disk
+        size          -- size of the data device, or None for a diskless node
+
+        Disk-creation kwargs (forwarded to volume.create_disks):
+        meta_size          -- size of the metadata device
+        max_size           -- maximum size the disk may be resized to
+        delay_ms           -- I/O delay in milliseconds (wraps device in dm-delay)
+        logical_block_size -- logical block size of the underlying device
         """
 
         # Create storage pool if not yet created

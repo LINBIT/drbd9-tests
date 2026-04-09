@@ -1,0 +1,284 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.2" }
+#
+# Test: quorum-based data divergence via detach/attach sequence
+#
+# Topology: node_a, node_b -- diskful; node_d -- diskless.
+# Quorum: majority (2 of 3 votes).  Auto-promote is on by default.
+#
+# Scenario
+# --------
+# Prepare: all healthy; node_d writes; both node_a and node_b end up at UUID1.
+#
+# Stage 1 -- node_a detaches, node_d writes:
+#   UUID1 rotates into bitmap; UUID2 is generated.  node_b advances to UUID2.
+#   node_a retains UUID1 on disk.  [Expected correct behavior: UUID bump fires]
+#
+# Stage 2 -- node_b detaches:
+#   Now no diskful node is UpToDate.  node_d should lose quorum.
+#   Observed: node_d retains vote-based quorum (status: quorum:yes) but writes
+#   fail immediately because there is no UpToDate peer disk to replicate to.
+#   The write failure may look like quorum loss but the quorum flag stays set,
+#   enabling the stage 3 problem once a diskful node re-attaches.
+#
+# Stage 3 -- node_a re-attaches (UUID1 on disk), node_d writes:
+#   node_a re-attaches with stale UUID1; cluster should refuse or lose quorum.
+#   If node_d still has quorum (bug), it writes and generates UUID3.
+#   node_b on disk has UUID2; cluster advances to UUID3.  Data has diverged.
+#   [Current bug: re-attach succeeds and write creates UUID3 -- incorrect]
+#
+# Stage 4 -- node_b re-attaches (UUID2 on disk):
+#   UUID2 (node_b on disk) != UUID3 (cluster current) -- split brain.
+#   DRBD correctly detects this and goes Diskless.
+#   [This part is currently correct behavior]
+#
+# Success criterion
+# -----------------
+# The test is a PASS only if data did NOT diverge (stage3_data_diverged=False).
+# A fix may prevent divergence at stage 2 (quorum loss) or stage 3 (rejecting
+# the stale-UUID attach); either path satisfies the criterion.
+# stage 4 (split-brain detection) is informational: it records whether DRBD's
+# last-resort protection fired correctly when divergence had already occurred.
+#
+# Current expected outcome: FAIL (bugs in stages 2 and 3 cause divergence).
+# The test is written so that a future fix can make it pass.
+
+import json
+from subprocess import CalledProcessError
+from python import drbdtest
+from python.drbdtest import log
+
+
+resource = drbdtest.setup_resource(nodes=3)
+resource.resource_options = 'quorum majority; on-no-quorum io-error;'
+node_a, node_b, node_d = resource.nodes
+resource.add_disk('10M', diskful_nodes=[node_a, node_b])
+
+resource.up_wait()
+log('* Skip initial sync')
+resource.skip_initial_sync()
+
+# ---------------------------------------------------------------------------
+# Prepare: initial write on node_d to establish UUID1
+# ---------------------------------------------------------------------------
+log('* Prepare: node_d writes to establish UUID1')
+node_d.volumes.write(direct=1)
+
+uuid1 = node_b.get_current_uuid(node_d)
+uuid1_a = node_a.get_current_uuid(node_d)
+log('  node_a current UUID: %s' % uuid1_a)
+log('  node_b current UUID: %s' % uuid1)
+if uuid1 != uuid1_a:
+    raise Exception('Prepare failed: node_a (%s) and node_b (%s) have different '
+                    'UUIDs after initial write' % (uuid1_a, uuid1))
+log('* Prepare: UUID1 = %s (matches on both diskful nodes)' % uuid1)
+
+results = {}
+
+# ---------------------------------------------------------------------------
+# Stage 1: node_a detaches; node_d writes
+# ---------------------------------------------------------------------------
+log('* Stage 1: node_a detach')
+node_a.detach()  # waits for disk:Diskless internally
+
+log('* Stage 1: node_d writes while node_a is absent')
+node_d.volumes.write(direct=1)
+
+uuid2 = node_b.get_current_uuid(node_d)
+bm_b_for_a = node_b.get_bitmap_uuid(node_a)
+
+log('  UUID2 (node_b current):              %s' % uuid2)
+log('  node_b bitmap UUID for node_a:       %s (want == UUID1 = %s)' % (bm_b_for_a, uuid1))
+
+stage1_uuid_bumped = (uuid2 != uuid1)
+stage1_bitmap_ok = (bm_b_for_a == uuid1)
+results['stage1_uuid_bumped'] = stage1_uuid_bumped
+results['stage1_bitmap_tracking_correct'] = stage1_bitmap_ok
+
+log('* Stage 1: UUID bumped (UUID2 != UUID1): %s' % ('PASS' if stage1_uuid_bumped else 'FAIL'))
+log('* Stage 1: bitmap tracks node_a at UUID1: %s' % ('PASS' if stage1_bitmap_ok else 'FAIL'))
+
+# ---------------------------------------------------------------------------
+# Stage 2: node_b detaches; check whether node_d loses quorum
+# ---------------------------------------------------------------------------
+log('* Stage 2: node_b detach')
+node_b.detach()  # waits for disk:Diskless internally
+
+# Wait for node_d to process node_b's disk state update before querying quorum.
+# node_b.detach() only guarantees node_b's local state; node_d's view of
+# node_b's disk state (and thus its quorum calculation) may lag slightly.
+# Waiting for node_d to see node_b as peer-disk:Diskless ensures the
+# quorum status reflects the actual post-detach state.
+node_d.event(r'peer-device .* peer-node-id:%d .* peer-disk:Diskless' % node_b.id)
+
+# Check quorum via status JSON
+status_raw = node_d.run(
+    ['drbdsetup', 'status', resource.name, '--json'], return_stdout=True)
+status = json.loads(status_raw)
+d_reports_quorum = status[0]['devices'][0]['quorum']
+log('  node_d reports quorum via status: %s' % d_reports_quorum)
+# The quorum flag in the status is the meaningful observable here.
+
+results['stage2_d_has_quorum'] = d_reports_quorum
+log('* Stage 2: node_d has quorum (expected False): %s'
+    % ('FAIL (has quorum)' if d_reports_quorum else 'PASS (no quorum)'))
+
+# ---------------------------------------------------------------------------
+# Stage 3: node_a re-attaches with UUID1; node_d writes
+# ---------------------------------------------------------------------------
+log('* Stage 3: node_a attach (has UUID1 on disk, cluster is at UUID2)')
+node_a.volumes.attach()  # waits for disk:Attaching
+
+# Wait for disk to reach a stable state
+node_a_became_uptodate = False
+try:
+    node_a.volumes.event(r'device .* disk:UpToDate', timeout=30)
+    node_a_became_uptodate = True
+    log('  node_a became UpToDate (wrong -- cluster should not accept stale UUID1)')
+except Exception:
+    log('  node_a did not reach UpToDate within timeout (correct)')
+
+results['stage3_node_a_uptodate'] = node_a_became_uptodate
+
+# Attempt a write on node_d after node_a re-attaches
+stage3_write_ok = False
+uuid3 = None
+if node_a_became_uptodate:
+    try:
+        node_d.volumes.write(direct=1)
+        stage3_write_ok = True
+        uuid3 = node_a.get_current_uuid(node_d)
+        log('  node_d write succeeded; UUID3 = %s' % uuid3)
+    except CalledProcessError:
+        log('  node_d write failed (quorum absent even after node_a attach)')
+
+# Check node_b on-disk UUID: should be UUID2 (the UUID when B detached)
+uuid_b_ondisk = node_b.get_disk_current_uuid()
+log('  node_b on-disk UUID: %s (want UUID2 = %s, match: %s)'
+    % (uuid_b_ondisk, uuid2, uuid_b_ondisk == uuid2))
+
+# Data has diverged if node_b holds UUID2 while the cluster advanced to UUID3
+data_diverged = (uuid3 is not None) and (uuid_b_ondisk == uuid2) and (uuid3 != uuid2)
+results['stage3_data_diverged'] = data_diverged
+log('* Stage 3: data diverged (node_b at UUID2, cluster at UUID3): %s'
+    % ('FAIL (diverged)' if data_diverged else 'PASS (no divergence)'))
+
+# ---------------------------------------------------------------------------
+# Stage 4: node_b re-attaches with UUID2
+#
+# Two paths depending on whether divergence occurred:
+#   - No divergence (fix works): cluster is still at UUID2, node_b matches.
+#     node_b should become UpToDate and sync up normally.
+#   - Divergence (unfixed): cluster advanced to UUID3, node_b holds UUID2.
+#     Split brain: DRBD should reject node_b (it goes Diskless).
+# ---------------------------------------------------------------------------
+cluster_uuid = uuid3 if data_diverged else uuid2
+log('* Stage 4: node_b attach (UUID2 on disk, cluster UUID is %s)' % cluster_uuid)
+
+if data_diverged:
+    # Allow disk:Failed in case the split-brain rejection path goes through it.
+    resource.forbidden_patterns.discard(r'disk:Failed')
+    resource.forbidden_patterns.discard(r'peer-disk:Failed')
+
+node_b.volumes.attach()  # waits for disk:Attaching
+
+if data_diverged:
+    # Expected: Attaching -> Negotiating -> Detaching -> Diskless (split brain)
+    stage4_b_rejected = False
+    try:
+        node_b.volumes.event(r'device .* disk:Diskless', timeout=30)
+        stage4_b_rejected = True
+        log('  node_b went Diskless: split brain correctly detected (PASS)')
+    except Exception:
+        log('  node_b did NOT go Diskless within timeout: split brain not detected')
+        try:
+            st_raw = node_b.run(
+                ['drbdsetup', 'status', resource.name, '--json'],
+                return_stdout=True)
+            b_disk = json.loads(st_raw)[0]['devices'][0]['disk-state']
+            log('  node_b current disk-state: %s' % b_disk)
+        except Exception as diag_err:
+            log('  (could not read node_b disk state: %s)' % diag_err)
+
+    results['stage4_b_rejected'] = stage4_b_rejected
+    log('* Stage 4: node_b correctly rejected (split brain): %s'
+        % ('PASS' if stage4_b_rejected else 'FAIL'))
+
+    resource.forbidden_patterns.add(r'disk:Failed')
+    resource.forbidden_patterns.add(r'peer-disk:Failed')
+else:
+    # No divergence: node_b UUID2 == cluster UUID2, should sync up fine.
+    stage4_b_accepted = False
+    try:
+        node_b.volumes.event(r'device .* disk:UpToDate', timeout=60)
+        stage4_b_accepted = True
+        log('  node_b became UpToDate: re-attach accepted and synced (PASS)')
+    except Exception:
+        log('  node_b did NOT become UpToDate within timeout')
+        try:
+            st_raw = node_b.run(
+                ['drbdsetup', 'status', resource.name, '--json'],
+                return_stdout=True)
+            b_disk = json.loads(st_raw)[0]['devices'][0]['disk-state']
+            log('  node_b current disk-state: %s' % b_disk)
+        except Exception as diag_err:
+            log('  (could not read node_b disk state: %s)' % diag_err)
+
+    results['stage4_b_accepted'] = stage4_b_accepted
+    log('* Stage 4: node_b re-attach accepted (no divergence): %s'
+        % ('PASS' if stage4_b_accepted else 'FAIL'))
+
+    # After node_b is UpToDate it has a bitmap for node_a (UUID1 was rotated
+    # into the bitmap when node_a detached).  A delta resync should bring
+    # node_a to UpToDate as well, demonstrating that the stale-UUID downgrade
+    # by sanitize_state does not permanently block a recoverable attach.
+    if stage4_b_accepted:
+        stage4_a_synced = False
+        try:
+            node_a.volumes.event(r'device .* disk:UpToDate', timeout=60)
+            stage4_a_synced = True
+            log('  node_a became UpToDate via bitmap resync (PASS)')
+        except Exception:
+            log('  node_a did NOT reach UpToDate within timeout')
+            try:
+                st_raw = node_a.run(
+                    ['drbdsetup', 'status', resource.name, '--json'],
+                    return_stdout=True)
+                a_disk = json.loads(st_raw)[0]['devices'][0]['disk-state']
+                log('  node_a current disk-state: %s' % a_disk)
+            except Exception as diag_err:
+                log('  (could not read node_a disk state: %s)' % diag_err)
+        results['stage4_a_synced'] = stage4_a_synced
+        log('* Stage 4: node_a recovers via bitmap resync: %s'
+            % ('PASS' if stage4_a_synced else 'FAIL'))
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+log('* Cleanup')
+resource.down()
+resource.cluster.teardown()
+
+# ---------------------------------------------------------------------------
+# Final verdict
+# ---------------------------------------------------------------------------
+log('')
+log('* Stage results:')
+for k, v in sorted(results.items()):
+    log('  %-45s %s' % (k + ':', 'PASS' if v else 'FAIL'))
+
+# The primary pass/fail criterion is whether data actually diverged.
+# A fix can prevent divergence via stage 2 (quorum loss) or stage 3
+# (rejecting the attach), either of which implies stage3_data_diverged=False.
+# stage4_b_rejected is informational: it shows whether DRBD's last-resort
+# split-brain detection fired correctly when divergence did occur.
+drbd_prevented_divergence = not results.get('stage3_data_diverged', True)
+
+log('')
+if drbd_prevented_divergence:
+    log('* Overall: PASS -- DRBD prevented data divergence')
+else:
+    raise Exception(
+        'DRBD failed to prevent data divergence '
+        '(see per-stage results above)'
+    )

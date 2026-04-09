@@ -10,7 +10,7 @@ from python.drbdtest import connections, log, peer_devices
 from python import datatools
 
 
-ZERO_DAY_UUID='DADADADADADADA10'
+ZERO_DAY_UUID='C1E400DA7000DA7A'
 
 resource = drbdtest.setup_resource(nodes=2)
 node_a, node_b = resource.nodes

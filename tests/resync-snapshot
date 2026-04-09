@@ -29,7 +29,7 @@ def create_resource(name, max_peers, *preexisting_data):
 
     for n in r.nodes:
         n.set_gi(
-            n.volumes[0], '87236C45CB784220',
+            n.volumes[0], 'C1E400DA7000DA7A',
             flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE
         )
         for node, source in preexisting_data:

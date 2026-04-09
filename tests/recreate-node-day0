@@ -12,7 +12,7 @@ from subprocess import CalledProcessError
 resource = drbdtest.setup_resource(nodes=3)
 node_a, node_b, node_c = resource.nodes
 # max_peers=3: one spare to keep day0 bitmap
-resource.add_disk('100M', max_peers=3, initial_current_uuid='87236C45CB784220', uptodate=True)
+resource.add_disk('100M', max_peers=3, initial_current_uuid='C1E400DA7000DA7A', uptodate=True)
 
 log('* All nodes on same current UUID, waiting for them to connect.')
 resource.up()
@@ -59,7 +59,7 @@ log('* node_c is repaired but returns with an empty disk (day0 current UUID)')
 # zero out the backing disk
 node_c.fio_file(node_c.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
 
-node_c.volumes[0].create_md(max_peers=3, initial_current_uuid='87236C45CB784220')
+node_c.volumes[0].create_md(max_peers=3, initial_current_uuid='C1E400DA7000DA7A')
 
 node_c.adjust()
 node_c.volumes.event(r'device .* disk:UpToDate')

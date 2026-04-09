@@ -38,7 +38,7 @@ def pre_existing_test(write_between_actions = False):
                "dd if=/dev/urandom of=%s seek=2000 bs=4096 || true" % (n.disks[0].disk)])
         # Preset the bitmap to some randomly set bits...
 
-        n.volumes[0].create_md(initial_current_uuid='87236C45CB784220', uptodate=True)
+        n.volumes[0].create_md(initial_current_uuid='C1E400DA7000DA7A', uptodate=True)
 
     log('* Bringing up the diskless and one server, connect them')
     resource.nodes.diskful[1].up()

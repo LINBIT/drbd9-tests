@@ -24,7 +24,7 @@ def recreate_node(node):
     # zero out the backing disk
     node.fio_file(node.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
 
-    node.volumes[0].create_md(max_peers=3, initial_current_uuid='87236C45CB784220', uptodate=True)
+    node.volumes[0].create_md(max_peers=3, initial_current_uuid='C1E400DA7000DA7A', uptodate=True)
 
     # connect to node again
     node_a.adjust()
@@ -37,7 +37,7 @@ def recreate_node(node):
 resource = drbdtest.setup_resource(nodes=3)
 diskful_nodes = resource.nodes[:2]
 node_a, node_b, node_c = resource.nodes
-resource.add_disk('100M', max_peers=3, diskful_nodes=diskful_nodes, initial_current_uuid='87236C45CB784220', uptodate=True) # That is one spare to keep day0 bitmap
+resource.add_disk('100M', max_peers=3, diskful_nodes=diskful_nodes, initial_current_uuid='C1E400DA7000DA7A', uptodate=True) # That is one spare to keep day0 bitmap
 
 log('* All nodes on same current UUID, waiting for them to connect.')
 resource.up()

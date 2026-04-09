@@ -41,7 +41,7 @@
 from python import drbdtest
 from python.drbdtest import connections, log, peer_devices
 
-DAY0_UUID = 'DADADADADADADA10'
+DAY0_UUID = 'C1E400DA7000DA7A'
 
 
 

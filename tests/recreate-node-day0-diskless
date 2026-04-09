@@ -8,7 +8,7 @@
 # Only 2 of the 3 nodes have a disk.
 
 from python import drbdtest
-from python.drbdtest import MetadataFlag, connections, log, peer_devices
+from python.drbdtest import connections, log, peer_devices
 from subprocess import CalledProcessError
 
 
@@ -24,9 +24,7 @@ def recreate_node(node):
     # zero out the backing disk
     node.fio_file(node.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
 
-    node.volumes[0].create_md(max_peers=3)
-    node.set_gi(node.volumes[0], '87236C45CB784220',
-            flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE)
+    node.volumes[0].create_md(max_peers=3, initial_current_uuid='87236C45CB784220', uptodate=True)
 
     # connect to node again
     node_a.adjust()
@@ -39,11 +37,7 @@ def recreate_node(node):
 resource = drbdtest.setup_resource(nodes=3)
 diskful_nodes = resource.nodes[:2]
 node_a, node_b, node_c = resource.nodes
-resource.add_disk('100M', max_peers=3, diskful_nodes=diskful_nodes) # That is one spare to keep day0 bitmap
-
-for n in diskful_nodes:
-    n.set_gi(n.volumes[0], '87236C45CB784220',
-            flags_set=MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE)
+resource.add_disk('100M', max_peers=3, diskful_nodes=diskful_nodes, initial_current_uuid='87236C45CB784220', uptodate=True) # That is one spare to keep day0 bitmap
 
 log('* All nodes on same current UUID, waiting for them to connect.')
 resource.up()

@@ -5,7 +5,7 @@
 
 import json
 from python import drbdtest
-from python.drbdtest import MetadataFlag, connections, log, peer_devices
+from python.drbdtest import connections, log, peer_devices
 from python import datatools
 
 
@@ -40,7 +40,6 @@ def test(data_is_clean, write, spare_bitmap_slot):
     log('*** Test with data_is_clean={} write={} spare_bitmap_slot={}'.format(
         data_is_clean, write, spare_bitmap_slot))
 
-    flags = MetadataFlag.CONSISTENT | MetadataFlag.WAS_UP_TO_DATE if data_is_clean else []
     max_peers = 2 if spare_bitmap_slot else 1
 
     log('* Initialize with a disk on node_a, diskless on node_b')
@@ -50,8 +49,7 @@ def test(data_is_clean, write, spare_bitmap_slot):
     node_b.add_disk(0)
     write_disk(node_a, choose_data_pattern(data_is_clean, write, spare_bitmap_slot))
 
-    node_a.volumes[0].create_md(max_peers=max_peers)
-    node_a.set_gi(node_a.volumes[0], 'C641EFB50C399AF2', flags_set=flags)
+    node_a.volumes[0].create_md(max_peers=max_peers, initial_current_uuid='C641EFB50C399AF2', uptodate=data_is_clean)
 
     node_a.adjust()
     if not data_is_clean:
@@ -75,8 +73,7 @@ def test(data_is_clean, write, spare_bitmap_slot):
     resource.touch_config()
     node_a.adjust()
 
-    node_b.volumes[0].create_md(max_peers=max_peers)
-    node_b.set_gi(node_b.volumes[0], 'C641EFB50C399AF2', flags_set=flags)
+    node_b.volumes[0].create_md(max_peers=max_peers, initial_current_uuid='C641EFB50C399AF2', uptodate=data_is_clean)
 
     node_b.adjust()
 

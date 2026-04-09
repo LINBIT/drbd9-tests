@@ -483,8 +483,8 @@ class Volumes(Collection):
         return Volumes([_ for _ in self if _.disk is None])
     diskless = property(get_diskless)
 
-    def resize(self, size):
-        return [v.resize(size) for v in self if v.disk is not None]
+    def resize(self, size, zero_out=False):
+        return [v.resize(size, zero_out=zero_out) for v in self if v.disk is not None]
 
     def snapshot(self, *args, **kwargs):
         return [v.snapshot(*args, **kwargs) for v in self if v.disk is not None]
@@ -791,7 +791,7 @@ class Cluster(object):
             host.remove_storage_pool()
 
 
-_NODE_DISK_KWARGS = frozenset({'meta_size', 'max_size', 'delay_ms', 'logical_block_size'})
+_NODE_DISK_KWARGS = frozenset({'meta_size', 'max_size', 'delay_ms', 'logical_block_size', 'zero_out'})
 
 
 class Resource(object):
@@ -847,6 +847,7 @@ class Resource(object):
         max_size        -- maximum size the disk may be resized to
         delay_ms        -- I/O delay in milliseconds (wraps device in dm-delay)
         logical_block_size -- logical block size of the underlying device
+        zero_out           -- zero the backing device with blkdiscard -z before create_md
 
         create-md kwargs (forwarded to volume.create_md / drbdadm create-md):
         max_peers          -- maximum number of peers to reserve metadata for
@@ -1111,9 +1112,21 @@ class Volume(object):
     def event(self, *args, **kwargs):
         return Volumes([self]).event(*args, **kwargs)
 
-    def resize(self, size):
+    def resize(self, size, zero_out=False):
         # TODO: metadata-resize?
+        if zero_out:
+            old_size = int(self.node.run(
+                ['blockdev', '--getsize64', self.disk], return_stdout=True).strip())
         self.disk_volume.resize(size)
+        if zero_out:
+            new_size = int(self.node.run(
+                ['blockdev', '--getsize64', self.disk], return_stdout=True).strip())
+            length = new_size - old_size
+            if length > 0:
+                self.node.run(['blkdiscard', '-z',
+                               '--offset', str(old_size),
+                               '--length', str(length),
+                               self.disk])
 
     def snapshot(self, *args, **kwargs):
         return self.disk_volume.snapshot(*args, **kwargs)
@@ -1784,7 +1797,7 @@ class Node():
     def __repr__(self):
         return '{}:{}'.format(self.resource, self.name)
 
-    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None, delay_ms=None, logical_block_size=None):
+    def add_disk(self, volume_number, size=None, *, meta_size=None, max_size=None, delay_ms=None, logical_block_size=None, zero_out=False):
         """
         Create the block device for a volume on this node. Does not initialise
         DRBD metadata; callers are responsible for calling volume.create_md()
@@ -1793,6 +1806,8 @@ class Node():
         Arguments:
         volume_number -- volume number of the new disk
         size          -- size of the data device, or None for a diskless node
+        zero_out      -- if True, zero the entire backing device with blkdiscard -z
+                         after creation (before create_md)
 
         Disk-creation kwargs (forwarded to volume.create_disks):
         meta_size          -- size of the metadata device
@@ -1812,6 +1827,9 @@ class Node():
         volume = Volume(self, volume_number, minor=minor)
         if size is not None:
             volume.create_disks(size, meta_size, max_size=max_size, delay_ms=delay_ms, logical_block_size=logical_block_size)
+            if zero_out:
+                self.run(['blkdiscard', '-z', volume.disk])
+
         if volume_number >= len(self.disks):
             self.disks.append(volume)
         else:

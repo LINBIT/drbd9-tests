@@ -1,0 +1,107 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2.18" }
+
+# Regression test for the bitmap-loss bug in drbd_adm_attach() triggered when
+# the effective size stored in node_a's metadata (S1) is smaller than the size
+# that drbd_determine_dev_size() calculates at re-attach time (S2).
+#
+# Scenario:
+#   - node_a has a large backing device; node_b starts with a small one.
+#     Both are brought up at effective size S1 (limited by node_b's smaller disk).
+#   - node_b detaches (Diskless); node_a is promoted to Primary and writes
+#     block 0 through DRBD.  DRBD records the write in node_a's bitmap for
+#     node_b: the dirty bit at block 0 is flushed to node_a's on-disk metadata.
+#   - node_a also detaches.  Its on-disk metadata now has:
+#       MDF_WAS_UP_TO_DATE set  (peer was Diskless at detach, so
+#                                primary_and_data_present() = false)
+#       effective_size = S1
+#       block 0 dirty in the bitmap for node_b
+#   - node_b's backing device is grown to S2 (>= node_a's device size).
+#   - node_b re-attaches first.
+#   - node_a re-attaches while already connected.  drbd_determine_dev_size()
+#     now calculates S2 (peer has grown), which is larger than the S1 stored
+#     in node_a's metadata.
+#
+# Note on the nature of content in [S1, S2]: this region was never part of
+# the agreed DRBD effective size, so DRBD never exposed it to the application
+# layer.  Whatever resides there on each backing device is pre-existing content
+# left by the block device layer (LVM allocation remnants, zeros, etc.) --
+# not user data written through DRBD.  The divergence between the two nodes'
+# [S1, S2] content is therefore harmless to user data, but it will be flagged
+# by a DRBD verify operation if resync does not happen.  The test makes the
+# divergence detectable by writing a known random pattern to node_a's [S1, S2]
+# region after node_a detaches; if the bug is present node_b never receives
+# that pattern, and the md5 check at the end catches the discrepancy.
+#
+# Without the fix: DDSF_NO_RESYNC is passed because MDF_WAS_UP_TO_DATE is set.
+#   drbd_bm_resize() allocates fresh zero pages for the grown region and
+#   BM_OP_CLEAR on those zero pages marks nothing dirty.  The "Writing the
+#   whole bitmap" step is therefore a no-op (drbd_bm_write skips all unchanged
+#   pages) and the on-disk tracking bits survive.  drbd_bm_read() loads them
+#   correctly for [0, S1].  However the [S1, S2] bits remain zero: no resync
+#   is scheduled for that region.  The random pattern written to node_a's
+#   backing device at S1 is never transferred to node_b.
+#
+# With the fix: drbd_bm_read() is called first, at the OLD size S1.  Block 0's
+#   dirty bit (and the whole [0, S1] bitmap) is loaded into memory.
+#   drbd_determine_dev_size() then grows the bitmap from S1 to S2 WITHOUT
+#   DDSF_NO_RESYNC, setting all [S1, S2] bits dirty.  The "Writing the whole
+#   bitmap" step now performs a real disk write containing the loaded tracking
+#   bits for [0, S1] and all-ones for [S1, S2].  Resync fires for [S1, S2];
+#   node_b receives the node_a backing device content for the whole S2 range.
+
+from python import drbdtest, datatools
+from python.drbdtest import connections, log, peer_devices
+
+small_bdev_mb = 4
+large_bdev_mb = 8
+
+resource = drbdtest.setup_resource(nodes=2)
+node_a, node_b = resource.nodes
+resource.disk_options = 'discard-zeroes-if-aligned no;'
+
+resource.add_disk('%dM' % small_bdev_mb, zero_out=True)
+node_a.volumes[0].resize('%dM' % large_bdev_mb, zero_out=True)
+
+resource.up_wait()
+
+log('* Make up-to-date data available (skip initial sync).')
+resource.skip_initial_sync()
+
+log('* node_b detaches; node_a writes block 0 (auto-promote handles Primary/Secondary).')
+node_b.volumes.detach()
+node_a.volumes[0].write(direct=1)
+
+log('* node_a detaches.  On-disk metadata: MDF_WAS_UP_TO_DATE, effective_size=S1, block 0 dirty.')
+node_a.secondary()
+node_a.volumes.detach()
+
+log('* Write 1 MiB of random data directly to node_a backing device at offset S1=%d MiB.' % small_bdev_mb)
+log('*   (Beyond DRBD effective size; pre-existing backing-device content, no dirty bit exists.)')
+node_a.fio_file(node_a.volumes[0].disk, rw='write', size='1M', bs='1M',
+                offset='%dM' % small_bdev_mb, direct=1)
+
+log('* node_b grows its backing device to %dM and re-attaches.' % large_bdev_mb)
+node_b.volumes[0].resize('%dM' % large_bdev_mb)
+node_b.volumes.attach()
+node_b.volumes.event(r'device .* disk:(UpToDate|Inconsistent|Consistent)')
+
+log('* node_a re-attaches while connected; drbd_determine_dev_size sees S2 > metadata S1.')
+# Without the fix: DDSF_NO_RESYNC causes [S1, S2] bits to stay zero -- no resync fires
+#   for that region, and the 1 MiB written to node_a's backing at S1 is never sent to node_b.
+# With the fix: drbd_bm_read() loaded [0, S1] first; the grow sets [S1, S2] dirty;
+#   resync fires and node_b receives the updated data.
+node_a.volumes.attach()
+node_a.volumes.event(r'device .* disk:UpToDate')
+
+log('* Wait for resync to complete.')
+node_a.peer_devices.event(r'peer-device .* replication:Established')
+node_b.peer_devices.event(r'peer-device .* replication:Established')
+
+log('* Verify 1 MiB at offset S1 matches on both nodes\' backing disks.')
+datatools.verify_data([node_a, node_b], size_mb=1, backing_disk=True, offset_mb=small_bdev_mb)
+
+log('* PASS: [S1, S2] region correctly resynced to node_b after re-attach with size change.')
+
+resource.down()
+resource.cluster.teardown()

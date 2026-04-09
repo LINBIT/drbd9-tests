@@ -1,0 +1,127 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2.18" }
+
+# Regression test for the spurious-full-sync bug in drbd_adm_attach() when
+# both triggering conditions are met simultaneously:
+#   (1) MDF_WAS_UP_TO_DATE is CLEAR in node_a's metadata, AND
+#   (2) la_size_changed = true at re-attach (peer grew while node_a was diskless).
+#
+# Scenario:
+#   - Both nodes up at effective size S1 (node_b's smaller disk limits it).
+#   - node_b is promoted to Primary.
+#   - node_a detaches while Secondary, with node_b still Primary and UpToDate.
+#     Condition: D_DETACHING + primary_and_data_present()
+#                = (node_b is Primary) AND (node_b has D_UP_TO_DATE) = true.
+#     Result: MDF_WAS_UP_TO_DATE is CLEARED on node_a's on-disk metadata.
+#             node_a's metadata records: effective_size = S1, clean bitmap.
+#   - node_b's backing device grows to S2 (>= node_a's device size).
+#   - node_b calls "drbdadm resize --assume-peer-has-space" -- effective size
+#     becomes S2.  A P_SIZES exchange informs node_a of the new max_size = S2.
+#   - node_a re-attaches while still connected (HAVE_SIZES is set because the
+#     network connection was never torn down).
+#     drbd_new_dev_size() sees peer max_size = S2 > la_size = S1:
+#     la_size_changed = true.  MDF_WAS_UP_TO_DATE is clear, so DDSF_NO_RESYNC
+#     is NOT passed to drbd_determine_dev_size().
+#
+# Without the fix: drbd_determine_dev_size() is called first with
+#   set_new_bits=true for the ENTIRE bitmap [0, S2].  On freshly zero-allocated
+#   pages, BM_OP_SET sets every word to ~0, count > 0, BM_PAGE_NEED_WRITEOUT
+#   is set for every page, drbd_bm_write() writes an all-ones bitmap to disk.
+#   drbd_bm_read() then reads back all-ones -- all blocks marked dirty.
+#   A full sync fires: out-of-sync at SyncTarget entry is approximately S2_kib.
+#
+# With the fix: drbd_bm_read() at old_size = S1 runs first, loading the clean
+#   [0, S1] bitmap (node_a was UpToDate when it detached, so all bits are 0).
+#   drbd_determine_dev_size() then grows [S1, S2] with set_new_bits=true for
+#   the NEW region only -- [0, S1] is untouched.  Only [S1, S2] is resynced.
+#   out-of-sync at SyncTarget entry is approximately delta_kib = S2 - S1.
+#
+# Verification: the out-of-sync count when node_a enters SyncTarget must be
+# at most delta_kib + slack.  Pre-fix: count ~ S2_kib >> delta_kib + slack,
+# so the event() assertion fails.  Post-fix: count ~ delta_kib, passes.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+small_bdev_mb = 4    # node_b's initial LV size; limits effective size to S1
+large_bdev_mb = 8    # grown LV size; S2 is approximately this minus metadata
+
+resource = drbdtest.setup_resource(nodes=2)
+node_a, node_b = resource.nodes
+
+resource.add_disk('%dM' % small_bdev_mb)
+
+# node_a's LV is grown to large_bdev_mb before the first up, so:
+#   (a) node_a can re-attach without a "device too small" error after node_b
+#       has grown to large_bdev_mb, and
+#   (b) node_a's backing device capacity is large enough that
+#       drbd_new_dev_size() returns S2 (peer max) rather than being capped
+#       by the local device.
+node_a.volumes[0].resize('%dM' % large_bdev_mb)
+
+resource.up_wait()
+
+log('* Make up-to-date data available (skip initial sync).')
+resource.skip_initial_sync()
+
+# Record the initial DRBD effective size S1.
+s1_bytes = int(node_b.run(
+    ['blockdev', '--getsize64', node_b.volumes[0].device()],
+    return_stdout=True))
+log('* Initial effective size S1 = %d bytes (%.1f MiB)' % (s1_bytes, s1_bytes / 2**20))
+
+log('* Promote node_b to Primary and keep it Primary during node_a detach.')
+node_b.primary()
+
+log('* node_a detaches while Secondary; node_b is Primary and UpToDate.')
+# primary_and_data_present(): node_b is Primary AND node_b has D_UP_TO_DATE.
+# -> MDF_WAS_UP_TO_DATE is CLEARED on node_a's metadata.
+# The network connection stays live; HAVE_SIZES remains set.
+node_a.volumes.detach()
+
+log('* node_b grows its backing device to %dM.' % large_bdev_mb)
+node_b.volumes[0].resize('%dM' % large_bdev_mb)
+
+log('* node_b expands its DRBD effective size (peer is Diskless).')
+node_b.drbdadm(['resize', '--assume-peer-has-space', resource.name])
+
+# Record the grown DRBD effective size S2.
+s2_bytes = int(node_b.run(
+    ['blockdev', '--getsize64', node_b.volumes[0].device()],
+    return_stdout=True))
+log('* Grown effective size S2 = %d bytes (%.1f MiB)' % (s2_bytes, s2_bytes / 2**20))
+
+delta_bytes = s2_bytes - s1_bytes
+delta_kib = delta_bytes // 1024
+s2_kib = s2_bytes // 1024
+log('* Delta [S1, S2] = %d KiB; full volume S2 = %d KiB' % (delta_kib, s2_kib))
+
+log('* node_a re-attaches while connected to node_b (now at S2).')
+# Both conditions are now met:
+#   MDF_WAS_UP_TO_DATE clear (set above at detach)
+#   la_size_changed: peer max_size = S2 > la_size = S1 (HAVE_SIZES set)
+# Pre-fix: BM_OP_SET on all [0, S2] pages -> all-ones -> full sync.
+# Post-fix: drbd_bm_read() at S1 first (clean) -> BM_OP_SET [S1, S2] only.
+node_a.volumes.attach()
+
+log('* Verify the resync covers only the delta region [S1, S2], not the full volume.')
+# The out-of-sync count at SyncTarget entry reflects how much DRBD believes
+# needs syncing.  With the fix: only [S1, S2] (~delta_kib).  Without the
+# fix: the entire volume (~s2_kib), which greatly exceeds delta_kib + slack.
+pd_a_b = peer_devices(node_a, node_b)
+slack_kib = 128  # tolerance for bitmap granularity and alignment (4 KiB per bit)
+ev = pd_a_b.event(r'peer-device .* replication:SyncTarget .* out-of-sync:(\d+)')
+oos_kib = int(ev[0][0])
+log('* Out-of-sync at SyncTarget entry: %d KiB (delta=%d KiB, threshold=%d KiB)' %
+    (oos_kib, delta_kib, delta_kib + slack_kib))
+if oos_kib > delta_kib + slack_kib:
+    raise RuntimeError(
+        'Spurious full sync: out-of-sync=%d KiB exceeds delta+slack=%d KiB -- '
+        'the clean [0, S1] bitmap was overwritten with all-ones' % (oos_kib, delta_kib + slack_kib))
+pd_a_b.event(r'peer-device .* replication:Established')
+
+log('* PASS: only [S1, S2] was resynced; the clean [0, S1] bitmap was preserved.')
+
+node_b.secondary()
+resource.down()
+resource.cluster.teardown()

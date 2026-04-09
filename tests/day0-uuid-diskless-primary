@@ -1,0 +1,83 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2.18" }
+#
+# Regression test for the day-0 UUID bug, diskless-primary path (fixed in DRBD 9.2.18).
+#
+# When LINSTOR provisions a resource on thinly provisioned storage it writes an
+# identical day-0 UUID to all node metadata. In a cluster where node_a is diskless
+# and node_b is diskful, the old code never bumped the UUID on the first write.
+# The bug was in peer_can_fill_a_bitmap_slot(): when intentional_diskless is set, it
+# skips the my_node_id slot. In a 2-node cluster, the only non-peer slot in the
+# received bitmap_uuids[] is my_node_id (all others are (u64)-1 because node_b did
+# not send them -- they correspond to unconfigured peers). After skipping my_node_id
+# the function finds no zero slot and returns false, suppressing the UUID bump.
+#
+# Spare bitmap slots in node_b's metadata (max_peers > 1, as LINSTOR allocates for
+# future replicas or re-provisioning) do not help, for two reasons:
+#
+# 1. The primary send condition in P_UUIDS110 is
+#    peer_md[n].flags & (MDF_HAVE_BITMAP | MDF_NODE_EXISTS), which is clear for spare
+#    slots (no peer with those node IDs has ever connected).
+#
+# 2. The one-unallocated-slot fallback also does not fire: it requires
+#    peer_md[n].bitmap_uuid != 0, but in day-0 state all bitmap_uuids are 0
+#    (LINSTOR initialises only current_uuid, not bitmap_uuid).
+#
+# Node_a therefore receives bitmap_uuids[n] = (u64)-1 (the "not sent" sentinel,
+# assigned in receive_uuids110 for every node_id absent from the mask) for all spare
+# slots -- not 0. The only bitmap_uuids[n] = 0 actually present on node_a is
+# my_node_id (sent by node_b once MDF_NODE_EXISTS is set), and the buggy guard skips
+# exactly that slot.
+#
+# If node_b is later re-provisioned by LINSTOR (fresh thin volume, same day-0 UUID),
+# DRBD sees matching UUIDs and marks it UpToDate without resyncing -- silent data
+# corruption.
+#
+# This test:
+#   1. Brings both nodes up in day-0 UUID state; node_a is diskless.
+#   2. Promotes node_a (diskless) and writes -- verifying the UUID on node_b is
+#      bumped after the first write.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+DAY0_UUID = 'DADADADADADADA10'
+
+
+
+
+resource = drbdtest.setup_resource(nodes=2)
+node_a, node_b = resource.nodes   # node_a diskless primary, node_b diskful
+
+# max_peers=1 on node_b. In practice LINSTOR may allocate more (spare slots for
+# future replicas or re-provisioning), but those spare slots have no effect on the
+# bug: they are excluded from P_UUIDS110 because MDF_HAVE_BITMAP and MDF_NODE_EXISTS
+# are both unset for unconnected node IDs. max_peers=1 is the minimal configuration
+# that reproduces the LINSTOR 2-node diskless-client topology.
+resource.add_disk('10M', diskful_nodes=[node_b],
+                  max_peers=1, initial_current_uuid=DAY0_UUID, uptodate=True)
+
+log('* Bring up both nodes in day-0 UUID state; confirm peer-disk:UpToDate.')
+resource.up()
+# Only node_a (diskless) can observe node_b as peer-disk:UpToDate.
+peer_devices(node_a, node_b).event(r'peer-device .* peer-disk:UpToDate', timeout=30)
+
+log('* Record the day-0 UUID before first diskless-primary promotion.')
+uuid_day0 = node_b.get_current_uuid(node_a.id)
+log('  day-0 UUID on node_b for node_a slot: %s' % uuid_day0)
+
+log('* First diskless-primary promotion: write data (relies on autopromote).')
+node_a.write(direct=1)
+
+log('* Verify UUID was bumped after first write from day-0 state.')
+uuid_after = node_b.get_current_uuid(node_a.id)
+log('  UUID after first write: %s' % uuid_after)
+if uuid_after.upper() == DAY0_UUID:
+    raise Exception(
+        'UUID was not bumped on first diskless-primary promotion from day-0 state '
+        '(still %s) -- day-0 UUID bug is present' % uuid_after)
+log('  UUID correctly bumped: %s -> %s' % (uuid_day0, uuid_after))
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

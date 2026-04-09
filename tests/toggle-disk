@@ -1,0 +1,162 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "vms_rdma_ci": null, "drbd_version_min": "9.0" }
+
+# Test the behavior of DRBD when LINSTOR "toggles" a diskless node to diskful,
+# back to diskless, and back to diskful again.
+
+import json
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+
+ZERO_DAY_UUID='DADADADADADADA10'
+
+resource = drbdtest.setup_resource(nodes=2)
+node_a, node_b = resource.nodes
+
+def choose_data_pattern(data_is_clean, write, spare_bitmap_slot):
+    if data_is_clean:
+        data_pattern = 32
+        if write:
+            data_pattern += 1
+        if spare_bitmap_slot:
+            data_pattern += 2
+        return data_pattern
+    else:
+        # Random data
+        return None
+
+def write_disk(node, data_pattern):
+    # If data_pattern is not given, do not set buffer_pattern; fio will write random data
+    data_args = {} if data_pattern is None else { 'buffer_pattern': data_pattern }
+    node.fio_file(node.volumes[0].disk, rw='write', size='16M', bs='1M', direct=1, **data_args)
+
+def ensure_out_of_sync_zero(node, peer):
+    result = node.run(['drbdsetup', 'status', resource.name, '--json'], return_stdout=True)
+    status = json.loads(result)[0]
+    connection = next(c for c in status['connections'] if c['peer-node-id'] == peer.id)
+    out_of_sync = int(connection['peer_devices'][0]['out-of-sync'])
+    drbdtest.ensure(0, out_of_sync, 'No out-of-sync bits expected')
+
+def test(data_is_clean, write_who, spare_bitmap_slot):
+    write_who_name = write_who.name if write_who else None
+    resource.log_sync_mark('*** Test with data_is_clean={} write={} spare_bitmap_slot={}'.format(
+        data_is_clean, write_who_name, spare_bitmap_slot))
+
+    max_peers = 2 if spare_bitmap_slot else 1
+
+    resource.log_sync_mark('* Initialize with a disk on node_a, diskless on node_b')
+    # Call next_volume because it has important side effects; we know that it will return 0
+    resource.next_volume()
+    node_a.add_disk(0, '16M')
+    node_b.add_disk(0)
+    write_disk(node_a, choose_data_pattern(data_is_clean, write_who, spare_bitmap_slot))
+
+    # MAGIC, part one, intially "up-to-date" volume
+    node_a.volumes[0].create_md(max_peers=max_peers,
+	initial_current_uuid=ZERO_DAY_UUID, uptodate=True, rotate_uuids=True)
+
+    node_a.adjust()
+    node_b.adjust()
+
+    peer_devices(node_a, node_b).event(r'peer-device .* peer-disk:Diskless')
+    peer_devices(node_b, node_a).event(r'peer-device .* peer-disk:UpToDate',
+                                       no=r'peer-device .* peer-disk:Inconsistent')
+
+    if write_who:
+        resource.log_sync_mark('* Write while one node is still diskless')
+        write_who.write(direct=1)
+
+    resource.log_sync_mark('* Add a disk to diskless node')
+    node_b.add_disk(0, '16M')
+
+    # Clear intentional diskless status of node_b
+    resource.touch_config()
+    node_a.adjust()
+
+
+    for handshake in 1, 2:
+        resource.log_sync_mark(f'* handshake {handshake} with data_is_clean={data_is_clean} write={write_who_name} spare_bitmap_slot={spare_bitmap_slot}')
+
+        write_disk(node_b, choose_data_pattern(data_is_clean, write_who, spare_bitmap_slot))
+
+        # MAGIC, part two: added volume, to-be-sync-target,
+        # depending on circumstances full sync or mimimal bitmap based sync.
+        if data_is_clean:
+            node_b.volumes[0].create_md(max_peers=max_peers, initial_current_uuid=ZERO_DAY_UUID)
+        else:
+            node_b.volumes[0].create_md(max_peers=max_peers)
+
+        node_b.adjust()
+
+        expect_full_sync_kb = int(node_b.run(['blockdev', '--getsz', node_b.volumes[0].device()], return_stdout=True)) // 2
+
+        if not data_is_clean:
+            expect_kb = expect_full_sync_kb
+        elif write_who:
+            if not spare_bitmap_slot:
+                if handshake == 1:
+                    expect_kb = 4
+                else:
+                    expect_kb = expect_full_sync_kb
+            elif spare_bitmap_slot:
+                expect_kb = 4
+        else:
+            if not spare_bitmap_slot and handshake != 1:
+                expect_kb = expect_full_sync_kb
+            else:
+                expect_kb = 0
+
+        # This is "fail fast": We expect a resync,
+        # we should not find the peer-disk "UpToDate" without a resync.
+        # Also asserts the expected amount of to-be-synced data.
+        # Strange: for empty resync, we apparently do not log "SyncSource out-of-sync:0 :-("
+        kb = peer_devices(node_a, node_b).event(
+                r'peer-device .* replication:SyncSource(?:$| .* out-of-sync:(\d+))',
+                no=[r'peer-device .* peer-disk:UpToDate',
+                    r'peer-device .* peer-disk:Detaching' ])
+        kb = int(kb[0][0] or 0)
+        if kb != expect_kb:
+            raise(Exception(f"Expected resync of {expect_kb} kB, but synced {kb} kB"))
+        peer_devices(node_a, node_b).event(r'peer-device .* peer-disk:UpToDate')
+
+        # Also asserts the expected amount of to-be-synced data in the other direction.
+        peer_devices(node_b, node_a).event(
+                r'peer-device .* replication:SyncTarget .* out-of-sync:{}'.format(expect_kb))
+        # And waits for the resync to be done.
+        peer_devices(node_b, node_a).event(r'peer-device .* replication:Established')
+
+        ensure_out_of_sync_zero(node_a, node_b)
+        ensure_out_of_sync_zero(node_b, node_a)
+
+        # FIXME how can we do this "the test suite way"?
+        if handshake == 1:
+            node_b.down()
+            node_a.run(['drbdsetup', 'del-peer', resource.name, node_b.id])
+            node_a.run(['drbdsetup', 'forget-peer', resource.name, node_b.id])
+            node_b.drbdadm(['adjust', resource.name, '--skip-disk'])
+            node_a.adjust()
+            peer_devices(node_a, node_b).event(r'peer-device .* peer-disk:Diskless')
+            peer_devices(node_b, node_a).event(r'peer-device .* peer-disk:UpToDate')
+
+
+    resource.log_sync_mark('* Clear up and check data')
+    resource.down()
+
+    # Only verify data area, not metadata
+    datatools.verify_data(resource.nodes, size_mb=12, backing_disk=True)
+
+    for n in resource.nodes:
+        n.volumes[0].disk_volume.remove()
+        n.volumes[0].disk_volume = None
+    resource.num_volumes = 0
+
+for data_is_clean in True, False:
+    for spare_bitmap_slot in True, False:
+        for write_who in None, node_b, node_a:
+            test(data_is_clean=data_is_clean, write_who=write_who, spare_bitmap_slot=spare_bitmap_slot)
+
+log('* Clean up.')
+resource.cluster.teardown()
+log('* SUCCESS *')

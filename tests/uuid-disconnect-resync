@@ -1,0 +1,214 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0.0" }
+#
+# Verifies UUID behavior when a diskful storage node disconnects while a
+# diskless primary is active -- both graceful and force-disconnect variants.
+#
+# PHASE 1 -- Graceful disconnect (diskful)
+#
+# When node_a2 is PRESENT and UpToDate at the first bump, __set_bitmap_slots()
+# records node_a1.peer_md[a2] = UUID_1.  When a2 then disconnects gracefully
+# while node_d is still primary, a_lost_peer_is_on_same_cur_uuid() fires:
+# a2's peer disk state is D_UP_TO_DATE >= D_INCONSISTENT -> not skipped;
+# UUID_1 == UUID_1 -> returns true -> second bump fires (UUID_1 -> UUID_2).
+# rotate_current_into_bitmap() records a1.peer_md[a2] = UUID_1 (a2 absent).
+# On reconnect: a1.bitmap[a2] (UUID_1) == a2.current (UUID_1) ->
+# RULE_BITMAP_SELF -> SyncTarget -> correct resync.
+#
+# PHASE 2 -- Force disconnect (diskful)
+#
+# Same topology; same first bump; a2 force-disconnects (drbdsetup disconnect
+# --force) while still diskful.  From node_a1's perspective the connection
+# drops abruptly: peer disk state -> D_UNKNOWN (7, within D_INCONSISTENT..
+# D_UNKNOWN range) -> a_lost_peer_is_on_same_cur_uuid fires -> same second
+# bump path as the graceful case -> RULE_BITMAP_SELF -> SyncTarget.
+#
+# Both variants produce the same result: a second bump fires whenever a
+# diskful peer at the same UUID departs (gracefully or forcefully) while a
+# diskless primary is active, and the peer correctly resyncs on reconnect.
+#
+# Contrast with uuid-detach-resync: when node_a2 detaches its disk
+# first (D_DISKLESS < D_INCONSISTENT), a_lost_peer_is_on_same_cur_uuid skips
+# it -> no second bump -> RULE_RECONNECTED -> NO_SYNC -> no resync.
+#
+# Expected outcome: PASS on all versions.
+#
+# Topology:
+#   node_a1 -- diskful storage (stays connected throughout)
+#   node_a2 -- diskful storage (disconnects gracefully in phase 1, forcefully in phase 2)
+#   node_d  -- diskless primary
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+
+
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a1 = resource.nodes[0]  # diskful storage, always connected
+node_a2 = resource.nodes[1]  # diskful storage, present at first bump, absent after
+node_d  = resource.nodes[2]  # diskless primary
+
+resource.add_disk('10M', diskful_nodes=[node_a1, node_a2])
+resource.up_wait()
+resource.skip_initial_sync()
+# skip_initial_sync() already waits for all peers to reach UpToDate.
+
+uuid_0 = node_a1.get_current_uuid(node_d.id)
+log('* Initial UUID: %s' % uuid_0)
+
+# -- Session 1: node_d promotes; first bump fires; node_a2 receives UUID_1 ---
+#
+# With two diskful nodes (node_a1, node_a2) both having zero bitmap_uuid slots,
+# diskless_primary_needs_uuid_bump(node_a1) finds node_a2's slot = 0 and
+# returns true.  The bump fires; both diskful nodes record the new UUID.
+# node_a2 is in ~weak_nodes (it is D_UP_TO_DATE at bump time), so
+# __set_bitmap_slots sets node_a1.peer_md[node_a2] = UUID_1.
+
+log('=== Phase 1: graceful disconnect while diskful ===')
+log('* Session 1: node_d promotes (diskless) and writes while both storage nodes are present.')
+node_d.primary()
+node_d.write(size='2M', bs='1M', offset='0', direct=1)
+
+uuid_1 = node_a1.get_current_uuid(node_d.id)
+if uuid_1 == uuid_0:
+    raise Exception(
+        'UUID not bumped after node_d promotion -- test precondition failed. '
+        'Two diskful nodes with zero slots should always trigger the bump. '
+        '(initial %s, after session 1: %s)' % (uuid_0, uuid_1))
+log('  First bump: %s -> %s' % (uuid_0, uuid_1))
+
+# node_a2 was connected and UpToDate at bump time.  Verify it received UUID_1.
+uuid_a2 = node_a2.get_current_uuid(node_d.id)
+if uuid_a2 != uuid_1:
+    raise Exception(
+        'node_a2 did not receive UUID_1 (%s) via __set_bitmap_slots; '
+        'got %s instead' % (uuid_1, uuid_a2))
+log('  node_a2 correctly received UUID_1 via __set_bitmap_slots: %s' % uuid_a2)
+
+# -- node_a2 departs while node_d is still primary ---------------------------
+#
+# The graceful disconnect notifies node_a1.  Because node_d is still primary
+# and a2 was on the same current UUID (UUID_1), a_lost_peer_is_on_same_cur_uuid
+# returns true -> a second UUID bump fires (UUID_1 -> UUID_2).
+# rotate_current_into_bitmap records node_a1.peer_md[node_a2] = UUID_1 for the
+# absent a2.
+
+log('* node_a2 disconnects while node_d is still primary.')
+log('  This triggers a second UUID bump: a_lost_peer_is_on_same_cur_uuid returns')
+log('  true (a2 was at UUID_1 == a1 current UUID_1) -> bump -> UUID_2.')
+log('  rotate_current_into_bitmap records a1.peer_md[a2] = UUID_1.')
+connections(node_a2, node_a1).disconnect()
+connections(node_a2, node_d).disconnect()
+peer_devices(node_a1, node_a2).event(r'peer-device .* replication:Off')
+
+# -- Session 2: writes that node_a2 will miss (until resync) -----------------
+
+log('* Session 2: node_d writes to a new region while node_a2 is absent.')
+node_d.write(size='2M', bs='1M', offset='2M', direct=1)
+node_d.secondary()
+
+uuid_2 = node_a1.get_current_uuid(node_d.id)
+log('  UUID after session 2 / second bump: %s' % uuid_2)
+if uuid_2 == uuid_1:
+    raise Exception(
+        'Second UUID bump did not fire after node_a2 disconnected while '
+        'node_d was primary.  Expected UUID_2 != UUID_1 (%s).' % uuid_1)
+log('  Second bump confirmed: %s -> %s' % (uuid_1, uuid_2))
+
+# -- node_a2 reconnects: RULE_BITMAP_SELF -> SyncTarget ----------------------
+#
+# node_a2.current_uuid = UUID_1 (held since __set_bitmap_slots at first bump).
+# node_a1.peer_md[node_a2].bitmap_uuid = UUID_1 (set by rotate_current_into_bitmap
+# at second bump, when a2 was absent).
+# Different-UUID branch: a1.bitmap[a2] (UUID_1) == a2.current (UUID_1) ->
+# RULE_BITMAP_SELF -> SyncTarget.  a2 resyncs all writes since the second bump.
+
+log('* node_a2 reconnects: expecting SyncTarget (RULE_BITMAP_SELF).')
+log('  a1.bitmap[a2] = UUID_1 == a2.current = UUID_1 -> SyncTarget -> resync.')
+connections(node_a2, node_a1).connect()
+connections(node_a2, node_d).connect()
+
+pd_a2a1 = peer_devices(node_a2, node_a1)
+pd_a2a1.event(r'peer-device .* replication:SyncTarget',
+              no=r'peer-device .* replication:Established')
+pd_a2a1.event(r'peer-device .* replication:Established', timeout=120)
+log('  Phase 1: node_a2 correctly resynced via RULE_BITMAP_SELF (graceful disconnect).')
+
+# After phase 1 resync the resource is still up; both a1 and a2 are UpToDate.
+# Continue directly into phase 2.
+
+# =============================================================================
+# Phase 2: force disconnect while diskful
+# =============================================================================
+#
+# After phase 1's resync, a2's bitmap_uuid slot on a1 was cleared to 0
+# (resync completion resets the slot).  A new node_d promotion will bump the
+# UUID again: diskless_primary_needs_uuid_bump finds the zero slot -> true.
+# a2 receives UUID_3 via __set_bitmap_slots (present at bump).
+# a2 then force-disconnects (drbdsetup disconnect --force).  From a1's side
+# the connection drops abruptly: peer disk state -> D_UNKNOWN.
+# D_INCONSISTENT(5) <= D_UNKNOWN(7) <= D_UNKNOWN -> a_lost_peer_is_on_same_
+# cur_uuid is NOT skipped -> UUID_3 == UUID_3 -> second bump fires (UUID_4).
+# rotate_current_into_bitmap records a1.peer_md[a2] = UUID_3.
+# On reconnect: RULE_BITMAP_SELF -> SyncTarget (same result as phase 1).
+
+log('=== Phase 2: force disconnect while diskful ===')
+
+uuid_p2_start = node_a1.get_current_uuid(node_d.id)
+log('* Phase 2 start UUID: %s' % uuid_p2_start)
+
+log('* Session 3: node_d promotes; both storage nodes present.')
+node_d.primary()
+node_d.write(size='2M', bs='1M', offset='0', direct=1)
+
+uuid_3 = node_a1.get_current_uuid(node_d.id)
+if uuid_3 == uuid_p2_start:
+    raise Exception(
+        'Phase 2: UUID not bumped after node_d promotion (was %s).' % uuid_p2_start)
+log('  Phase 2 first bump: %s -> %s' % (uuid_p2_start, uuid_3))
+
+uuid_a2_p2 = node_a2.get_current_uuid(node_d.id)
+if uuid_a2_p2 != uuid_3:
+    raise Exception(
+        'Phase 2: node_a2 did not receive UUID_3 (%s); got %s' % (uuid_3, uuid_a2_p2))
+log('  node_a2 received UUID_3 via __set_bitmap_slots: %s' % uuid_a2_p2)
+
+log('* node_a2 force-disconnects (drbdsetup disconnect --force).')
+log('  Peer disk state -> D_UNKNOWN; a_lost_peer_is_on_same_cur_uuid fires.')
+resource.forbidden_patterns.remove(r'connection:NetworkFailure')
+connections(node_a2, node_a1).disconnect(force=True)
+connections(node_a2, node_d).disconnect(force=True)
+peer_devices(node_a1, node_a2).event(r'peer-device .* replication:Off')
+
+log('* Session 4: node_d writes while node_a2 is absent (force-disconnected).')
+node_d.write(size='2M', bs='1M', offset='2M', direct=1)
+node_d.secondary()
+
+uuid_4 = node_a1.get_current_uuid(node_d.id)
+if uuid_4 == uuid_3:
+    raise Exception(
+        'Phase 2: second bump did not fire after force disconnect '
+        '(UUID unchanged: %s).' % uuid_3)
+log('  Phase 2 second bump confirmed: %s -> %s' % (uuid_3, uuid_4))
+
+log('* node_a2 reconnects after force disconnect: expecting SyncTarget.')
+connections(node_a2, node_a1).connect()
+connections(node_a2, node_d).connect()
+
+pd_a2a1_p2 = peer_devices(node_a2, node_a1)
+pd_a2a1_p2.event(r'peer-device .* replication:SyncTarget',
+                 no=r'peer-device .* replication:Established')
+pd_a2a1_p2.event(r'peer-device .* replication:Established', timeout=120)
+log('  Phase 2: node_a2 correctly resynced via RULE_BITMAP_SELF (force disconnect).')
+
+# -- Final data integrity check -----------------------------------------------
+
+log('* Verifying data integrity across both phases.')
+resource.down()
+datatools.verify_data([node_a1, node_a2], size_mb=4, backing_disk=True)
+
+log('* PASS: both graceful and force disconnect trigger second bump;')
+log('  RULE_BITMAP_SELF fires on reconnect in both cases; data integrity preserved.')
+resource.cluster.teardown()

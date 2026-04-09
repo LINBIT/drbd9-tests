@@ -1,0 +1,137 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.2.18" }
+#
+# Regression test for the storage migration data loss scenario caused by
+# Bug 2 (drbd commit f3427aed7 ("drbd_main: fix UUID bump for intentional-diskless primary")): diskless primary fails to bump UUID, causing a
+# migration target provisioned with the same day-0 UUID to become UpToDate
+# without resyncing.
+#
+# Root cause: when a LINSTOR-provisioned resource starts, all node metadata
+# carries an identical non-zero UUID (the "day-0" value from the thin pool
+# template).  A diskless primary writing in this state should bump the UUID
+# to separate the write session from the initial day-0 epoch.  The old
+# peer_can_fill_a_bitmap_slot() suppressed the bump (see
+# diskless-primary-split-brain for the full explanation of the mechanism).
+#
+# Migration data loss sequence:
+#   1. Diskless primary writes session 1; no UUID bump -> day-0 UUID persists.
+#   2. A new diskful migration target is provisioned by LINSTOR from the same
+#      thin pool, inheriting the same day-0 UUID.
+#   3. The migration target connects for the first time.  The diskful source
+#      node also has the day-0 UUID.  DRBD compares UUIDs: same UUID, neither
+#      side has UUID_FLAG_RECONNECT (first-ever connection) -> RULE_BOTH_OFF ->
+#      NO_SYNC.  The migration target is immediately UpToDate with an empty disk.
+#   4. The original storage node is decommissioned.  The migration target holds
+#      no data.  Silent data loss.
+#
+# Fix (diskless_primary_needs_uuid_bump, 9.2.18): the bump fires for the
+# diskless primary's first write session.  node_b (diskful source) now has a
+# bumped UUID; the migration target (day-0 UUID) differs -> different-UUID
+# branch -> RULE_BITMAP_SELF (node_b.peer_md[node_c] = day-0, set by
+# rotate_current_into_bitmap when node_c was absent at bump time) ->
+# SyncTarget -> full resync.
+#
+# The day-0 UUID requirement:
+#   A standard fresh node starts with UUID_JUST_CREATED (stored as 0).
+#   drbd_uuid_compare maps 0 to UUID_JUST_CREATED and line 4626-4628 returns
+#   SYNC_SOURCE_SET_BITMAP, triggering resync even on buggy DRBD.  Only a
+#   LINSTOR thin-provisioned node that starts with the same non-zero UUID as
+#   the existing diskful node bypasses this guard.
+#
+# Topology:
+#   node_a -- diskless primary (LINSTOR application client, bitmap=no)
+#   node_b -- diskful storage node (original)
+#   node_c -- diskful storage node (migration target, day-0 UUID, joins late)
+#
+# PASS on all versions (9.2.16, 9.2.17, 9.2.18+):
+#   This test validates that the migration target resyncs correctly after a UUID
+#   bump, but does not isolate the pre-9.2.18 no-bump failure mode.  The reason:
+#   resource.up() briefly connects node_c before it is taken down, which creates
+#   a peer_md entry with MDF_NODE_EXISTS on node_b.  node_b then includes
+#   node_c's bitmap_uuid=0 in P_UUIDS110, giving peer_can_fill_a_bitmap_slot()
+#   a zero diskful slot to trigger on even in buggy pre-9.2.18 code.  The bump
+#   fires via node_c's slot, so node_b has a bumped UUID when node_c rejoins,
+#   and the correct SyncTarget path executes on all versions.
+#
+#   To observe the pre-fix no-bump failure the topology would need node_c to be
+#   absent from node_b's peer_md entirely at write time (2-node initial setup),
+#   which is a separate test scenario.  diskless-primary-split-brain covers the
+#   all-diskless-peers variant of Bug 2.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+DAY0_UUID = 'DADADADADADADA10'
+
+
+
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a = resource.nodes[0]   # diskless primary (LINSTOR application node)
+node_b = resource.nodes[1]   # diskful storage (original)
+node_c = resource.nodes[2]   # diskful storage (migration target, joins late)
+
+# node_b and node_c start with the LINSTOR day-0 UUID and are marked UpToDate
+# (LINSTOR thin provisioning creates identical UUID0 on all nodes).
+# max_peers=2: both node_b and node_c have peer slots for each other.
+resource.add_disk('10M', diskful_nodes=[node_b, node_c],
+                  max_peers=2, initial_current_uuid=DAY0_UUID, uptodate=True)
+
+log('* Bring up all nodes in day-0 UUID state.')
+resource.up()
+peer_devices(node_a, node_b).event(r'peer-device .* peer-disk:UpToDate', timeout=30)
+
+log('* Take node_c down before the write session -- it is the future migration target.')
+# node_c goes down now; it will be reprovisioned (simulating LINSTOR migration)
+# and join only after node_a has written session 1.  node_b.peer_md[node_c] is
+# set to the day-0 UUID by the initial NO_SYNC connection, then to day-0 again
+# by rotate_current_into_bitmap when the bump fires.
+node_c.down()
+peer_devices(node_b, node_c).event(r'peer-device .* replication:Off')
+
+log('* Session 1: node_a (diskless) promotes and writes data.')
+node_a.primary()
+node_a.write(size='4M', bs='1M', offset='0', direct=1)
+
+log('* Verify UUID was bumped after diskless primary write.')
+uuid_after_write = node_b.get_current_uuid(node_a.id)
+if uuid_after_write.upper() == DAY0_UUID:
+    raise Exception(
+        'Bug 2 present: UUID not bumped after diskless primary write '
+        '(still %s).  A LINSTOR-provisioned migration target joining now '
+        'would silently become UpToDate without resyncing session 1 data.'
+        % uuid_after_write)
+log('  UUID correctly bumped: %s -> %s' % (DAY0_UUID, uuid_after_write))
+
+node_a.secondary()
+
+log('* Simulate LINSTOR migration: reprovision node_c from thin pool (day-0 UUID).')
+# In production: LINSTOR creates a new thin volume on the migration target
+# and writes the day-0 UUID to its metadata, exactly as it did for node_b
+# during initial provisioning.  Reproduced here by zeroing the disk and
+# writing fresh day-0 metadata.
+node_c.fio_file(node_c.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
+node_c.volumes[0].create_md(max_peers=2, initial_current_uuid=DAY0_UUID, uptodate=True)
+
+log('* node_c joins cluster as migration target; must resync session 1.')
+# On fixed DRBD: node_b has bumped UUID; node_c has day-0 UUID -> different-UUID
+#   branch -> RULE_BITMAP_SELF (node_b.peer_md[node_c] = day-0, set when bump
+#   fired while node_c was absent) -> SyncTarget -> resync.
+# On buggy DRBD (unreachable: exception raised above): node_b still at day-0
+#   UUID; node_c also at day-0 UUID -> RULE_BOTH_OFF -> NO_SYNC -> Established
+#   immediately with an empty backing disk.
+node_c.adjust()
+
+pd_cb = peer_devices(node_c, node_b)
+pd_cb.event(r'peer-device .* replication:SyncTarget',
+            no=r'peer-device .* replication:Established')
+pd_cb.event(r'peer-device .* replication:Established', timeout=120)
+log('  node_c correctly resynced session 1 data.')
+
+log('* Verify data integrity: node_c must hold node_b\'s session 1 data after resync.')
+resource.down()
+datatools.verify_data([node_b, node_c], size_mb=4, backing_disk=True)
+
+log('* PASS: migration target correctly resynced; data preserved across migration.')
+resource.cluster.teardown()

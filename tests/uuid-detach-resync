@@ -1,0 +1,159 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0.0" }
+#
+# Demonstrates that detach-while-primary triggers a UUID bump via
+# lost_contact_to_peer_data -- a code path DISTINCT from
+# a_lost_peer_is_on_same_cur_uuid (which would skip D_DISKLESS peers).
+#
+# When node_a2 detaches its disk while a diskless primary (node_d) is active,
+# the peer disk state on node_d transitions D_UP_TO_DATE -> D_DISKLESS while
+# the connection is still L_ESTABLISHED.  lost_contact_to_peer_data fires
+# (os=D_UP_TO_DATE >= D_INCONSISTENT, ns=D_DISKLESS < D_INCONSISTENT), sets
+# create_new_uuid=true, and schedules the bump via the __NEW_CUR_UUID flag.
+#
+# The flag is NOT acted on immediately.  drbd_uuid_new_current() is called
+# from the write path, so the actual UUID change is deferred until the next
+# write.  a_lost_peer_is_on_same_cur_uuid would have skipped node_a2 entirely
+# (D_DISKLESS=0 < D_INCONSISTENT=5); lost_contact_to_peer_data is the path
+# that schedules the bump here.
+#
+# CONTRAST with uuid-disconnect-resync (disconnect while diskful): that test
+# uses the a_lost_peer_is_on_same_cur_uuid path, which fires at disconnect
+# time (peer disk state resets to D_UNKNOWN, within D_INCONSISTENT..D_UNKNOWN
+# range) and is also deferred to the next write.  Both paths produce the same
+# result: second bump -> RULE_BITMAP_SELF -> SyncTarget -> data preserved.
+#
+# Key detail: when node_d sends P_CURRENT_UUID for the second bump (at the
+# start of session 2), drbd_weak_nodes_device() marks node_a2 (D_DISKLESS <=
+# D_FAILED) as weak.  node_a1 calls rotate_current_into_bitmap() for node_a2,
+# recording node_a1.peer_md[a2].bitmap_uuid = UUID_1 (old current UUID).
+# On re-attach: UUID_1 (on disk) == node_a1.peer_md[a2].bitmap_uuid = UUID_1
+# -> RULE_BITMAP_SELF -> SyncTarget -> node_a2 resyncs session-2 data.
+#
+# Expected outcome: PASS on all versions (lost_contact_to_peer_data path
+# predates the 9.2.18 fix commits).
+#
+# Topology:
+#   node_a1 -- diskful storage (stays connected and diskful throughout)
+#   node_a2 -- diskful storage (detaches while primary active, re-attaches later)
+#   node_d  -- diskless primary
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+
+
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a1 = resource.nodes[0]  # diskful storage, stays connected
+node_a2 = resource.nodes[1]  # diskful storage, detaches then re-attaches
+node_d  = resource.nodes[2]  # diskless primary
+
+resource.add_disk('10M', diskful_nodes=[node_a1, node_a2])
+resource.up_wait()
+resource.skip_initial_sync()
+# skip_initial_sync() already waits for all peers to reach UpToDate.
+
+uuid_0 = node_a1.get_current_uuid(node_d.id)
+log('* Initial UUID: %s' % uuid_0)
+
+# -- Session 1: node_d promotes; first bump fires; both storage nodes present ---
+#
+# diskless_primary_needs_uuid_bump(node_a1): node_a2 bitmap slot = 0 (no prior
+# bump) -> returns true -> bump fires (UUID_0 -> UUID_1).  Both node_a1 and
+# node_a2 receive UUID_1 via P_CURRENT_UUID while connected.
+
+log('* Session 1: node_d promotes; both storage nodes present.')
+node_d.primary()
+node_d.write(size='2M', bs='1M', offset='0', direct=1)
+
+uuid_1 = node_a1.get_current_uuid(node_d.id)
+if uuid_1 == uuid_0:
+    raise Exception(
+        'UUID not bumped after node_d promotion (initial %s).' % uuid_0)
+log('  First bump: %s -> %s' % (uuid_0, uuid_1))
+
+# -- node_a2 detaches while node_d is still primary ---------------------------
+#
+# peer disk state on node_d transitions D_UP_TO_DATE -> D_DISKLESS while
+# repl_state remains L_ESTABLISHED (connection is still active).
+# lost_contact_to_peer_data fires; __NEW_CUR_UUID is scheduled.  The actual
+# UUID bump is deferred to the next write (drbd_uuid_new_current is called
+# from the write path, not from finish_state_change directly).
+
+log('* node_a2 detaches disk while node_d is still primary.')
+log('  lost_contact_to_peer_data schedules UUID bump (fires at next write).')
+node_a2.volumes.detach()
+peer_devices(node_a1, node_a2).event(r'peer-device .* peer-disk:Diskless', timeout=30)
+
+# -- Session 2: writes while node_a2 is diskless (connected but no disk) ------
+#
+# The scheduled bump fires at the start of the session-2 write.
+# drbd_weak_nodes_device() marks node_a2 (D_DISKLESS <= D_FAILED) as weak;
+# node_a1 receives P_CURRENT_UUID and calls rotate_current_into_bitmap() for
+# node_a2, recording node_a1.peer_md[a2].bitmap_uuid = UUID_1.
+# node_a2 itself receives UUID_2 via P_CURRENT_UUID (still connected).
+# node_d writes session-2 data; node_a2 is diskless and cannot store it.
+
+log('* Session 2: node_d writes while node_a2 is diskless.')
+log('  Second bump (UUID_1 -> UUID_2) fires at write start.')
+node_d.write(size='2M', bs='1M', offset='2M', direct=1)
+node_d.secondary()
+
+uuid_2 = node_a1.get_current_uuid(node_d.id)
+if uuid_2 == uuid_1:
+    raise Exception(
+        'Second UUID bump did not fire.  Expected UUID_2 != UUID_1 (%s).  '
+        'lost_contact_to_peer_data should have scheduled a bump at detach '
+        'time, realized at the next write.' % uuid_1)
+log('  Second bump confirmed (fired at session-2 write): %s -> %s' % (uuid_1, uuid_2))
+log('  (a_lost_peer_is_on_same_cur_uuid would have skipped D_DISKLESS;')
+log('   lost_contact_to_peer_data schedules the bump via the os/ns disk-state path.)')
+
+# -- node_a2 disconnects (diskless, no primary active) ------------------------
+#
+# With node_d now secondary, no create_new_uuid path fires at disconnect.
+
+log('* node_a2 disconnects (node_d already demoted -> no additional bump).')
+connections(node_a2, node_a1).disconnect()
+connections(node_a2, node_d).disconnect()
+peer_devices(node_a1, node_a2).event(r'peer-device .* replication:Off')
+
+# -- node_a2 reconnects and re-attaches disk ----------------------------------
+#
+# node_a2 reconnects as diskless (goes to Established, no resync for diskless).
+# Then re-attaches its backing disk.  The on-disk UUID is UUID_1 (last written
+# before the detach).  node_a1.peer_md[a2].bitmap_uuid = UUID_1 (recorded by
+# rotate_current_into_bitmap at the second bump).
+#
+# UUID comparison: UUID_1 (on disk) != UUID_2 (current) -> different-UUID branch
+# -> node_a1.peer_md[a2].bitmap_uuid == UUID_1 == node_a2.on_disk_uuid
+# -> RULE_BITMAP_SELF -> SyncTarget.
+# node_a2 resyncs all writes since the second bump (session-2 data).
+
+log('* node_a2 reconnects as diskless, then re-attaches disk.')
+log('  On re-attach: UUID_1 (on disk) != UUID_2 (current)')
+log('  -> RULE_BITMAP_SELF -> SyncTarget -> node_a2 resyncs session-2 data.')
+connections(node_a2, node_a1).connect()
+connections(node_a2, node_d).connect()
+# Wait for diskless connection to establish before attaching
+peer_devices(node_a2, node_a1).event(r'peer-device .* replication:Established', timeout=30)
+
+node_a2.volumes.attach()
+
+pd_a2a1 = peer_devices(node_a2, node_a1)
+pd_a2a1.event(r'peer-device .* replication:SyncTarget',
+              no=r'peer-device .* replication:Established')
+pd_a2a1.event(r'peer-device .* replication:Established', timeout=120)
+log('  node_a2 correctly resynced via RULE_BITMAP_SELF (detach-while-primary path).')
+
+# -- Final data integrity check -----------------------------------------------
+
+log('* Verifying data integrity across both storage nodes.')
+resource.down()
+datatools.verify_data([node_a1, node_a2], size_mb=4, backing_disk=True)
+
+log('* PASS: detach-while-primary fires lost_contact_to_peer_data -> second bump;')
+log('  RULE_BITMAP_SELF fires on re-attach; data integrity preserved.')
+resource.cluster.teardown()

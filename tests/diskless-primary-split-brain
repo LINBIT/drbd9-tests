@@ -1,0 +1,128 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.2.18" }
+#
+# Regression test for Bug 2 (drbd commit f3427aed7 ("drbd_main: fix UUID bump for intentional-diskless primary")): two diskless primaries both
+# fail to bump the UUID, enabling an undetected split-brain on reconnect.
+#
+# Root cause: peer_can_fill_a_bitmap_slot() skipped a diskless primary's own
+# node_id slot (intentional_diskless guard) AND skipped every other diskless
+# peer's slot (want_bitmap == false).  In a cluster where all configured peers
+# are diskless, there is no zero slot left to return true -- so the bump is
+# suppressed for every diskless primary promotion.
+#
+# Consequence: if two diskless primaries each write at the same UUID, the first
+# primary's reconnect uses RULE_RECONNECTED (same UUID, both sides carry
+# UUID_FLAG_RECONNECT) -> NO_SYNC -> drbd_bmio_clear_one_peer erases the OOS
+# bits accumulated during the disconnect.  The first primary silently misses
+# all writes the second primary made while it was absent.
+#
+# Fix (diskless_primary_needs_uuid_bump, 9.2.18): inspect third-party
+# configured peers' bitmap_uuid entries on the diskful node.  A diskless peer's
+# slot is perpetually zero (rotate_current_into_bitmap skips diskless nodes
+# without MDF_HAVE_BITMAP), so a zero entry is not evidence of a prior bump;
+# the function only returns false when a NONZERO, non-sentinel entry is found.
+# With all-diskless peers the loop finishes without finding such an entry ->
+# returns true -> bump fires.
+#
+# Topology:
+#   node_a -- diskful storage
+#   node_d -- diskless client, first primary
+#   node_e -- diskless client, second primary
+#
+# FAIL (buggy <= 9.2.17):
+#   peer_can_fill_a_bitmap_slot() returns false for every diskless promotion;
+#   UUID never advances; both sessions share the same UUID.
+#   Exception raised at the first UUID-unchanged check.
+#
+# PASS (fixed >= 9.2.18):
+#   Each session bumps the UUID independently; after node_d reconnects the
+#   UUID divergence is detected and resolved.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+
+
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a = resource.nodes[0]   # diskful storage
+node_d = resource.nodes[1]   # diskless client -- promotes first
+node_e = resource.nodes[2]   # diskless client -- promotes second
+
+resource.add_disk('10M', diskful_nodes=[node_a])
+resource.up_wait()
+resource.skip_initial_sync()
+# skip_initial_sync() already waits for all peers to reach UpToDate.
+
+uuid_0 = node_a.get_current_uuid(node_d.id)
+log('* Initial UUID: %s' % uuid_0)
+
+# -- Session 1: node_d promotes, writes, demotes ---------------------------------
+
+log('* Session 1: node_d promotes (diskless) and writes.')
+node_d.primary()
+node_d.write(size='4M', bs='1M', offset='0', direct=1)
+node_d.secondary()
+
+uuid_1 = node_a.get_current_uuid(node_d.id)
+log('  UUID after node_d session: %s' % uuid_1)
+if uuid_1 == uuid_0:
+    raise Exception(
+        'Bug 2 present: UUID not bumped after node_d (diskless) promotion '
+        '(%s unchanged).  peer_can_fill_a_bitmap_slot() skipped all diskless '
+        'slots, suppressing the bump.' % uuid_0)
+log('  UUID correctly advanced: %s -> %s' % (uuid_0, uuid_1))
+
+# -- node_d disconnects from cluster --------------------------------------------
+
+log('* node_d disconnects.')
+connections(node_d, node_a).disconnect()
+connections(node_d, node_e).disconnect()
+peer_devices(node_a, node_d).event(r'peer-device .* replication:Off')
+
+# -- Session 2: node_e promotes, writes, demotes (node_d absent) ----------------
+
+log('* Session 2: node_e promotes (diskless) and writes to same region.')
+node_e.primary()
+# Write to the same region as session 1.  On fixed DRBD, the UUID bumped in
+# session 1 so node_a.peer_md[node_d] records the session boundary; when
+# node_d reconnects it will be detected as stale and receive a proper resync.
+# On buggy DRBD (unreachable here -- exception raised above), the UUID is
+# still uuid_0; the reconnect would use NO_SYNC and node_d would silently
+# miss session 2.
+node_e.write(size='4M', bs='1M', offset='0', direct=1)
+node_e.secondary()
+
+uuid_2 = node_a.get_current_uuid(node_e.id)
+log('  UUID after node_e session: %s' % uuid_2)
+if uuid_2 == uuid_1:
+    raise Exception(
+        'Bug 2 present: UUID not bumped after node_e (diskless) promotion '
+        '(%s unchanged).  Both sessions share the same UUID; on reconnect '
+        'node_d would silently miss session 2 via NO_SYNC.' % uuid_1)
+log('  UUID correctly advanced again: %s -> %s' % (uuid_1, uuid_2))
+
+# -- node_d reconnects: UUID divergence must be resolved ------------------------
+
+log('* Reconnecting node_d (UUID %s) to cluster (UUID %s).' % (uuid_1, uuid_2))
+# On fixed DRBD: node_d carries uuid_1 (from its session), node_a has uuid_2.
+# Different-UUID branch: uuid_1 is in node_a's history (node_a bumped uuid_1 ->
+# uuid_2 during node_e's session) -> RULE_HISTORY_SELF -> UUID divergence
+# resolved before Established.  For a diskless reconnecting node the resolution
+# is a UUID-state update (no data to transfer); Established follows promptly.
+# On buggy DRBD: unreachable here.
+connections(node_d, node_a).connect()
+connections(node_d, node_e).connect()
+peer_devices(node_d, node_a).event(r'peer-device .* peer-disk:UpToDate', timeout=30)
+
+# Confirm node_a's UUID is still uuid_2 (reconnect did not corrupt UUID state).
+uuid_final = node_a.get_current_uuid(node_d.id)
+if uuid_final != uuid_2:
+    raise Exception(
+        'UUID changed unexpectedly after node_d reconnect: expected %s, got %s'
+        % (uuid_2, uuid_final))
+
+log('* PASS: UUID bumped on each session; split-brain detectable on reconnect.')
+
+resource.down()
+resource.cluster.teardown()

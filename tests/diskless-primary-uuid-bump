@@ -1,0 +1,103 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2.18" }
+#
+# Regression test for: diskless primary fails to bump UUID with single diskful peer.
+#
+# A diskless primary must bump its current UUID on the first write to separate
+# the new write epoch from the previous one. The bump is gated by
+# peer_can_fill_a_bitmap_slot(). In a 2-node cluster (diskless + 1 diskful),
+# all absent-node slots are -1 and the diskless node's own slot is perpetually 0
+# (rotate_current_into_bitmap skips intentional-diskless nodes). The
+# intentional_diskless guard introduced in commit 2817cc61a31f prevented the
+# function from returning true, so the UUID was never bumped.
+#
+# With 2 VMs: verify that the UUID is bumped on the first write from the
+#             diskless primary.
+#
+# With 3 VMs: additionally verify that in a 3-node cluster (one diskful peer
+#             absent), the UUID is NOT bumped again on subsequent promote/write
+#             cycles, so that reconnecting the absent node does not trigger a
+#             false-positive split-brain.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+
+
+
+resource = drbdtest.setup_resource(min_nodes=2, max_nodes=3)
+node_a = resource.nodes[0]          # will be the diskless primary
+diskful_nodes = resource.nodes[1:]
+resource.add_disk('10M', diskful_nodes=diskful_nodes)
+
+resource.up_wait()
+resource.skip_initial_sync()
+
+node_b = resource.nodes[1]
+
+
+# -- 2-node UUID-bump test ---------------------------------------------------
+
+log('* [2-node] reading UUID before first write on diskless %s' % node_a.name)
+uuid_before = node_b.get_current_uuid(node_a.id)
+log('  UUID before: %s' % uuid_before)
+
+log('* [2-node] %s promotes (diskless), writes, demotes' % node_a.name)
+node_a.write()
+
+log('* [2-node] reading UUID after first write')
+uuid_after = node_b.get_current_uuid(node_a.id)
+log('  UUID after:  %s' % uuid_after)
+
+if uuid_after == '0000000000000000':
+    raise Exception('[2-node] UUID was not bumped after write on diskless primary %s '
+                    '(still zero)' % node_a.name)
+if uuid_after == uuid_before:
+    raise Exception('[2-node] UUID did not change after write on diskless primary %s '
+                    '(still %s)' % (node_a.name, uuid_before))
+
+log('* [2-node] UUID correctly bumped: %s -> %s' % (uuid_before, uuid_after))
+
+
+# -- 3-node spurious-bump prevention test -----------------------------------
+
+if len(resource.nodes) >= 3:
+    node_c = resource.nodes[2]
+
+    log('* [3-node] fully isolating %s' % node_c.name)
+    conn_cb = connections(node_c, node_b)
+    conn_ca = connections(node_c, node_a)
+    conn_cb.disconnect()
+    conn_ca.disconnect()
+
+    log('* [3-node] first promote/write/demote on %s (C fully absent)' % node_a.name)
+    node_a.write()
+
+    uuid_bump1 = node_b.get_current_uuid(node_a.id)
+    log('  UUID after first bump with C isolated: %s' % uuid_bump1)
+
+    log('* [3-node] second promote/write/demote - UUID must NOT bump again')
+    node_a.write()
+
+    uuid_bump2 = node_b.get_current_uuid(node_a.id)
+    log('  UUID after second cycle with C isolated: %s' % uuid_bump2)
+
+    if uuid_bump2 != uuid_bump1:
+        raise Exception('[3-node] UUID bumped spuriously on second cycle: %s -> %s '
+                        '(would cause false split-brain on C reconnect)'
+                        % (uuid_bump1, uuid_bump2))
+
+    log('* [3-node] UUID stable as expected: %s' % uuid_bump2)
+
+    log('* [3-node] reconnecting %s - expecting resync, not split-brain' % node_c.name)
+    pd_cb = peer_devices(node_c, node_b)
+    conn_cb.connect()
+    conn_ca.connect()
+    pd_cb.event(r'peer-device .* replication:SyncTarget')
+    pd_cb.event(r'peer-device .* replication:Established')
+    log('* [3-node] %s reintegrated without split-brain' % node_c.name)
+
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

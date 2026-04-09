@@ -1,0 +1,240 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [4], "vms_ci": null, "drbd_version_min": "9.2.18" }
+#
+# Regression test for a_lost_peer_is_on_same_cur_uuid() (fixed in DRBD 9.2.18,
+# drbd commit 7d75d093351f ("drbd_main: fix a_lost_peer_is_on_same_cur_uuid after primary restart")).
+#
+# Setup: 4-node cluster.  node_a is a diskless primary; node_b, node_c, and
+# node_d are diskful.  All start from identical day-0 UUID state (as LINSTOR
+# creates for thinly provisioned resources).
+#
+# The bug: after a diskless primary restarts, peer_device->current_uuid is
+# cleared to 0 for all peers.  On the next write,
+# diskless_primary_needs_uuid_bump() finds node_b's bitmap_uuid[c] non-zero
+# (set during session 1 when node_c was absent) and returns false.
+# a_lost_peer_is_on_same_cur_uuid() is then the only remaining path that can
+# trigger the bump, but the buggy version compared peer_device->current_uuid
+# (0 after restart) against exposed_data_uuid (non-zero) and returned false,
+# suppressing the bump.
+#
+# What this test verifies: that the UUID bump fires correctly after session 2.
+# The test checks the UUID value directly -- NOT the reconnect outcome -- for
+# the following reason:
+#
+#   When the UUID does not bump (buggy DRBD), node_b and node_c both hold UUID1
+#   after session 2.  In theory this matching UUID could cause drbd_uuid_compare()
+#   to return NO_SYNC on reconnect.  In practice, however, node_b.bitmap_uuid[c]
+#   is non-zero (set during session 1 when node_c was absent), and that non-zero
+#   bitmap causes a bitmap-based resync rule to fire on reconnect regardless of
+#   whether the UUIDs match.  Data integrity is therefore preserved by the bitmap
+#   mechanism even on buggy DRBD in this specific topology, so the reconnect
+#   outcome is not a reliable bug indicator here.
+#
+#   The UUID bump itself is the correct signal: a_lost_peer_is_on_same_cur_uuid()
+#   must fire to keep UUID accounting accurate.  We cannot currently construct an
+#   explicit sequence of events that translates the missed bump into observable
+#   data corruption or a forgotten resync, but the UUID invariant is load-bearing
+#   and we suspect that more complex multi-step scenarios (not covered here) may
+#   depend on it.  The function is tested for correctness on its own terms.
+#
+# Why 4 nodes are required:
+#   In a 3-node setup, node_c can only reach UUID1 by resyncing from node_b.
+#   That resync calls drbd_uuid_resync_finished(), which clears
+#   node_b.bitmap_uuid[c] to 0.  A zero slot triggers the first bump helper
+#   (diskless_primary_needs_uuid_bump returns true) instead of the second,
+#   so the buggy a_lost_peer_is_on_same_cur_uuid() path is never reached.
+#   A fourth "bridge" node (node_d) gives node_c an independent sync path
+#   that gets it to UUID1 without touching node_b's metadata.
+#
+# Test sequence:
+#   1. All four nodes up in day-0 UUID state.
+#   2. Disconnect node_c from the cluster.
+#   3. Session 1: node_a writes; UUID bumped (UUID0->UUID1);
+#      node_b and node_d each record bitmap_uuid[c] = UUID0 (non-zero).
+#   4. node_a goes down.
+#   5. Disconnect node_d from node_a and node_b (isolate node_d's metadata
+#      from node_b so node_b never learns about node_c's resync).
+#   6. node_c reconnects to node_d only; resyncs and reaches UUID1.
+#      node_d.bitmap_uuid[c] is cleared; node_b.bitmap_uuid[c] = UUID0 still.
+#   7. node_c disconnects from node_d.
+#   7a.node_d goes down entirely (a mere disconnect would let node_a.adjust()
+#      reconnect to node_d and see its zero bitmap_uuid[c], triggering S5).
+#   7b.Block the node_a <-> node_c path so node_a.adjust() cannot connect to
+#      node_c and update peer_device[c].current_uuid from 0 to UUID1.
+#      If node_a learned current_uuid=UUID1, a_lost_peer_is_on_same_cur_uuid
+#      would detect UUID1==UUID1 even on buggy DRBD and trigger a bump.
+#   8. node_a comes back (connects to node_b only; node_c path blocked).
+#      node_b.bitmap_uuid[c] = UUID0 (non-zero) -> S4 code path:
+#        Fixed:  bump UUID1->UUID2.
+#        Buggy:  no bump; node_b stays at UUID1.
+#   9. Session 2: node_a writes to a different offset.
+#  10. Check UUID: Fixed: UUID2 != UUID1.  Buggy: UUID still UUID1 -> test fails.
+#  11. node_c reconnects to node_b (informational; resync happens via bitmap rule
+#      in both cases, so this step does not distinguish fixed from buggy DRBD).
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+DAY0_UUID = 'DADADADADADADA10'
+
+resource = drbdtest.setup_resource(nodes=4)
+node_a = resource.nodes[0]   # diskless primary
+node_b = resource.nodes[1]   # diskful, node_a's peer during session 2
+node_c = resource.nodes[2]   # diskful, absent during write sessions
+node_d = resource.nodes[3]   # diskful, "bridge": syncs node_c to UUID1
+
+resource.add_disk('10M', diskful_nodes=[node_b, node_c, node_d],
+                  max_peers=3, initial_current_uuid=DAY0_UUID, uptodate=True)
+
+log('* Bring up all nodes in day-0 UUID state.')
+resource.up()
+peer_devices(node_a, node_b).event(r'peer-device .* peer-disk:UpToDate', timeout=30)
+peer_devices(node_a, node_c).event(r'peer-device .* peer-disk:UpToDate', timeout=30)
+peer_devices(node_a, node_d).event(r'peer-device .* peer-disk:UpToDate', timeout=30)
+
+log('* Disconnect node_c.')
+conn_ca = connections(node_c, node_a)
+conn_cb = connections(node_c, node_b)
+conn_cd = connections(node_c, node_d)
+conn_ca.disconnect()
+conn_cb.disconnect()
+conn_cd.disconnect()
+peer_devices(node_b, node_c).event(r'peer-device .* replication:Off')
+peer_devices(node_d, node_c).event(r'peer-device .* replication:Off')
+
+log('* Session 1: node_a writes while node_c is absent.')
+# UUID bumped UUID0->UUID1.
+# node_b.bitmap_uuid[c] = UUID0 (non-zero).
+# node_d.bitmap_uuid[c] = UUID0 (non-zero).
+node_a.write(size='4M', bs='1M', offset='0', direct=1)
+
+log('* node_a goes down.')
+node_a.down()
+peer_devices(node_b, node_a).event(r'peer-device .* replication:Off')
+peer_devices(node_d, node_a).event(r'peer-device .* replication:Off')
+
+log('* Isolate node_d from node_b (and from node_a).')
+# node_b must not learn about the upcoming node_c<->node_d resync, so that
+# node_b.bitmap_uuid[c] stays non-zero when node_a restarts.
+conn_da = connections(node_d, node_a)
+conn_db = connections(node_d, node_b)
+conn_da.disconnect()
+conn_db.disconnect()
+peer_devices(node_b, node_d).event(r'peer-device .* replication:Off')
+
+log('* node_c resyncs from node_d, reaching UUID1.')
+# drbd_uuid_resync_finished() on node_d clears node_d.bitmap_uuid[c] = 0.
+# node_b.bitmap_uuid[c] = UUID0 remains non-zero -- node_b had no part in this resync.
+conn_cd.connect()
+pd_cd = peer_devices(node_c, node_d)
+pd_cd.event(r'peer-device .* replication:SyncTarget', timeout=30)
+pd_cd.event(r'peer-device .* replication:Established', timeout=60)
+
+log('* node_c disconnects from node_d.')
+conn_cd.disconnect()
+
+log('* Verify stage-4 UUID preconditions before session 2.')
+# node_b.bitmap_uuid[c] must still be non-zero (= DAY0_UUID set at session 1 bump).
+# If it is zero, diskless_primary_needs_uuid_bump would find a zero slot and trigger
+# a bump via the S5 path instead of S4, and the test would pass for the wrong reason.
+# node_c.current_uuid must be UUID1 (resynced from node_d).
+# node_d.bitmap_uuid[c] must be 0 (cleared by drbd_uuid_resync_finished after resync).
+gi_b_for_c = node_b.run(
+    ['drbdsetup', 'get-gi', resource.name, str(node_c.id), '0'],
+    return_stdout=True).strip().split(':')
+gi_d_for_c = node_d.run(
+    ['drbdsetup', 'get-gi', resource.name, str(node_c.id), '0'],
+    return_stdout=True).strip().split(':')
+gi_c_for_b = node_c.run(
+    ['drbdsetup', 'get-gi', resource.name, str(node_b.id), '0'],
+    return_stdout=True).strip().split(':')
+uuid1 = gi_b_for_c[0]
+bm_b_c = gi_b_for_c[1]
+bm_d_c = gi_d_for_c[1]
+cur_c  = gi_c_for_b[0]
+log('  node_b.current_uuid        = %s' % uuid1)
+log('  node_b.bitmap_uuid[c]      = %s  (want non-zero = DAY0)' % bm_b_c)
+log('  node_d.bitmap_uuid[c]      = %s  (want 0 after resync)' % bm_d_c)
+log('  node_c.current_uuid        = %s  (want == node_b.current_uuid = UUID1)' % cur_c)
+if bm_b_c == '0000000000000000':
+    raise Exception(
+        'Precondition failed: node_b.bitmap_uuid[c] was cleared to 0 '
+        '(expected DAY0_UUID %s).  node_c resync must have involved node_b.' % DAY0_UUID)
+if cur_c != uuid1:
+    raise Exception(
+        'Precondition failed: node_c.current_uuid %s != node_b.current_uuid %s '
+        '(node_c did not fully resync to UUID1 from node_d).' % (cur_c, uuid1))
+if bm_d_c != '0000000000000000':
+    raise Exception(
+        'Precondition failed: node_d.bitmap_uuid[c] = %s (expected 0 after resync '
+        'finished -- drbd_uuid_resync_finished should have cleared it).' % bm_d_c)
+log('  Preconditions OK: node_b has non-zero bitmap_uuid[c]; node_c is at UUID1.')
+
+log('* node_d goes down (so node_a cannot reconnect to it and see its zero bitmap_uuid[c]).')
+# If node_d were merely disconnected, node_a.adjust() would reconnect to it.
+# node_d.bitmap_uuid[c] == 0 (cleared by drbd_uuid_resync_finished) would then
+# make diskfull_peers_need_new_cur_uuid return true (S5), bypassing the buggy path.
+# node_d must be fully down so node_a only sees node_b's non-zero bitmap_uuid[c].
+node_d.down()
+
+log('* node_a comes back, connecting to node_b only (node_c path blocked).')
+# Block the node_a <-> node_c path before node_a.adjust() so that adjust() cannot
+# connect to node_c and update node_a's in-memory peer_device[c].current_uuid.
+# If node_a learned current_uuid=UUID1 from a brief connection to node_c, then
+# a_lost_peer_is_on_same_cur_uuid would correctly detect UUID1==UUID1 even on
+# buggy DRBD, and the bump would happen -- defeating the test.
+# current_uuid must stay 0 (cleared on restart) so the bug fires.
+conn_ca.block()
+# node_a.peer_device[c].current_uuid = 0 after restart (never updated since path blocked).
+# node_b reports bitmap_uuid[c] = UUID0 (non-zero) -> diskless_primary_needs_uuid_bump: false.
+# a_lost_peer_is_on_same_cur_uuid: current_uuid==0 -> fixed: bump UUID1->UUID2; buggy: no bump.
+node_a.adjust()
+# D was UpToDate during session 1, so B.bitmap_uuid[D]=0.  B includes this zero slot in its
+# P_UUIDS110 to A.  peer_can_fill_a_bitmap_slot() would see the zero and trigger S5 (bump for
+# D's slot) instead of S4, defeating the test.  Setting bitmap=no for the A-D connection on A
+# tells peer_can_fill_a_bitmap_slot() to skip D's slot, so diskfull_peers_need_new_cur_uuid()
+# correctly returns false and only a_lost_peer_is_on_same_cur_uuid() is checked.
+node_a.run(['drbdsetup', 'peer-device-options', resource.name, str(node_d.id), '0', '--bitmap=no'])
+peer_devices(node_b, node_a).event(r'peer-device .* replication:Established', timeout=30)
+
+log('* Session 2: node_a writes to a different offset with node_c absent.')
+node_a.write(size='4M', bs='1M', offset='4M', direct=1)
+
+gi_b_after = node_b.run(
+    ['drbdsetup', 'get-gi', resource.name, str(node_a.id), '0'],
+    return_stdout=True).strip().split(':')
+uuid_after_s2 = gi_b_after[0]
+log('  node_b.current_uuid after session 2 = %s' % uuid_after_s2)
+log('  UUID1 was                            = %s' % uuid1)
+if uuid_after_s2 == uuid1:
+    raise Exception(
+        'UUID did not bump after session 2 (still %s).  '
+        'a_lost_peer_is_on_same_cur_uuid() should have detected that node_c '
+        '(D_UNKNOWN, same current UUID as exposed_data_uuid) was lost while '
+        'primary was active, but peer_device->current_uuid was 0 after restart '
+        'and the buggy comparison suppressed the bump.'
+        % uuid_after_s2)
+log('  UUID bumped (UUID1->UUID2): a_lost_peer_is_on_same_cur_uuid fired correctly.')
+
+log('* node_c reconnects to node_b: resync expected (via bitmap rule on both fixed and buggy DRBD).')
+conn_ca.unblock()
+conn_cb.connect()
+conn_ca.connect()
+# node_b.bitmap_uuid[c] is non-zero (set during session 1) in both fixed and buggy cases.
+# That non-zero bitmap causes a bitmap-based resync rule to fire regardless of UUID match,
+# so this step does not distinguish fixed from buggy DRBD.  It is kept to verify that the
+# reconnect completes cleanly and data integrity holds.
+pd_cb = peer_devices(node_c, node_b)
+pd_cb.event(r'peer-device .* replication:SyncTarget',
+            no=r'peer-device .* replication:Established')
+pd_cb.event(r'peer-device .* replication:Established')
+
+log('* Verify data integrity: node_c must hold writes from both sessions.')
+# node_d was taken down earlier; only bring down the remaining nodes.
+resource.nodes.remove(node_d)
+resource.down()
+datatools.verify_data([node_b, node_c], size_mb=8, backing_disk=True)
+
+log('* Shut down and clean up.')
+resource.cluster.teardown()

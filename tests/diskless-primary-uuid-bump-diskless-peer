@@ -1,0 +1,146 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.2.18" }
+#
+# Regression test for: diskless primary must bump UUID when a diskless
+# secondary peer is temporarily absent.
+#
+# A diskless peer (bitmap=no) has no bitmap slot on the diskful node, so
+# rotate_current_into_bitmap() cannot record the missed write epoch in the
+# usual way.  peer_can_fill_a_bitmap_slot() must therefore use the peer's
+# actual connection state -- not the perpetually-zero bitmap slot -- to
+# decide whether a UUID bump is warranted:
+#
+#   - If the diskless peer is connected it already has the current UUID
+#     via the live connection: no bump needed.
+#   - If the diskless peer is absent, a UUID bump is needed the first time
+#     (so D can detect the new data generation on reconnect) and again after
+#     a primary restart (because peer_device->current_uuid is cleared to 0
+#     on restart, triggering the a_lost_peer_is_on_same_cur_uuid regression
+#     fixed in 9.2.18).  It is NOT bumped on every consecutive write session
+#     without a restart: one bump per absence epoch is sufficient.
+#
+# Setup: A (diskless primary), B (diskful secondary), D (diskless secondary)
+#
+# Phase 1: D connected -- verify A can write without spurious UUID bumps.
+# Phase 2: D disconnected:
+#   a. UUID bumps on the first write session with D absent.
+#   b. UUID does NOT bump on a second consecutive write session (D still
+#      absent, no restart): one bump per absence epoch is sufficient.
+#   c. UUID bumps again after A restarts (peer_device->current_uuid cleared):
+#      regression path fixed by commit 7d75d093351f.
+# Phase 3: D reconnects -- must detect the new data generation (UUID
+#   mismatch with its last-known UUID before disconnection).
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+
+
+
+
+resource = drbdtest.setup_resource(nodes=3)
+node_a = resource.nodes[0]          # diskless primary
+node_b = resource.nodes[1]          # diskful
+node_d = resource.nodes[2]          # diskless secondary
+
+resource.add_disk('10M', diskful_nodes=[node_b])
+
+resource.up_wait()
+resource.skip_initial_sync()
+
+
+# -- Phase 1: D connected -- UUID must bump exactly once -------------------
+
+log('* [D connected] reading UUID before write')
+uuid_before = node_b.get_current_uuid(node_a.id)
+log('  UUID before: %s' % uuid_before)
+
+log('* [D connected] %s promotes (diskless), writes, demotes' % node_a.name)
+node_a.write()
+
+uuid_after = node_b.get_current_uuid(node_a.id)
+log('  UUID after:  %s' % uuid_after)
+
+if uuid_after == '0000000000000000':
+    raise Exception('[D connected] UUID was not bumped (still zero) -- '
+                    'expected exactly one bump on first write')
+if uuid_after == uuid_before:
+    raise Exception('[D connected] UUID did not change -- '
+                    'expected exactly one bump on first write')
+
+log('* [D connected] UUID correctly bumped once: %s -> %s' % (uuid_before, uuid_after))
+uuid_d_last_known = uuid_after   # D's last known UUID before disconnection
+
+
+# -- Phase 2: D absent -- bump on first write, not on every session --------
+
+log('* [D absent] disconnecting %s' % node_d.name)
+conn_db = connections(node_d, node_b)
+conn_da = connections(node_d, node_a)
+conn_db.disconnect()
+conn_da.disconnect()
+
+log('* [D absent] first write session on %s' % node_a.name)
+node_a.write()
+
+uuid_session1 = node_b.get_current_uuid(node_a.id)
+log('  UUID after session 1: %s' % uuid_session1)
+
+if uuid_session1 == uuid_after:
+    raise Exception('[D absent] UUID did not change after first write session '
+                    'with D absent -- diskless absent peer must trigger a bump '
+                    'so D can detect the new data generation on reconnect')
+
+log('* [D absent] second write session on %s -- UUID should NOT bump again' % node_a.name)
+node_a.write()
+
+uuid_session2 = node_b.get_current_uuid(node_a.id)
+log('  UUID after session 2: %s' % uuid_session2)
+
+if uuid_session2 != uuid_session1:
+    raise Exception('[D absent] UUID bumped spuriously on second consecutive session '
+                    'with D still absent (would cause unnecessary UUID divergence)')
+
+log('* [D absent] down/up/write on %s -- UUID must bump again' % node_a.name)
+node_a.down()
+pd_ab = peer_devices(node_a, node_b)
+node_a.adjust()
+pd_ab.event(r'peer-device .* peer-disk:UpToDate')
+node_a.write()
+
+uuid_session3 = node_b.get_current_uuid(node_a.id)
+log('  UUID after session 3: %s' % uuid_session3)
+
+if uuid_session3 == uuid_session1:
+    raise Exception('[D absent] UUID did not change between session 1 and '
+                    'session 3 with D still absent -- but it should, '
+                    'because I have no idea about the current state of the absent diskless peer')
+
+log('* [D absent] UUID advanced as expected: %s -> %s -> %s'
+    % (uuid_after, uuid_session1, uuid_session3))
+
+
+# -- Phase 3: D reconnects -- must detect new data generation -------------
+
+log('* [D reconnect] reconnecting %s' % node_d.name)
+pd_db = peer_devices(node_d, node_b)
+conn_db.connect()
+conn_da.connect()
+# D is diskless: no resync, just wait for the connection to establish.
+pd_db.event(r'peer-device .* peer-disk:UpToDate')
+
+uuid_d_sees = node_b.get_current_uuid(node_d.id)
+log('  UUID D now sees: %s' % uuid_d_sees)
+log('  UUID D last knew: %s' % uuid_d_last_known)
+
+if uuid_d_sees == uuid_d_last_known:
+    raise Exception('[D reconnect] D sees the same UUID it had before '
+                    'disconnecting (%s) -- it cannot detect that data '
+                    'changed while it was absent' % uuid_d_last_known)
+
+log('* [D reconnect] %s correctly sees new UUID: %s (was %s)'
+    % (node_d.name, uuid_d_sees, uuid_d_last_known))
+
+
+log('* Shut down and clean up.')
+resource.down()
+resource.cluster.teardown()

@@ -1,0 +1,84 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2.17" }
+#
+# Regression test for the day-0 UUID bug, diskful-primary path (fixed in DRBD 9.2.17).
+#
+# When LINSTOR provisions a resource on thinly provisioned storage it writes an
+# identical day-0 UUID to all node metadata. On the first promotion with all peers
+# connected and UpToDate, the old code skipped the UUID bump because
+# rotate_current_into_bitmap() found no peer needing a bitmap entry
+# (got_new_bitmap_uuid remained false). The day-0 UUID persisted on disk.
+#
+# If a peer was later re-provisioned by LINSTOR (fresh thin volume, same day-0 UUID
+# written to new metadata), DRBD saw matching UUIDs and marked the peer UpToDate
+# without resyncing -- silent data corruption.
+#
+# This test:
+#   1. Brings both nodes up in day-0 UUID state (as LINSTOR thin provisioning does).
+#   2. Promotes a diskful node and writes -- verifying the UUID is bumped on first write.
+#   3. Re-provisions the peer (zeroed disk, same day-0 UUID in fresh metadata).
+#   4. Reconnects the re-provisioned peer -- verifying resync occurs, not a silent
+#      UpToDate transition.
+#   5. Verifies data integrity after resync.
+
+from python import drbdtest
+from python.drbdtest import connections, log, peer_devices
+from python import datatools
+
+DAY0_UUID = 'DADADADADADADA10'
+
+
+
+
+resource = drbdtest.setup_resource(nodes=2)
+node_a, node_b = resource.nodes
+
+# max_peers=1: exactly one peer slot, no spare. With both nodes UpToDate this fills the
+# only slot, leaving rotate_current_into_bitmap() with got_new_bitmap_uuid==0 and
+# triggering the day-0 UUID bug on 9.2.16.
+resource.add_disk('10M', max_peers=1, initial_current_uuid=DAY0_UUID, uptodate=True)
+
+log('* Bring up both nodes in day-0 UUID state; confirm UpToDate without initial sync.')
+resource.up()
+resource.peer_devices.event(r'peer-device .* peer-disk:UpToDate', timeout=30)
+
+log('* Record the day-0 UUID before first promotion.')
+uuid_day0 = node_b.get_current_uuid(node_a.id)
+log('  day-0 UUID on node_b: %s' % uuid_day0)
+
+log('* First diskful-primary promotion: write data (relies on autopromote).')
+node_a.write(direct=1)
+
+log('* Verify UUID was bumped after first write from day-0 state.')
+uuid_after = node_b.get_current_uuid(node_a.id)
+log('  UUID after first write: %s' % uuid_after)
+if uuid_after.upper() == DAY0_UUID:
+    raise Exception(
+        'UUID was not bumped on first diskful-primary promotion from day-0 state '
+        '(still %s) -- day-0 UUID bug is present' % uuid_after)
+log('  UUID correctly bumped: %s -> %s' % (uuid_day0, uuid_after))
+
+log('* Re-provision node_b: zero disk, write day-0 UUID to fresh metadata.')
+node_b.down()
+node_b.fio_file(node_b.volumes[0].disk, rw='write', zero_buffers=1, bs='1M')
+node_b.volumes[0].create_md(max_peers=1, initial_current_uuid=DAY0_UUID, uptodate=True)
+
+log('* Reconnect re-provisioned node_b -- must resync, not silently become UpToDate.')
+# node_b presents day-0 UUID on reconnect. With the fix, that UUID is now in node_a's
+# history, so DRBD triggers a full resync. Without the fix, day-0 UUID would still be
+# node_a's current UUID; both sides would match and node_b would be marked UpToDate
+# without resyncing -- leaving node_b with an empty backing device.
+node_b.adjust()
+
+pd_ba = peer_devices(node_b, node_a)
+pd_ba.event(r'peer-device .* replication:SyncTarget',
+            no=r'peer-device .* replication:Established')
+pd_ba.event(r'peer-device .* replication:Established')
+log('  Resync completed correctly.')
+
+log('* Verify data integrity: node_b must hold node_a\'s data after resync.')
+resource.down()
+datatools.verify_data(resource.nodes, size_mb=8, backing_disk=True)
+
+log('* Shut down and clean up.')
+resource.cluster.teardown()

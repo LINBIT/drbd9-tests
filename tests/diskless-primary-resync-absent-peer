@@ -48,14 +48,14 @@ peer_devices(node_a, node_c).event(r'peer-device .* replication:Off')
 peer_devices(node_b, node_c).event(r'peer-device .* replication:Off')
 
 log('* Record UUID before diskless-primary write session with node_c absent.')
-uuid_before = node_b.get_current_uuid(node_a.id)
+uuid_before = node_b.get_current_uuid(node_a)
 log('  UUID before write: %s' % uuid_before)
 
 log('* Diskless primary node_a writes while node_c is absent (relies on autopromote).')
 node_a.write(direct=1)
 
 log('* Verify UUID was bumped so node_c can detect divergence on reconnect.')
-uuid_after = node_b.get_current_uuid(node_a.id)
+uuid_after = node_b.get_current_uuid(node_a)
 log('  UUID after write: %s' % uuid_after)
 if uuid_after == uuid_before:
     raise Exception(

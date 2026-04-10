@@ -55,7 +55,7 @@ resource.up_wait()
 resource.skip_initial_sync()
 # skip_initial_sync() already waits for all peers to reach UpToDate.
 
-uuid_0 = node_a1.get_current_uuid(node_d.id)
+uuid_0 = node_a1.get_current_uuid(node_d)
 log('* Initial UUID: %s' % uuid_0)
 
 # -- Session 1: node_d promotes; first bump fires; node_a2 receives UUID_1 ---
@@ -71,7 +71,7 @@ log('* Session 1: node_d promotes (diskless) and writes while both storage nodes
 node_d.primary()
 node_d.write(size='2M', bs='1M', offset='0', direct=1)
 
-uuid_1 = node_a1.get_current_uuid(node_d.id)
+uuid_1 = node_a1.get_current_uuid(node_d)
 if uuid_1 == uuid_0:
     raise Exception(
         'UUID not bumped after node_d promotion -- test precondition failed. '
@@ -80,7 +80,7 @@ if uuid_1 == uuid_0:
 log('  First bump: %s -> %s' % (uuid_0, uuid_1))
 
 # node_a2 was connected and UpToDate at bump time.  Verify it received UUID_1.
-uuid_a2 = node_a2.get_current_uuid(node_d.id)
+uuid_a2 = node_a2.get_current_uuid(node_d)
 if uuid_a2 != uuid_1:
     raise Exception(
         'node_a2 did not receive UUID_1 (%s) via __set_bitmap_slots; '
@@ -109,7 +109,7 @@ log('* Session 2: node_d writes to a new region while node_a2 is absent.')
 node_d.write(size='2M', bs='1M', offset='2M', direct=1)
 node_d.secondary()
 
-uuid_2 = node_a1.get_current_uuid(node_d.id)
+uuid_2 = node_a1.get_current_uuid(node_d)
 log('  UUID after session 2 / second bump: %s' % uuid_2)
 if uuid_2 == uuid_1:
     raise Exception(
@@ -156,20 +156,20 @@ log('  Phase 1: node_a2 correctly resynced via RULE_BITMAP_SELF (graceful discon
 
 log('=== Phase 2: force disconnect while diskful ===')
 
-uuid_p2_start = node_a1.get_current_uuid(node_d.id)
+uuid_p2_start = node_a1.get_current_uuid(node_d)
 log('* Phase 2 start UUID: %s' % uuid_p2_start)
 
 log('* Session 3: node_d promotes; both storage nodes present.')
 node_d.primary()
 node_d.write(size='2M', bs='1M', offset='0', direct=1)
 
-uuid_3 = node_a1.get_current_uuid(node_d.id)
+uuid_3 = node_a1.get_current_uuid(node_d)
 if uuid_3 == uuid_p2_start:
     raise Exception(
         'Phase 2: UUID not bumped after node_d promotion (was %s).' % uuid_p2_start)
 log('  Phase 2 first bump: %s -> %s' % (uuid_p2_start, uuid_3))
 
-uuid_a2_p2 = node_a2.get_current_uuid(node_d.id)
+uuid_a2_p2 = node_a2.get_current_uuid(node_d)
 if uuid_a2_p2 != uuid_3:
     raise Exception(
         'Phase 2: node_a2 did not receive UUID_3 (%s); got %s' % (uuid_3, uuid_a2_p2))
@@ -186,7 +186,7 @@ log('* Session 4: node_d writes while node_a2 is absent (force-disconnected).')
 node_d.write(size='2M', bs='1M', offset='2M', direct=1)
 node_d.secondary()
 
-uuid_4 = node_a1.get_current_uuid(node_d.id)
+uuid_4 = node_a1.get_current_uuid(node_d)
 if uuid_4 == uuid_3:
     raise Exception(
         'Phase 2: second bump did not fire after force disconnect '

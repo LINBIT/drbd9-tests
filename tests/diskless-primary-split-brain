@@ -54,7 +54,7 @@ resource.up_wait()
 resource.skip_initial_sync()
 # skip_initial_sync() already waits for all peers to reach UpToDate.
 
-uuid_0 = node_a.get_current_uuid(node_d.id)
+uuid_0 = node_a.get_current_uuid(node_d)
 log('* Initial UUID: %s' % uuid_0)
 
 # -- Session 1: node_d promotes, writes, demotes ---------------------------------
@@ -64,7 +64,7 @@ node_d.primary()
 node_d.write(size='4M', bs='1M', offset='0', direct=1)
 node_d.secondary()
 
-uuid_1 = node_a.get_current_uuid(node_d.id)
+uuid_1 = node_a.get_current_uuid(node_d)
 log('  UUID after node_d session: %s' % uuid_1)
 if uuid_1 == uuid_0:
     raise Exception(
@@ -93,7 +93,7 @@ node_e.primary()
 node_e.write(size='4M', bs='1M', offset='0', direct=1)
 node_e.secondary()
 
-uuid_2 = node_a.get_current_uuid(node_e.id)
+uuid_2 = node_a.get_current_uuid(node_e)
 log('  UUID after node_e session: %s' % uuid_2)
 if uuid_2 == uuid_1:
     raise Exception(
@@ -116,7 +116,7 @@ connections(node_d, node_e).connect()
 peer_devices(node_d, node_a).event(r'peer-device .* peer-disk:UpToDate', timeout=30)
 
 # Confirm node_a's UUID is still uuid_2 (reconnect did not corrupt UUID state).
-uuid_final = node_a.get_current_uuid(node_d.id)
+uuid_final = node_a.get_current_uuid(node_d)
 if uuid_final != uuid_2:
     raise Exception(
         'UUID changed unexpectedly after node_d reconnect: expected %s, got %s'

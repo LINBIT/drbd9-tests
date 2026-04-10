@@ -95,7 +95,7 @@ node_a.primary()
 node_a.write(size='4M', bs='1M', offset='0', direct=1)
 
 log('* Verify UUID was bumped after diskless primary write.')
-uuid_after_write = node_b.get_current_uuid(node_a.id)
+uuid_after_write = node_b.get_current_uuid(node_a)
 if uuid_after_write.upper() == DAY0_UUID:
     raise Exception(
         'Bug 2 present: UUID not bumped after diskless primary write '

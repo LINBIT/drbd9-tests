@@ -39,14 +39,14 @@ node_b = resource.nodes[1]
 # -- 2-node UUID-bump test ---------------------------------------------------
 
 log('* [2-node] reading UUID before first write on diskless %s' % node_a.name)
-uuid_before = node_b.get_current_uuid(node_a.id)
+uuid_before = node_b.get_current_uuid(node_a)
 log('  UUID before: %s' % uuid_before)
 
 log('* [2-node] %s promotes (diskless), writes, demotes' % node_a.name)
 node_a.write()
 
 log('* [2-node] reading UUID after first write')
-uuid_after = node_b.get_current_uuid(node_a.id)
+uuid_after = node_b.get_current_uuid(node_a)
 log('  UUID after:  %s' % uuid_after)
 
 if uuid_after == '0000000000000000':
@@ -73,13 +73,13 @@ if len(resource.nodes) >= 3:
     log('* [3-node] first promote/write/demote on %s (C fully absent)' % node_a.name)
     node_a.write()
 
-    uuid_bump1 = node_b.get_current_uuid(node_a.id)
+    uuid_bump1 = node_b.get_current_uuid(node_a)
     log('  UUID after first bump with C isolated: %s' % uuid_bump1)
 
     log('* [3-node] second promote/write/demote - UUID must NOT bump again')
     node_a.write()
 
-    uuid_bump2 = node_b.get_current_uuid(node_a.id)
+    uuid_bump2 = node_b.get_current_uuid(node_a)
     log('  UUID after second cycle with C isolated: %s' % uuid_bump2)
 
     if uuid_bump2 != uuid_bump1:

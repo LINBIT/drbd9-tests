@@ -43,14 +43,14 @@ resource.up()
 resource.peer_devices.event(r'peer-device .* peer-disk:UpToDate', timeout=30)
 
 log('* Record the day-0 UUID before first promotion.')
-uuid_day0 = node_b.get_current_uuid(node_a.id)
+uuid_day0 = node_b.get_current_uuid(node_a)
 log('  day-0 UUID on node_b: %s' % uuid_day0)
 
 log('* First diskful-primary promotion: write data (relies on autopromote).')
 node_a.write(direct=1)
 
 log('* Verify UUID was bumped after first write from day-0 state.')
-uuid_after = node_b.get_current_uuid(node_a.id)
+uuid_after = node_b.get_current_uuid(node_a)
 log('  UUID after first write: %s' % uuid_after)
 if uuid_after.upper() == DAY0_UUID:
     raise Exception(

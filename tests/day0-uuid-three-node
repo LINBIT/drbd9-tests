@@ -58,14 +58,14 @@ resource.up()
 resource.peer_devices.event(r'peer-device .* peer-disk:UpToDate', timeout=30)
 
 log('* Record the day-0 UUID before first promotion.')
-uuid_day0 = node_b.get_current_uuid(node_a.id)
+uuid_day0 = node_b.get_current_uuid(node_a)
 log('  day-0 UUID on node_b for node_a slot: %s' % uuid_day0)
 
 log('* First diskful-primary promotion: node_a writes (relies on autopromote).')
 node_a.write(direct=1)
 
 log('* Verify UUID was bumped after first write from day-0 state.')
-uuid_after_p1 = node_b.get_current_uuid(node_a.id)
+uuid_after_p1 = node_b.get_current_uuid(node_a)
 log('  UUID after first write: %s' % uuid_after_p1)
 if uuid_after_p1.upper() == DAY0_UUID:
     raise Exception(
@@ -106,7 +106,7 @@ peer_devices(node_b, node_c).event(r'peer-device .* replication:Off')
 log('* Phase 3: node_a writes while node_c is absent.')
 node_a.write(direct=1)
 
-uuid_after_p3_write = node_b.get_current_uuid(node_a.id)
+uuid_after_p3_write = node_b.get_current_uuid(node_a)
 log('  UUID after Phase 3 write (node_c absent): %s' % uuid_after_p3_write)
 
 log('* Phase 3: re-provision node_c with day-0 UUID again.')

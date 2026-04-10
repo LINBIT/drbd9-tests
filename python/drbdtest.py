@@ -2253,49 +2253,75 @@ class Node():
     def peer_devices_by_vnr(self, vol_nr):
         return PeerDevices([pd for pd in self.resource.peer_devices_by_vnr(vol_nr) if pd.volume.node == self])
 
-    def get_current_uuid(self, peer_node_id, volume_nr=0):
+    def get_current_uuid(self, peer_node, volume_nr=0):
         """Return the in-memory current UUID hex string as reported by drbdsetup get-gi.
 
-        peer_node_id -- peer's node-id (integer)
-        volume_nr    -- volume number (default 0)
+        peer_node -- peer Node object
+        volume_nr -- volume number (default 0)
         """
         out = self.run(
             ['drbdsetup', 'get-gi', self.resource.name,
-             str(peer_node_id), str(volume_nr)],
+             str(peer_node.id), str(volume_nr)],
             return_stdout=True)
         # get-gi output: current_uuid:bitmap_uuid:hist0:hist1:...:flags
         return out.strip().split(':')[0]
 
-    def get_bitmap_uuid(self, peer_node_id, volume_nr=0):
+    def get_bitmap_uuid(self, peer_node, volume_nr=0):
         """Return the in-memory bitmap UUID for the given peer as reported by drbdsetup get-gi.
 
-        peer_node_id -- peer's node-id (integer)
-        volume_nr    -- volume number (default 0)
+        peer_node -- peer Node object
+        volume_nr -- volume number (default 0)
         """
         out = self.run(
             ['drbdsetup', 'get-gi', self.resource.name,
-             str(peer_node_id), str(volume_nr)],
+             str(peer_node.id), str(volume_nr)],
             return_stdout=True)
         return out.strip().split(':')[1]
 
-    def get_disk_current_uuid(self, vol):
-        """Return the on-disk current UUID from node's metadata via drbdmeta dump-superblock.
+    def _dump_superblock(self, vol):
+        """Run drbdmeta dump-superblock on vol and return the parsed JSON dict.
 
-        Uses --force so it works while the minor is still open (e.g. after detach
-        while the resource is up).  drbdmeta warnings go to stderr; stdout is JSON.
-        Returns an uppercase hex string without a leading '0x', matching the format
-        produced by drbdsetup get-gi.
+        Uses --force so it works while the minor is still open.
+        drbdmeta warnings go to stderr; stdout is the JSON object.
 
-        vol -- Volume object (must have .minor and .disk attributes)
+        vol -- Volume object (must have .disk attribute)
         """
         out = self.run(
-            ['drbdmeta', '--force', str(vol.minor), 'v09', vol.disk, 'internal',
+            ['drbdmeta', '--force', '-', 'v09', vol.disk, 'internal',
              'dump-superblock', '--output-format', 'json'],
             return_stdout=True)
-        raw = json.loads(out)['current_uuid']  # e.g. "0xE6113A41E72153C0"
+        return json.loads(out)
+
+    @staticmethod
+    def _uuid_from_raw(raw):
+        """Normalize a raw UUID hex string: strip leading 0x and uppercase."""
         if raw.startswith(('0x', '0X')):
             raw = raw[2:]
         return raw.upper()
+
+    def get_disk_current_uuid(self, volume_nr=0):
+        """Return the on-disk current UUID from this node's metadata.
+
+        Returns an uppercase hex string without a leading '0x', matching
+        the format produced by drbdsetup get-gi.
+
+        volume_nr -- volume number (default 0)
+        """
+        return self._uuid_from_raw(
+            self._dump_superblock(self.disks[volume_nr])['current_uuid'])
+
+    def get_disk_bitmap_uuid(self, peer_node, volume_nr=0):
+        """Return the on-disk bitmap UUID for peer_node from this node's metadata.
+
+        The on-disk peers array is indexed by node_id, so peers[peer_node.id]
+        gives the bitmap slot used for that peer.  Returns an uppercase hex
+        string without a leading '0x'.
+
+        peer_node -- peer Node object
+        volume_nr -- volume number (default 0)
+        """
+        data = self._dump_superblock(self.disks[volume_nr])
+        return self._uuid_from_raw(data['peers'][peer_node.id]['bitmap_uuid'])
 
 def skip_test(text):
     print(text, file=sys.stderr)

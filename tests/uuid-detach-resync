@@ -55,7 +55,7 @@ resource.up_wait()
 resource.skip_initial_sync()
 # skip_initial_sync() already waits for all peers to reach UpToDate.
 
-uuid_0 = node_a1.get_current_uuid(node_d.id)
+uuid_0 = node_a1.get_current_uuid(node_d)
 log('* Initial UUID: %s' % uuid_0)
 
 # -- Session 1: node_d promotes; first bump fires; both storage nodes present ---
@@ -68,7 +68,7 @@ log('* Session 1: node_d promotes; both storage nodes present.')
 node_d.primary()
 node_d.write(size='2M', bs='1M', offset='0', direct=1)
 
-uuid_1 = node_a1.get_current_uuid(node_d.id)
+uuid_1 = node_a1.get_current_uuid(node_d)
 if uuid_1 == uuid_0:
     raise Exception(
         'UUID not bumped after node_d promotion (initial %s).' % uuid_0)
@@ -101,7 +101,7 @@ log('  Second bump (UUID_1 -> UUID_2) fires at write start.')
 node_d.write(size='2M', bs='1M', offset='2M', direct=1)
 node_d.secondary()
 
-uuid_2 = node_a1.get_current_uuid(node_d.id)
+uuid_2 = node_a1.get_current_uuid(node_d)
 if uuid_2 == uuid_1:
     raise Exception(
         'Second UUID bump did not fire.  Expected UUID_2 != UUID_1 (%s).  '

@@ -51,13 +51,13 @@ resource.skip_initial_sync()
 # -- Phase 1: D connected -- UUID must bump exactly once -------------------
 
 log('* [D connected] reading UUID before write')
-uuid_before = node_b.get_current_uuid(node_a.id)
+uuid_before = node_b.get_current_uuid(node_a)
 log('  UUID before: %s' % uuid_before)
 
 log('* [D connected] %s promotes (diskless), writes, demotes' % node_a.name)
 node_a.write()
 
-uuid_after = node_b.get_current_uuid(node_a.id)
+uuid_after = node_b.get_current_uuid(node_a)
 log('  UUID after:  %s' % uuid_after)
 
 if uuid_after == '0000000000000000':
@@ -82,7 +82,7 @@ conn_da.disconnect()
 log('* [D absent] first write session on %s' % node_a.name)
 node_a.write()
 
-uuid_session1 = node_b.get_current_uuid(node_a.id)
+uuid_session1 = node_b.get_current_uuid(node_a)
 log('  UUID after session 1: %s' % uuid_session1)
 
 if uuid_session1 == uuid_after:
@@ -93,7 +93,7 @@ if uuid_session1 == uuid_after:
 log('* [D absent] second write session on %s -- UUID should NOT bump again' % node_a.name)
 node_a.write()
 
-uuid_session2 = node_b.get_current_uuid(node_a.id)
+uuid_session2 = node_b.get_current_uuid(node_a)
 log('  UUID after session 2: %s' % uuid_session2)
 
 if uuid_session2 != uuid_session1:
@@ -107,7 +107,7 @@ node_a.adjust()
 pd_ab.event(r'peer-device .* peer-disk:UpToDate')
 node_a.write()
 
-uuid_session3 = node_b.get_current_uuid(node_a.id)
+uuid_session3 = node_b.get_current_uuid(node_a)
 log('  UUID after session 3: %s' % uuid_session3)
 
 if uuid_session3 == uuid_session1:
@@ -128,7 +128,7 @@ conn_da.connect()
 # D is diskless: no resync, just wait for the connection to establish.
 pd_db.event(r'peer-device .* peer-disk:UpToDate')
 
-uuid_d_sees = node_b.get_current_uuid(node_d.id)
+uuid_d_sees = node_b.get_current_uuid(node_d)
 log('  UUID D now sees: %s' % uuid_d_sees)
 log('  UUID D last knew: %s' % uuid_d_last_known)
 

@@ -11,6 +11,7 @@ DrbdPackage = ""
 DrbdVersion = ""
 DrbdVersionOther = ""
 WinDrbdVersion = ""
+SELinuxMode = "" # enforcing/permissive/disabled. Disabled by default.
 
 [[steps]]
 [steps.rsync]
@@ -21,6 +22,28 @@ dest = "/opt/packages/"
 [steps.rsync]
 source = "{{.DrbdTestsRootDir}}/virter/scripts/*"
 dest = "/usr/local/bin/"
+
+# Set up SELinux
+[[steps]]
+[steps.shell]
+script = """
+[ -z "$SELINUX_MODE" ] && SELINUX_MODE=disabled
+if command -v setenforce > /dev/null; then
+	echo "Setting SELinux to $SELINUX_MODE"
+	case "$SELINUX_MODE" in
+		enforcing)  setenforce 1 ;;
+		permissive) setenforce 0 ;;
+		disabled)   setenforce 0 ;;
+		*)          echo "Unknown SELinux mode: $SELINUX_MODE"; exit 1 ;;
+	esac
+	sed -i "s/^SELINUX=.*/SELINUX=$SELINUX_MODE/" /etc/selinux/config
+else
+	echo "SELinux not available, skipping setup (mode=$SELINUX_MODE)"
+fi
+"""
+[steps.shell.env]
+SELINUX_MODE = "{{.SELinuxMode}}"
+
 
 [[steps]]
 [steps.shell]

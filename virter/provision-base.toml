@@ -15,17 +15,6 @@ NoUpgrade = "" # set to 1 to skip yum/apt upgrade
 ReleaseVer = "" # value to be passed to dnf as $releasever
 RhelSecretsURL = ""
 
-# Disable SELinux
-[[steps]]
-[steps.shell]
-script = """
-if command -v setenforce > /dev/null; then
-	echo "Disabling SELinux"
-	setenforce 0
-	sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config
-fi
-"""
-
 # Disable any banners from being displayed upon login
 [[steps]]
 [steps.shell]

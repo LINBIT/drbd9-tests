@@ -146,6 +146,31 @@ build:docker:
     - |
       set -e
       run_test() {
+        echo "========================================"
+        echo "Pipeline variables:"
+        echo "  DRBD_VERSION=$DRBD_VERSION"
+        echo "  DRBD_VERSION_OTHER=$DRBD_VERSION_OTHER"
+        echo "  DRBD_UTILS_VERSION=$DRBD_UTILS_VERSION"
+        echo "  DRBD_TEST_COUNT=$DRBD_TEST_COUNT"
+        echo "  DRBD_TESTS_SUB_DIR=$DRBD_TESTS_SUB_DIR"
+        echo "  VMSHED_ARGS=$VMSHED_ARGS"
+        echo "  VMSHED_TEST_SELECTION=$VMSHED_TEST_SELECTION"
+        echo "  VMSHED_TEST_TIMEOUT=$VMSHED_TEST_TIMEOUT"
+        echo ""
+        echo "Reproduce this pipeline with:"
+        printf "  echo '"
+        printf '[{"key":"DRBD_VERSION","value":"%s"},' "$DRBD_VERSION"
+        printf '{"key":"DRBD_VERSION_OTHER","value":"%s"},' "$DRBD_VERSION_OTHER"
+        printf '{"key":"DRBD_UTILS_VERSION","value":"%s"},' "$DRBD_UTILS_VERSION"
+        printf '{"key":"DRBD_TEST_COUNT","value":"%s"},' "$DRBD_TEST_COUNT"
+        printf '{"key":"DRBD_TESTS_SUB_DIR","value":"%s"},' "$DRBD_TESTS_SUB_DIR"
+        printf '{"key":"VMSHED_TEST_SELECTION","value":"%s"},' "$VMSHED_TEST_SELECTION"
+        printf '{"key":"VMSHED_TEST_TIMEOUT","value":"%s"},' "$VMSHED_TEST_TIMEOUT"
+        printf '{"key":"VMSHED_ARGS","value":"%s"}' "$VMSHED_ARGS"
+        printf "]'"
+        echo " | glab ci run -b $CI_COMMIT_REF_NAME -f /dev/stdin"
+        echo "========================================"
+
         . virter/version.env
 
         git init build-helpers -q -b unused

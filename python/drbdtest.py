@@ -663,6 +663,7 @@ class Cluster(object):
         self.hosts = []
         self.resources = []
         self.logscan_events = None
+        self.selinux_debug = False
         atexit.register(self.cleanup)
 
     def cleanup(self):
@@ -1498,6 +1499,14 @@ class Host():
         """
 
         self.stop_dmesg()
+
+        if self.cluster.selinux_debug:
+            audit_log = self.run(['cat', '/var/log/audit/audit.log'],
+                return_stdout=True, catch=True)
+            if audit_log:
+                out_path = os.path.join(self.cluster.logdir, 'audit-{}.log'.format(self.name))
+                with open(out_path, 'w', encoding='utf-8') as f:
+                    f.write(audit_log)
 
         self.platform_helper.cleanup_framework(self)
 
@@ -2377,6 +2386,7 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
     parser.add_argument('--drbd-version-other')
     parser.add_argument('--drbd-other-node', type=int, default=0, help='index of node to install "other" version on')
     parser.add_argument('--ssh-config', type=str, help='Use this ssh-config to connect to test nodes')
+    parser.add_argument('--selinux-debug', action='store_true', help='Disable SELinux dontaudit rules to make all denials visible')
     args = parser.parse_args()
 
     if nodes is not None:
@@ -2522,6 +2532,19 @@ def setup(nodes=None, max_nodes=None, min_nodes=2, multi_paths=False, netns=None
 
     for host in cluster.hosts:
         host.disable_faults()
+
+    # When SELinux is active, verify that the drbd-selinux policy module is
+    # compatible with this system. Raises on policydb version mismatch.
+    for host in cluster.hosts:
+        getenforce = host.run(['getenforce'], return_stdout=True, catch=True).strip()
+        if getenforce in ('Enforcing', 'Permissive'):
+            host.run_helper('check-selinux-policydb')
+
+    if args.selinux_debug:
+        cluster.selinux_debug = True
+        for host in cluster.hosts:
+            log('{}: disabling SELinux dontaudit rules'.format(host.hostname))
+            host.run(['semodule', '-DB'])
 
     return cluster
 

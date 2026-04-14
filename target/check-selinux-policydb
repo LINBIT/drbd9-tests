@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Check that the drbd-selinux policy module's policydb version is supported
+# by this system. A module compiled with a higher policydb version than the
+# system supports will silently fail to load during package install.
+
+set -e
+
+pp_file=$(find /usr/share/selinux/packages -name 'drbd.pp.bz2' 2>/dev/null)
+if [ -z "$pp_file" ]; then
+	echo "drbd-selinux policy module not found"
+	exit 0
+fi
+
+policydb_ver=$(python3 -c 'import bz2,sys; print(bz2.open(sys.argv[1],"rb").read()[0x2f])' "$pp_file") \
+	|| { echo "could not extract policydb version from $pp_file"; exit 1; }
+
+supported_ver=$(checkmodule -V 2>/dev/null | grep -o 'version [0-9]*$' | grep -o '[0-9]*') \
+	|| { echo "policydb version: $policydb_ver (could not determine max supported version)"; exit 0; }
+
+echo "policydb version: $policydb_ver, max supported: $supported_ver"
+
+if [ "$policydb_ver" -gt "$supported_ver" ]; then
+	echo "ERROR: policydb version $policydb_ver exceeds max supported version $supported_ver"
+	exit 1
+fi

@@ -71,5 +71,5 @@ vmshed										\
 	--set values.DrbdTestsRootDir="$drbd_tests_root_dir"			\
 	--set values.DrbdTestsSubDir="$DRBD_TESTS_SUB_DIR"			\
 	--set values.DrbdVersion=$DRBD_VERSION					\
-	--set values.RepositoryPackages=drbd-utils=$DRBD_UTILS_VERSION		\
+	--set values.DrbdUtilsVersion=$DRBD_UTILS_VERSION			\
 	"${extra_args[@]}"

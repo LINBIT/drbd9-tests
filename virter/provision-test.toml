@@ -11,6 +11,7 @@ DrbdPackage = ""
 DrbdVersion = ""
 DrbdVersionOther = ""
 WinDrbdVersion = ""
+DrbdUtilsVersion = ""
 SELinuxMode = "" # enforcing/permissive/disabled. Disabled by default.
 
 [[steps]]
@@ -102,6 +103,11 @@ if command -v yum > /dev/null; then
 	# Cheap hack to allow versions to be specified the same for apt and yum
 	packages=$(printf %s "$packages" | tr = -)
 
+	# Install drbd-utils and drbd-selinux pinned to the same version.
+	if [ -n "$DRBD_UTILS_VERSION" ]; then
+		packages="$packages drbd-utils-$DRBD_UTILS_VERSION drbd-selinux-$DRBD_UTILS_VERSION"
+	fi
+
 	if [ -n "$REPOSITORY_URL" ] && [ -n "$DRBD_REPOSITORY_URL" ]; then
 		cat <<- EOF > /etc/yum.repos.d/drbd.repo
 		[drbd]
@@ -143,6 +149,10 @@ elif command -v apt-get > /dev/null; then
 	fi
 	[ -n "$RELEASE_REPOSITORY_URL" ] && echo deb [trusted=yes] $RELEASE_REPOSITORY_URL $REPOSITORY_DISTRIBUTION drbd-9 > /etc/apt/sources.list.d/linbit.list
 	apt-get update
+
+	if [ -n "$DRBD_UTILS_VERSION" ]; then
+		packages="$packages drbd-utils=$DRBD_UTILS_VERSION"
+	fi
 
 	[ -d /opt/packages ] && packages="$packages $(find /opt/packages -maxdepth 1 -name "*.deb")"
 else
@@ -207,4 +217,5 @@ REPOSITORY_PACKAGES = "{{.RepositoryPackages}}"
 DRBD_PACKAGE = "{{.DrbdPackage}}"
 DRBD_VERSION = "{{.DrbdVersion}}"
 DRBD_VERSION_OTHER = "{{.DrbdVersionOther}}"
+DRBD_UTILS_VERSION = "{{.DrbdUtilsVersion}}"
 WINDRBD_VERSION = "{{.WinDrbdVersion}}"

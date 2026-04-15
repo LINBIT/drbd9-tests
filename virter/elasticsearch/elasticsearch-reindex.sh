@@ -15,7 +15,7 @@ die() {
 
 url="$1"
 index_old="$2"
-index="$2-g1"
+index="$2-g2"
 
 echo "Using index: '$index'"
 
@@ -44,14 +44,22 @@ if [ "$index_exists" = false ]; then
 				"score": { "type": "integer" },
 				"duration_ns": { "type": "long" },
 				"name_count": { "type": "keyword" },
-				"ci_enabled": { "type": "boolean" }
+				"ci_enabled": { "type": "boolean" },
+				"rdma_ci_enabled": { "type": "boolean" }
 			}
 		}
 	}
 	'
 fi
 
-curl -XPOST "$url/_reindex?pretty&requests_per_second=1000" -H 'Content-Type: application/json' -d'
+rdma_ci_tests_config="$(virter/vmshed_tests_generator.py --selection rdma_ci)"
+rdma_ci_tests="$(printf '%s' "$rdma_ci_tests_config" | rq -t | jq -c '.tests | to_entries | map(.key + "-" + (.value.vms[] | tostring))')"
+
+echo "RDMA CI Tests: $rdma_ci_tests"
+
+# Submit the reindex asynchronously to avoid HTTP proxy timeouts on long
+# running operations. Elasticsearch returns a task ID which we poll below.
+task_id="$(curl -f -XPOST "$url/_reindex?wait_for_completion=false&requests_per_second=1000" -H 'Content-Type: application/json' -d'
 {
   "source": {
     "index": "'$index_old'"
@@ -60,7 +68,35 @@ curl -XPOST "$url/_reindex?pretty&requests_per_second=1000" -H 'Content-Type: ap
     "index": "'$index'"
   },
   "script": {
-    "source": "ctx._source.series = ctx._source.drbd9_tests_ref == \"master\" && ( ctx._source.drbd_version == \"9.0.0.latest\" || ctx._source.drbd_version == \"9.1.0.latest\" || ctx._source.drbd_version == \"9.2.0.latest\" ) && (!ctx._source.containsKey(\"drbd_version_other\") || ctx._source.drbd_version_other == \"\") ? \"stability\" : \"none\""
+    "source": "ctx._source.rdma_ci_enabled = params.rdma_ci_tests.contains(ctx._source.name + \"-\" + ctx._source.vm_count); if (ctx._source.series == \"stability\" && ctx._source.variant == \"rdma\") { ctx._source.series = \"stability-rdma\" }",
+    "params": {
+      "rdma_ci_tests": '"$rdma_ci_tests"'
+    }
   }
 }
-'
+' | jq -r '.task')"
+
+if [ -z "$task_id" ] || [ "$task_id" = "null" ]; then
+	die "Failed to submit reindex task"
+fi
+
+echo "Reindex task ID: $task_id"
+
+while true; do
+	response="$(curl -f -s "$url/_tasks/$task_id")"
+	completed="$(printf '%s' "$response" | jq -r '.completed')"
+	status="$(printf '%s' "$response" | jq -c '.task.status')"
+	echo "Status: $status"
+
+	if [ "$completed" = "true" ]; then
+		failures="$(printf '%s' "$response" | jq -c '.response.failures')"
+		if [ "$failures" != "[]" ]; then
+			echo "Reindex failures: $failures" >&2
+			exit 1
+		fi
+		echo "Reindex completed"
+		break
+	fi
+
+	sleep 10
+done

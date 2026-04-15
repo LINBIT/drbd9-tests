@@ -2,7 +2,8 @@
 
 # Warning: This script is not maintained. It is provided as a starting point for development.
 #
-# Insert documents extracted from Elasticsearch back into Elasticsearch, applying changes.
+# Insert documents into Elasticsearch from a local NDJSON backup (as produced
+# by elasticsearch-backup.sh), optionally applying changes.
 
 set -e
 
@@ -28,8 +29,10 @@ if [ "$index_exists" = false ]; then
 		"mappings": {
 			"properties": {
 				"job_id": { "type": "keyword" },
+				"series": { "type": "keyword" },
 				"test_run_id": { "type": "keyword" },
 				"drbd_version": { "type": "keyword" },
+				"drbd_version_other": { "type": "keyword" },
 				"drbd_utils_version": { "type": "keyword" },
 				"drbd9_tests_version": { "type": "keyword" },
 				"drbd9_tests_ref": { "type": "keyword" },
@@ -42,24 +45,20 @@ if [ "$index_exists" = false ]; then
 				"score": { "type": "integer" },
 				"duration_ns": { "type": "long" },
 				"name_count": { "type": "keyword" },
-				"ci_enabled": { "type": "boolean" }
+				"ci_enabled": { "type": "boolean" },
+				"rdma_ci_enabled": { "type": "boolean" }
 			}
 		}
 	}
 	'
 fi
 
-cat "$source_data" | jq -c '
-.hits.hits[] |
-._index as $index |
+# Input is NDJSON: one hit per line, each a {_index, _id, _source, ...} object.
+# Transform each hit into a bulk action/document pair. Add any _source
+# transformations below as needed.
+jq -c '
+._index as $src_index |
 ._id as $id |
-._source |
-{ index: { _id: ( $index + "-" + $id ) } },
-(
-	(.name + "-" + (.vm_count | tostring)) as $nc |
-	del(.variant) + {
-		test_run_id: $id,
-		variant: "tcp",
-	}
-)
-' | curl -f "$url/$index/_bulk" -H "Content-Type: application/x-ndjson" -XPOST --data-binary @- > /dev/null
+{ index: { _id: ( $src_index + "-" + $id ) } },
+._source
+' "$source_data" | curl -f "$url/$index/_bulk" -H "Content-Type: application/x-ndjson" -XPOST --data-binary @- > /dev/null

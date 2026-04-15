@@ -49,7 +49,8 @@ if [ "$index_exists" = false ]; then
 				"score": { "type": "integer" },
 				"duration_ns": { "type": "long" },
 				"name_count": { "type": "keyword" },
-				"ci_enabled": { "type": "boolean" }
+				"ci_enabled": { "type": "boolean" },
+				"rdma_ci_enabled": { "type": "boolean" }
 			}
 		}
 	}
@@ -60,6 +61,11 @@ ci_tests_config="$(virter/vmshed_tests_generator.py --tests-dir "$DRBD_TESTS_SUB
 ci_tests="$(printf '%s' "$ci_tests_config" | rq -t | jq -c '.tests | to_entries | map(.key + "-" + (.value.vms[] | tostring))')"
 
 echo "CI Tests: $ci_tests"
+
+rdma_ci_tests_config="$(virter/vmshed_tests_generator.py --tests-dir "$DRBD_TESTS_SUB_DIR" --selection rdma_ci --drbd-version "$DRBD_VERSION")"
+rdma_ci_tests="$(printf '%s' "$rdma_ci_tests_config" | rq -t | jq -c '.tests | to_entries | map(.key + "-" + (.value.vms[] | tostring))')"
+
+echo "RDMA CI Tests: $rdma_ci_tests"
 
 cat "$results_file" | jq -c '
 select( .status != "SKIPPED" and .status != "CANCELED" and .status != "ERROR" ) |
@@ -77,6 +83,7 @@ select( .status != "SKIPPED" and .status != "CANCELED" and .status != "ERROR" ) 
 		drbd9_tests_ref: "'"$DRBD9_TESTS_REF"'",
 		name_count: $nc,
 		ci_enabled: ('"$ci_tests"' | index($nc) != null),
+		rdma_ci_enabled: ('"$rdma_ci_tests"' | index($nc) != null),
 	}
 )
 ' | curl -f "$url/$index/_bulk" -H "Content-Type: application/x-ndjson" -XPOST --data-binary @- > /dev/null

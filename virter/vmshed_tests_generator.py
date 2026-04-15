@@ -142,7 +142,7 @@ def parse_variants_add(variants_list, drbd_version_lower):
     for item in variants_list:
         if isinstance(item, str):
             variants.add(item)
-        elif is_lower(parse_version(item["drbd_version_min"]), drbd_version_lower):
+        elif drbd_version_lower is None or is_lower(parse_version(item["drbd_version_min"]), drbd_version_lower):
             variants.add(item["variant"])
     return variants
 

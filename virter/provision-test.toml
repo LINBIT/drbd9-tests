@@ -206,6 +206,15 @@ sed -i 's/usage-count yes/usage-count no/' /etc/drbd.d/global_common.conf
 # Include the test resource configs from the standard path for convenience when
 # developing tests.
 echo 'include "/var/lib/drbd-test/*.res";' > /etc/drbd.d/drbd-test.res
+
+# Label the test config directory so that drbd_t is allowed to read it.
+# This only works if the drbd-selinux module was loaded successfully;
+# if the module failed to load, the drbd_var_lib_t type won't exist.
+if command -v semanage > /dev/null && seinfo -t drbd_var_lib_t > /dev/null 2>&1; then
+	semanage fcontext -a -t drbd_var_lib_t '/var/lib/drbd-test(/.*)?'
+	mkdir -p /var/lib/drbd-test
+	restorecon -R /var/lib/drbd-test
+fi
 '''
 
 [steps.shell.env]

@@ -73,7 +73,7 @@ prepare:base_image:
 
 build:rebuild_drbd:
   stage: base_image
-  image: registry.gitlab.com/finestructure/pipeline-trigger
+  image: registry.gitlab.com/sven.schmidt/pipeline-trigger
   rules:
     - if: $CI_MERGE_REQUEST_ID
       when: manual

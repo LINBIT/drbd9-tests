@@ -132,26 +132,6 @@ SourceImage = "rhel:7.9"
 
 
 [[vms]]
-base_image = "ubuntu-bionic-drbd-k213"
-vcpus = 2
-memory = "1G"
-disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-# No RDMA support. rdma_rxe module not installed.
-vm_tags = [ "zfs", "distro", "raw" ]
-
-[vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-bionic/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
-RepositoryDistribution = "bionic"
-
-[vms.metadata]
-BuildDistribution = "ubuntu-bionic"
-BuildKernel = "4.15.0-213-generic"
-KernelRelease = "4.15.0-213-generic"
-SourceImage = "ubuntu-bionic"
-
-
-[[vms]]
 base_image = "ubuntu-focal-drbd-k190"
 vcpus = 2
 memory = "1G"

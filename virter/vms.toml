@@ -192,6 +192,25 @@ SourceImage = "ubuntu-noble"
 
 
 [[vms]]
+base_image = "ubuntu-resolute-drbd-k14"
+vcpus = 2
+memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
+vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw", "cross-platform", "rdma" ]
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-resolute/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
+RepositoryDistribution = "resolute"
+
+[vms.metadata]
+BuildDistribution = "ubuntu-resolute"
+BuildKernel = "7.0.0-14-generic"
+KernelRelease = "7.0.0-14-generic"
+SourceImage = "ubuntu-resolute"
+
+
+[[vms]]
 base_image = "mainline-drbd-k6.9.0"
 vcpus = 2
 memory = "1G"

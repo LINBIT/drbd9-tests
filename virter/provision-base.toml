@@ -335,3 +335,18 @@ if command -v yum > /dev/null; then
 	pip3 install https://github.com/LINBIT/python-lbdist/archive/master.tar.gz
 fi
 """
+
+# Replace uutils-coreutils with GNU coreutils on Ubuntu releases that ship uutils as the default
+# (>=25.10). Reading from drbd devices with dd is broken in uutils-coreutils v0.8.0.
+# Tracked upstream: https://github.com/uutils/coreutils/issues/12085
+# TODO: drop this step once the upstream fix lands and propagates into Ubuntu.
+[[steps]]
+[steps.shell]
+script = """
+if command -v apt-get > /dev/null \
+   && dpkg -l coreutils-from-uutils 2>/dev/null | grep -q '^ii'; then
+	DEBIAN_FRONTEND=noninteractive apt-get install -y \
+		--allow-remove-essential \
+		coreutils-from-gnu coreutils-from-uutils-
+fi
+"""

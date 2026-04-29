@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-### vmshed: { "vms_all": [3], "vms_ci": null, "drbd_version_min": "9.0.0" }
+### vmshed: { "vms_all": [3], "vms_ci": [3], "drbd_version_min": "9.0.0" }
 #
 # Demonstrates that detach-while-primary triggers a UUID bump via
 # lost_contact_to_peer_data -- a code path DISTINCT from

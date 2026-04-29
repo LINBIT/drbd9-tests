@@ -122,10 +122,31 @@ def is_lower(version, min_version):
     return len(version) < len(min_version)
 
 
-# Naive version parsing handling dot separated elements which are either integers or strings
+# DRBD-specific version parsing handling dot separated elements which are either integers or strings
 def parse_version(version_str):
-    return [int(element) if element.isdecimal() else element
-            for element in version_str.split('.')]
+    elements = [int(element) if element.isdecimal() else element
+                for element in version_str.split('.')]
+
+    # Versions like 9.3.0.latest or 9.3.0.<commit-sha> represent unreleased
+    # development builds. Treat them as greater than any released version in
+    # their major.minor series (but less than the next minor version).
+    if (len(elements) >= 4
+            and elements[2] == 0
+            and (elements[3] == 'latest' or is_commit_sha(elements[3]))):
+        return [elements[0], elements[1], float('inf')]
+
+    return elements
+
+
+def is_commit_sha(s):
+    if not isinstance(s, str):
+        return False
+
+    if len(s) not in (40, 64):
+        return False
+
+    return all(c in '0123456789abcdef' for c in s)
+
 
 def read_vmshed_json(filepath):
     with open(filepath) as f:

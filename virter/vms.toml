@@ -7,6 +7,27 @@ provision_cpus = 4
 provision_timeout = "30m"
 
 [[vms]]
+base_image = "rhel-10-drbd-k124"
+vcpus = 2
+memory = "1G"
+disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
+# No RDMA support. rdma_rxe module not available
+vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
+
+[vms.values]
+RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel10/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel10.1/drbd-9/$basearch/"
+RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
+ReleaseVer = "10.1"
+
+[vms.metadata]
+BuildDistribution = "rhel10.1"
+BuildKernel = "6.12.0-124.8.1.el10_1"
+KernelRelease = "6.12.0-124.8.1.el10_1"
+LatestMinor = "true"
+SourceImage = "rhel:10.1"
+
+[[vms]]
 base_image = "rhel-10-drbd-k55"
 vcpus = 2
 memory = "1G"

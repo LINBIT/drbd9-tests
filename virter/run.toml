@@ -45,7 +45,7 @@ if [ "$DRBD_TEST_TRANSPORT" = "rdma" ] ; then
 	# Ensure that an RDMA link is available.
 	if ! rdma link show | grep ^ ; then
 		modprobe rdma_rxe
-		echo $dev > /sys/module/rdma_rxe/parameters/add
+		rdma link add $dev type rxe netdev $dev
 	fi
 fi
 

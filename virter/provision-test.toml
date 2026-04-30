@@ -6,6 +6,8 @@ RepositoryURL = ""
 DrbdRepositoryURL = ""
 ReleaseRepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
+RepositorySuite = "" # for apt; defaults to RepositoryDistribution. Set to e.g. "pulp" for Pulp-hosted repos.
+RepositoryComponent = "main" # for apt; the component for the DRBD/CI repo
 RepositoryPackages = "" # comma separated
 DrbdPackage = ""
 DrbdVersion = ""
@@ -141,10 +143,11 @@ if command -v yum > /dev/null; then
 
 	[ -d /opt/packages ] && packages="$packages $(find /opt/packages -maxdepth 1 -name "*.rpm")"
 elif command -v apt-get > /dev/null; then
+	repo_suite="${REPOSITORY_SUITE:-$REPOSITORY_DISTRIBUTION}"
 	if [ -n "$REPOSITORY_URL" ] && [ -n "$DRBD_REPOSITORY_URL" ]; then
-		echo deb [trusted=yes] $REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/drbd.list
+		echo deb [trusted=yes] $REPOSITORY_URL $repo_suite $REPOSITORY_COMPONENT > /etc/apt/sources.list.d/drbd.list
 		if [ "$REPOSITORY_URL" != "$DRBD_REPOSITORY_URL" ]; then
-			echo deb [trusted=yes] $DRBD_REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/drbd-extra.list
+			echo deb [trusted=yes] $DRBD_REPOSITORY_URL $repo_suite $REPOSITORY_COMPONENT > /etc/apt/sources.list.d/drbd-extra.list
 		fi
 	fi
 	[ -n "$RELEASE_REPOSITORY_URL" ] && echo deb [trusted=yes] $RELEASE_REPOSITORY_URL $REPOSITORY_DISTRIBUTION drbd-9 > /etc/apt/sources.list.d/linbit.list
@@ -222,6 +225,8 @@ REPOSITORY_URL = "{{.RepositoryURL}}"
 DRBD_REPOSITORY_URL = "{{.DrbdRepositoryURL}}"
 RELEASE_REPOSITORY_URL = "{{.ReleaseRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
+REPOSITORY_SUITE = "{{.RepositorySuite}}"
+REPOSITORY_COMPONENT = "{{.RepositoryComponent}}"
 REPOSITORY_PACKAGES = "{{.RepositoryPackages}}"
 DRBD_PACKAGE = "{{.DrbdPackage}}"
 DRBD_VERSION = "{{.DrbdVersion}}"

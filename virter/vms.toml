@@ -15,9 +15,9 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel10/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel10.1/drbd-9/$basearch/"
-RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/rpm/rhel10/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/yum/rhel10.1/drbd-9/$basearch/"
+RhelSecretsURL = "https://pulp.at.linbit.com/pulp/content/file/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
 ReleaseVer = "10.1"
 
 [vms.metadata]
@@ -36,9 +36,9 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel10/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel10.0/drbd-9/$basearch/"
-RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/rpm/rhel10/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/yum/rhel10.0/drbd-9/$basearch/"
+RhelSecretsURL = "https://pulp.at.linbit.com/pulp/content/file/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
 ReleaseVer = "10.0"
 
 [vms.metadata]
@@ -56,9 +56,9 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.7/drbd-9/$basearch/"
-RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/rpm/rhel9/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/yum/rhel9.7/drbd-9/$basearch/"
+RhelSecretsURL = "https://pulp.at.linbit.com/pulp/content/file/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
 ReleaseVer = "9.7"
 
 [vms.metadata]
@@ -78,9 +78,9 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.0/drbd-9/$basearch/"
-RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/rpm/rhel9/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/yum/rhel9.0/drbd-9/$basearch/"
+RhelSecretsURL = "https://pulp.at.linbit.com/pulp/content/file/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
 ReleaseVer = "9.0"
 
 [vms.metadata]
@@ -100,9 +100,9 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.10/drbd-9/$basearch/"
-RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/rpm/rhel8/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/yum/rhel8.10/drbd-9/$basearch/"
+RhelSecretsURL = "https://pulp.at.linbit.com/pulp/content/file/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
 ReleaseVer = "8.10"
 
 [vms.metadata]
@@ -121,9 +121,9 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "rdma", "distro", "tls", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.2/drbd-9/$basearch/"
-RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/rpm/rhel8/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/yum/rhel8.2/drbd-9/$basearch/"
+RhelSecretsURL = "https://pulp.at.linbit.com/pulp/content/file/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
 ReleaseVer = "8.2"
 
 [vms.metadata]
@@ -142,9 +142,9 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "distro", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel7/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel7.9/drbd-9/$basearch/"
-RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/7/secrets-x86_64.tar.gz"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/rpm/rhel7/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/yum/rhel7.9/drbd-9/$basearch/"
+RhelSecretsURL = "https://pulp.at.linbit.com/pulp/content/file/lbbuild/rhel-secrets/7/secrets-x86_64.tar.gz"
 ReleaseVer = "7.9"
 
 [vms.metadata]
@@ -163,9 +163,11 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "zfs", "distro", "tls", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-focal/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/deb/ubuntu-focal/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/"
 RepositoryDistribution = "focal"
+RepositorySuite = "pulp"
+RepositoryComponent = "upload"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
@@ -183,9 +185,11 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-jammy/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/deb/ubuntu-jammy/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/"
 RepositoryDistribution = "jammy"
+RepositorySuite = "pulp"
+RepositoryComponent = "upload"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-jammy"
@@ -203,9 +207,11 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw", "cross-platform" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-noble/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/deb/ubuntu-noble/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/"
 RepositoryDistribution = "noble"
+RepositorySuite = "pulp"
+RepositoryComponent = "upload"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-noble"
@@ -223,9 +229,11 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw", "cross-platform" ]
 
 [vms.values]
-RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-resolute/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/deb/ubuntu-resolute/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/"
 RepositoryDistribution = "resolute"
+RepositorySuite = "pulp"
+RepositoryComponent = "upload"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-resolute"
@@ -244,17 +252,19 @@ disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
 vm_tags = [ "discard-stat", "dm-ebs", "mainline", "tls", "raw" ]
 
 [vms.values]
-DrbdRepositoryURL = "https://nexus.at.linbit.com/repository/mainline/"
-RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-jammy/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/"
+DrbdRepositoryURL = "https://pulp.at.linbit.com/pulp/content/deb/mainline/"
+RepositoryURL = "https://pulp.at.linbit.com/pulp/content/deb/ubuntu-jammy/"
+ReleaseRepositoryURL = "http://pkg-linbit.at.linbit.com/"
 RepositoryDistribution = "jammy"
+RepositorySuite = "pulp"
+RepositoryComponent = "upload"
 
 [vms.metadata]
 BuildDistribution = "mainline"
 BuildKernel = "6.9.0-linbit"
 KernelRelease = "6.9.0-linbit"
 SourceImage = "ubuntu-jammy"
-KernelRepositoryURL = "https://nexus.at.linbit.com/repository/mainline-kernels/"
+KernelRepositoryURL = "https://pulp.at.linbit.com/pulp/content/deb/mainline-kernels/"
 
 [[vms]]
 base_image = "windows-server-2019-created-2023"

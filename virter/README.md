@@ -34,13 +34,13 @@ by `=`. This will be converted to `-` for `yum` based distributions.
 An Ubuntu-based test image can be built using a comand command like:
 
 ```
-virter image build ubuntu-noble-drbd-k39 ubuntu-noble-drbd-k39-a -p virter/provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/ubuntu-noble/ --set values.RepositoryDistribution=noble --set values.DrbdVersion=9.2.14 --set 'values.RepositoryPackages=drbd-utils=9.31.0-*'
+virter image build ubuntu-noble-drbd-k39 ubuntu-noble-drbd-k39-a -p virter/provision-test.toml --set values.RepositoryURL=https://pulp.at.linbit.com/pulp/content/deb/ubuntu-noble/ --set values.RepositoryDistribution=noble --set values.RepositorySuite=pulp --set values.RepositoryComponent=upload --set values.DrbdVersion=9.2.14 --set 'values.RepositoryPackages=drbd-utils=9.31.0-*'
 ```
 
 And similarly for RedHat-based images:
 
 ```
-virter image build rhel-9-drbd-k427 rhel-9-drbd-k427-a -p virter/provision-test.toml --set values.RepositoryURL=https://nexus.at.linbit.com/repository/ci-yum/rhel9/ --set values.DrbdVersion=9.2.14 --set values.RepositoryPackages=drbd-utils=9.31.0
+virter image build rhel-9-drbd-k427 rhel-9-drbd-k427-a -p virter/provision-test.toml --set values.RepositoryURL=https://pulp.at.linbit.com/pulp/content/rpm/rhel9/ --set values.DrbdVersion=9.2.14 --set values.RepositoryPackages=drbd-utils=9.31.0
 ```
 
 ### Start cluster

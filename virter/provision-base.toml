@@ -9,6 +9,8 @@ KernelRelease = ""
 # KernelRepositoryURL is the URL for the repository containing the kernel package.
 KernelRepositoryURL = ""
 RepositoryDistribution = "" # for apt, e.g. bionic
+RepositorySuite = "" # for apt; defaults to RepositoryDistribution. Set to e.g. "pulp" for Pulp-hosted repos.
+RepositoryComponent = "main" # for apt; the component for the kernel repo
 ReleaseRepositoryURL = ""
 VmTags = ""
 NoUpgrade = "" # set to 1 to skip yum/apt upgrade
@@ -212,7 +214,8 @@ deb_regex() {
 }
 
 kernel::deb() {
-	[ -n "$KERNEL_REPOSITORY_URL" ] && echo deb [trusted=yes] $KERNEL_REPOSITORY_URL $REPOSITORY_DISTRIBUTION main > /etc/apt/sources.list.d/kernel.list
+	repo_suite="${REPOSITORY_SUITE:-$REPOSITORY_DISTRIBUTION}"
+	[ -n "$KERNEL_REPOSITORY_URL" ] && echo deb [trusted=yes] $KERNEL_REPOSITORY_URL $repo_suite $REPOSITORY_COMPONENT > /etc/apt/sources.list.d/kernel.list
 	apt-get update
 
 	install_package=$(deb_regex "^linux-image-${kernel_release_regex}(-generic)?$")
@@ -256,6 +259,8 @@ rm -f /tmp/ha{d,ve}
 KERNEL_RELEASE = "{{.KernelRelease}}"
 KERNEL_REPOSITORY_URL = "{{.KernelRepositoryURL}}"
 REPOSITORY_DISTRIBUTION = "{{.RepositoryDistribution}}"
+REPOSITORY_SUITE = "{{.RepositorySuite}}"
+REPOSITORY_COMPONENT = "{{.RepositoryComponent}}"
 RHEL_SECRETS_URL = "{{.RhelSecretsURL}}"
 DEBIAN_FRONTEND = "noninteractive"
 

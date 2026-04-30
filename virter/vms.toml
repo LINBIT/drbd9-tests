@@ -196,7 +196,8 @@ base_image = "ubuntu-resolute-drbd-k14"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
-vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw", "cross-platform", "rdma" ]
+# RDMA would be supported on resolute, but is incompatible with RHEL 8, so we'll have to decide on one of them.
+vm_tags = [ "discard-stat", "zfs", "dm-ebs", "distro", "tls", "raw", "cross-platform" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ubuntu-resolute/"

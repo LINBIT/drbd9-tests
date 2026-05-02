@@ -48,7 +48,7 @@ KernelRelease = "6.12.0-55.9.1.el10_0"
 SourceImage = "rhel:10.0"
 
 [[vms]]
-base_image = "rhel-9-drbd-k427"
+base_image = "rhel-9-drbd-k611"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -57,16 +57,16 @@ vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel9/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.4/drbd-9/$basearch/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel9.7/drbd-9/$basearch/"
 RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
-ReleaseVer = "9.4"
+ReleaseVer = "9.7"
 
 [vms.metadata]
-BuildDistribution = "rhel9.4"
-BuildKernel = "5.14.0-427.13.1.el9_4"
-KernelRelease = "5.14.0-427.13.1.el9_4"
+BuildDistribution = "rhel9.7"
+BuildKernel = "5.14.0-611.5.1.el9_7"
+KernelRelease = "5.14.0-611.5.1.el9_7"
 LatestMinor = "true"
-SourceImage = "rhel:9.4"
+SourceImage = "rhel:9.7"
 
 
 [[vms]]
@@ -85,13 +85,13 @@ ReleaseVer = "9.0"
 
 [vms.metadata]
 BuildDistribution = "rhel9.0"
-BuildKernel = "5.14.0-70.13.1.el9_0"
-KernelRelease = "5.14.0-70.13.1.el9_0"
+BuildKernel = "5.14.0-70.36.1.el9_0"
+KernelRelease = "5.14.0-70.36.1.el9_0"
 SourceImage = "rhel:9.0"
 
 
 [[vms]]
-base_image = "rhel-8-drbd-k477"
+base_image = "rhel-8-drbd-k553"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -101,16 +101,16 @@ vm_tags = [ "discard-stat", "distro", "tls", "raw" ]
 
 [vms.values]
 RepositoryURL = "https://nexus.at.linbit.com/repository/ci-yum/rhel8/"
-ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.8/drbd-9/$basearch/"
+ReleaseRepositoryURL = "https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8.10/drbd-9/$basearch/"
 RhelSecretsURL = "https://nexus.at.linbit.com/repository/lbbuild/rhel-secrets/secrets-x86_64.tar.gz"
-ReleaseVer = "8.8"
+ReleaseVer = "8.10"
 
 [vms.metadata]
-BuildDistribution = "rhel8.8"
-BuildKernel = "4.18.0-477.10.1.el8_8"
-KernelRelease = "4.18.0-477.10.1.el8_8"
+BuildDistribution = "rhel8.10"
+BuildKernel = "4.18.0-553.el8_10"
+KernelRelease = "4.18.0-553.el8_10"
 LatestMinor = "true"
-SourceImage = "rhel:8.8"
+SourceImage = "rhel:8.10"
 
 
 [[vms]]
@@ -169,8 +169,8 @@ RepositoryDistribution = "focal"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-focal"
-BuildKernel = "5.4.0-190-generic"
-KernelRelease = "5.4.0-190-generic"
+BuildKernel = "5.4.0-216-generic"
+KernelRelease = "5.4.0-216-generic"
 SourceImage = "ubuntu-focal"
 
 
@@ -189,8 +189,8 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-jammy"
-BuildKernel = "5.15.0-117-generic"
-KernelRelease = "5.15.0-117-generic"
+BuildKernel = "5.15.0-177-generic"
+KernelRelease = "5.15.0-177-generic"
 SourceImage = "ubuntu-jammy"
 
 
@@ -209,8 +209,8 @@ RepositoryDistribution = "noble"
 
 [vms.metadata]
 BuildDistribution = "ubuntu-noble"
-BuildKernel = "6.8.0-39-generic"
-KernelRelease = "6.8.0-39-generic"
+BuildKernel = "6.8.0-111-generic"
+KernelRelease = "6.8.0-111-generic"
 SourceImage = "ubuntu-noble"
 
 
@@ -235,7 +235,7 @@ SourceImage = "ubuntu-resolute"
 
 
 [[vms]]
-base_image = "mainline-drbd-k6.9.0"
+base_image = "mainline-drbd-k7.1.0-rc1"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -251,8 +251,8 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "mainline"
-BuildKernel = "6.9.0-linbit"
-KernelRelease = "6.9.0-linbit"
+BuildKernel = "7.1.0-rc1"
+KernelRelease = "7.1.0-rc1"
 SourceImage = "ubuntu-jammy"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/mainline-kernels/"
 

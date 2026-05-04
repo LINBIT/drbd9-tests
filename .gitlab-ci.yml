@@ -10,6 +10,7 @@ variables:
   DRBD_VERSION: 9.3.0.latest
   DRBD_VERSION_OTHER: "" # For compatibility testing. For example: 8.4.12
   DRBD_UTILS_VERSION: 9.0.0.latest-*
+  REBUILD_BASE_IMAGES: "" # Regex selecting which base images prepare:base_image rebuilds (default: all)
 
 stages:
   - base_image
@@ -56,7 +57,7 @@ prepare:base_image:
       make pull_source_images
       mkdir -p base-image-build-log
       build_rc=0
-      make -s print_base_images | \
+      make -s print_base_images | grep -E "$REBUILD_BASE_IMAGES" | \
         parallel --line-buffer --tag --joblog parallel.log \
           ./build-push-base-image.sh '{%}' '{}' \
           || build_rc=$?

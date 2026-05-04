@@ -1,0 +1,422 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.3" }
+
+# Exercise the max_parallel_resyncs module parameter, which caps how many
+# resources may have an unpaused resync (or verify) at any given time.
+# Excess resources stay in PausedSyncS/T via the resync_susp_max_parallel flag.
+#
+# Phases:
+#   0  param bounds: writes to /sys/module/drbd/parameters/max_parallel_resyncs
+#      with valid and invalid values (no resources configured yet).
+#   1  default unlimited: cap=0 lets all 4 initial resyncs run in parallel.
+#   2  cap=1: r0 holds the single slot, the other three resources sit in
+#      PausedSyncT. dmesg names "max_parallel" as the reason.
+#   3  auto-release on finish: when r0 finishes, exactly one waiter continues.
+#   4  raise cap releases waiters: cap 1 -> 3 -> 0 with 4 resources resyncing.
+#   5  lower cap pauses running: cap 0 -> 1 with 4 resources resyncing.
+#   6  verify counts: drbdadm verify holds the slot just like resync.
+#   7  user pause vs max_parallel: drbdadm pause-sync still works alongside
+#      max_parallel suspension.
+#   8  pause-sync transfers slot: pausing the slot-holder via drbdadm
+#      pause-sync hands the slot to a max_parallel-paused waiter.
+#   9  disconnect clears max_parallel: a max_parallel-paused resource is fine
+#      after a disconnect/reconnect cycle.
+#  10  disconnect of the slot-holder frees the slot: a max_parallel-paused
+#      waiter resumes when the slot-holder disconnects.
+
+import re
+from io import StringIO
+
+from python import drbdtest
+from python.drbdtest import ensure, log
+
+
+PARAM_PATH = '/sys/module/drbd/parameters/max_parallel_resyncs'
+
+
+# ---------- sysfs param helpers ----------
+
+def write_param(host, value, expect_success):
+    """Write a value to the module parameter, asserting success/failure."""
+    cmd = ['bash', '-c',
+           'if printf "%s\\n" "$1" > {} 2>/dev/null; '
+           'then echo OK; else echo FAIL; fi'.format(PARAM_PATH),
+           '_', str(value)]
+    result = host.run(cmd, return_stdout=True).strip()
+    expected = 'OK' if expect_success else 'FAIL'
+    ensure(expected, result,
+           'Writing {!r} to {} (expected {})'.format(
+               value, PARAM_PATH, expected))
+
+
+def read_param(host):
+    return host.run(['cat', PARAM_PATH], return_stdout=True).strip()
+
+
+def set_cap(hosts, value):
+    for h in hosts:
+        h.run(['bash', '-c',
+               'echo {} > {}'.format(value, PARAM_PATH)])
+    log('* max_parallel_resyncs := {}'.format(value))
+
+
+# ---------- DRBD action helpers ----------
+
+def assert_dmesg_max_parallel(host, dmesg_stream, min_lines):
+    host.remove_dmesg_capture(dmesg_stream)
+    dmesg_stream.seek(0)
+    text = dmesg_stream.read()
+    matches = [l for l in text.splitlines()
+               if 'resync-susp' in l and 'max-parallel' in l]
+    if len(matches) < min_lines:
+        raise RuntimeError(
+            'Expected at least {} dmesg lines mentioning resync-susp and '
+            'max-parallel; found {}:\n{}'.format(
+                min_lines, len(matches), '\n'.join(matches)))
+    log('* Found {} dmesg max-parallel line(s) (>= {})'.format(
+        len(matches), min_lines))
+
+
+# ---------- logscan-based event helpers ----------
+#
+# Every wait in this test goes through cluster.logscan(). We never poll
+# `drbdsetup status`. The filters dict is `{host.name: [[]]}` so logscan
+# does not narrow to a single resource (Resource.logscan() would prefix
+# `name:r0_*` because each Resource is a logscan owner). The yes patterns
+# carry the resource-name discrimination explicitly via re.escape().
+
+def re_pd_any(resource, tail):
+    """Regex matching peer-device events for any volume of `resource`."""
+    return r'peer-device name:{} .* {}'.format(re.escape(resource.name), tail)
+
+
+def re_pd_vol(resource, vol, tail):
+    """Regex matching peer-device events for a specific (resource, volume)."""
+    return r'peer-device name:{} .* volume:{} .* {}'.format(
+        re.escape(resource.name), vol, tail)
+
+
+def re_conn(resource, tail):
+    """Regex matching connection events for `resource`."""
+    return r'connection name:{} .* {}'.format(re.escape(resource.name), tail)
+
+
+def expect(host, *, yes, no=(), timeout=15):
+    """Wait until every `yes` pattern has matched on host's events stream.
+
+    `no` patterns may not match while we wait. Returns the list of capture
+    group tuples, one per matched goal.
+    """
+    return cluster.logscan(yes=list(yes), filters={host.name: [[]]},
+                           no=list(no), timeout=timeout)
+
+
+def consume(host, *, yes, count, no=(), timeout=15):
+    """Consume `count` separate matches of every `yes` pattern on host's
+    stream, by calling `expect` in a loop. Used for assertions where the
+    kernel's choice is non-deterministic but the *number* of transitions
+    is fixed.
+    """
+    matches = []
+    for _ in range(count):
+        matches.extend(expect(host, yes=yes, no=no, timeout=timeout))
+    return matches
+
+
+def drain(resources_to_drain, *, host, timeout=15, no=()):
+    """Wait until every resource in `resources_to_drain` has at least one
+    `replication:Established peer-disk:UpToDate` event on `host`'s stream.
+
+    `no` patterns are forbidden during the wait (e.g. `PausedSync*` to
+    assert the cap=0 contract in phase 1).
+    """
+    expected = {r.name for r in resources_to_drain}
+    seen = set()
+    while expected - seen:
+        result = cluster.logscan(
+            yes=[r'peer-device name:(\S+) .* '
+                 r'replication:Established peer-disk:UpToDate'],
+            filters={host.name: [[]]},
+            no=list(no),
+            timeout=timeout)
+        for m in result:
+            seen.add(m[0])
+    log('* Drained: {}'.format(sorted(seen)))
+
+
+# ---------- Phase 0: param bounds (no resources yet) ----------
+
+cluster = drbdtest.setup(nodes=2)
+host_a, host_b = cluster.hosts
+
+log('=== Phase 0: parameter bounds ===')
+ensure('0', read_param(host_a),
+       'default value of {}'.format(PARAM_PATH))
+
+write_param(host_a, '-1', expect_success=False)
+ensure('0', read_param(host_a), 'param unchanged after rejected -1')
+
+write_param(host_a, 'abc', expect_success=False)
+ensure('0', read_param(host_a), 'param unchanged after rejected abc')
+
+write_param(host_a, '4294967295', expect_success=True)
+ensure('4294967295', read_param(host_a), 'UINT_MAX accepted')
+
+write_param(host_a, '0', expect_success=True)
+ensure('0', read_param(host_a), 'reset to 0')
+
+
+# ---------- Setup: 4 single-volume resources ----------
+
+resources = []
+for i in range(4):
+    r = cluster.create_resource('{}_r{}'.format(cluster.resource_name, i))
+    r.disk_options = 'c-max-rate 3M;'
+    r.net_options = 'verify-alg md5;'
+    r.add_disk('12M')
+    resources.append(r)
+
+r0, r1, r2, r3 = resources
+node_a, node_b = r0.nodes
+
+for r in resources:
+    r.up()
+    expect(host_a, yes=[re_conn(r, 'connection:Connected')])
+
+
+# ---------- Phase 1: default unlimited ----------
+
+log('=== Phase 1: default unlimited (cap=0) ===')
+ensure('0', read_param(host_a), 'cap is 0 going into phase 1')
+ensure('0', read_param(host_b), 'cap is 0 on host_b going into phase 1')
+
+# Force initial resyncs of all 4 resources in parallel.
+node_a.drbdadm(['primary', '--force'] + [r.name for r in resources])
+
+# All 4 resources must reach SyncTarget on host_b without entering a paused
+# state (cap=0 means unlimited). That validates Phase 1's contract; the
+# resyncs themselves run on into Phase 2.
+expect(host_b, yes=[re_pd_any(r, 'replication:SyncTarget') for r in resources],
+       no=[re_pd_any(r, 'replication:PausedSync(S|T)') for r in resources])
+
+
+# ---------- Phase 2: cap=1, four resources ----------
+
+log('=== Phase 2: cap=1 pauses three of the four running resyncs ===')
+
+dmesg = StringIO()
+host_b.add_dmesg_capture(dmesg)
+
+set_cap([host_a, host_b], 1)
+
+# Three of the four running resources transition to PausedSyncT; one keeps
+# the slot. The kernel picks which one — capture it.
+paused = consume(host_b,
+                 yes=[r'peer-device name:(\S+) .* replication:PausedSyncT'],
+                 count=3)
+paused_names = {m[0] for m in paused}
+running = next(r for r in resources if r.name not in paused_names)
+log('* Phase 2: running resource = {}; paused = {}'.format(
+    running.name, sorted(paused_names)))
+
+assert_dmesg_max_parallel(host_b, dmesg, min_lines=3)
+
+
+# ---------- Phase 3: auto-release on finish ----------
+
+log('=== Phase 3: auto-release on finish ===')
+
+# The running resource finishes.
+expect(host_a,
+       yes=[re_pd_any(running, 'replication:Established peer-disk:UpToDate')])
+
+# Exactly one of the previously-paused resources must now continue.
+paused_alt = '|'.join(re.escape(n) for n in paused_names)
+matches = expect(host_b, yes=[
+    r'peer-device name:({}) .* replication:SyncTarget'.format(paused_alt)])
+continued = next(r for r in resources if r.name == matches[0][0])
+log('* Phase 3: continued resource = {}'.format(continued.name))
+
+
+# ---------- Phase 4: raise cap releases waiters ----------
+
+log('=== Phase 4: raise cap releases waiters ===')
+# Inherit Phase 3's state: cap=1, `continued` is SyncTarget, the other two
+# `paused_names` resources are still PausedSyncT, `running` is Established.
+# To prove that the SyncTarget transitions are caused by the cap raise (and
+# not by `continued` finishing naturally), forbid `continued` from emitting
+# Established during the waits.
+forbid_continued_done = [
+    r'peer-device name:{} .* replication:Established'.format(
+        re.escape(continued.name))]
+
+# Raise cap to 2: one of the two waiters must continue.
+set_cap([host_a, host_b], 2)
+expect(host_b, yes=[r'peer-device name:(\S+) .* replication:SyncTarget'],
+       no=forbid_continued_done)
+
+# Raise cap to 0: the remaining waiter continues.
+set_cap([host_a, host_b], 0)
+expect(host_b, yes=[r'peer-device name:(\S+) .* replication:SyncTarget'],
+       no=forbid_continued_done)
+
+# ---------- Phase 5: lower cap pauses running ----------
+
+log('=== Phase 5: lower cap pauses running ===')
+# Inherit Phase 4's end state: 3 SyncTarget + 1 Established (`running`) +
+# cap=0. Bring `running` back into the resync set so 4 are in flight, then
+# lower the cap. Forbid the three already-running resources from finishing
+# during the cap change so the test fails loudly rather than silently
+# missing the pause transitions.
+unfinished_alt = '|'.join(re.escape(r.name) for r in resources)
+forbid_unfinished_done = [
+    r'peer-device name:({}) .* replication:Established'.format(unfinished_alt)]
+
+node_b.drbdadm(['invalidate', running.name])
+expect(host_b, yes=[re_pd_any(running, 'replication:SyncTarget')],
+       no=forbid_unfinished_done)
+
+# Lower cap to 1: 3 of the 4 running peer_devices must pause.
+set_cap([host_a, host_b], 1)
+consume(host_b, yes=[r'peer-device name:(\S+) .* replication:PausedSync(S|T)'],
+        count=3, no=forbid_unfinished_done)
+
+# Restore unlimited cap so the paused resyncs can finish in parallel
+# instead of serializing through the single slot.
+set_cap([host_a, host_b], 0)
+drain(resources, host=host_a)
+
+
+# ---------- Phase 6: verify counts ----------
+
+log('=== Phase 6: verify counts toward max_parallel ===')
+set_cap([host_a, host_b], 1)
+
+# Start verify on r0.
+node_a.drbdadm(['verify', r0.name])
+expect(host_b, yes=[re_pd_any(r0, 'replication:VerifyT')])
+
+# r1 must reach PausedSyncT, never SyncTarget — r0's verify holds the slot.
+node_b.drbdadm(['invalidate', r1.name])
+expect(host_b,
+       yes=[re_pd_any(r1, 'replication:PausedSyncT')],
+       no=[re_pd_any(r1, 'replication:SyncTarget')])
+
+expect(host_a, yes=[re_pd_any(r0, 'replication:Established')])
+expect(host_b, yes=[re_pd_any(r1, 'replication:SyncTarget')])
+
+# Only r1 actually resyncs in this phase; r0 just verified, r2/r3 stayed UpToDate.
+drain([r1], host=host_a)
+
+
+# ---------- Phase 7: user pause vs max_parallel ----------
+
+log('=== Phase 7: user pause-sync vs max_parallel ===')
+set_cap([host_a, host_b], 2)
+
+node_b.drbdadm(['invalidate', r1.name])
+node_b.drbdadm(['invalidate', r2.name])
+expect(host_b, yes=[re_pd_any(r1, 'replication:SyncTarget'),
+                    re_pd_any(r2, 'replication:SyncTarget')])
+
+# User pause on r1 -> PausedSyncT even though max_parallel would allow it.
+node_a.drbdadm(['pause-sync', '{}:{}'.format(r1.name, node_b.name)])
+expect(host_b, yes=[re_pd_any(r1, 'replication:PausedSyncT')])
+
+# Resume -> back to SyncTarget.
+node_a.drbdadm(['resume-sync', '{}:{}'.format(r1.name, node_b.name)])
+expect(host_b, yes=[re_pd_any(r1, 'replication:SyncTarget')])
+
+# Only r1 and r2 resync in this phase.
+drain([r1, r2], host=host_a)
+
+
+# ---------- Phase 8: pause-sync on slot-holder transfers slot to waiter ----
+
+log('=== Phase 8: pause-sync transfers slot to max_parallel waiter ===')
+set_cap([host_a, host_b], 1)
+
+# r1 takes the slot, r2 is max_parallel-paused.
+node_b.drbdadm(['invalidate', r1.name])
+expect(host_b, yes=[re_pd_any(r1, 'replication:SyncTarget')])
+node_b.drbdadm(['invalidate', r2.name])
+expect(host_b, yes=[re_pd_any(r2, 'replication:PausedSyncT')])
+
+# User pause-sync on the slot-holder (r1). Slot must transfer: r1 -> PausedSyncT
+# (user-paused), r2 -> SyncTarget (was max_parallel-paused, now running).
+node_a.drbdadm(['pause-sync', '{}:{}'.format(r1.name, node_b.name)])
+expect(host_b, yes=[re_pd_any(r2, 'replication:SyncTarget')])
+
+# Cleanup: resume r1 (it stays PausedSyncT — now max_parallel-paused since
+# r2 still holds the slot) and drain.
+node_a.drbdadm(['resume-sync', '{}:{}'.format(r1.name, node_b.name)])
+drain([r1, r2], host=host_a)
+
+
+# ---------- Phase 9: disconnect clears max_parallel ----------
+
+log('=== Phase 9: disconnect of a max_parallel-paused resource ===')
+set_cap([host_a, host_b], 1)
+
+node_b.drbdadm(['invalidate', r1.name])
+expect(host_b, yes=[re_pd_any(r1, 'replication:SyncTarget')])
+
+node_b.drbdadm(['invalidate', r2.name])
+expect(host_b, yes=[re_pd_any(r2, 'replication:PausedSyncT')])
+
+# Disconnect r2 from both sides while it's max_parallel-paused.
+node_a.drbdadm(['disconnect', '{}:{}'.format(r2.name, node_b.name)])
+node_b.drbdadm(['disconnect', '{}:{}'.format(r2.name, node_a.name)])
+expect(host_a, yes=[re_conn(r2, 'connection:StandAlone')])
+expect(host_b, yes=[re_conn(r2, 'connection:StandAlone')])
+
+# Reconnect r2.
+node_a.drbdadm(['connect', '{}:{}'.format(r2.name, node_b.name)])
+node_b.drbdadm(['connect', '{}:{}'.format(r2.name, node_a.name)])
+expect(host_a, yes=[re_conn(r2, 'connection:Connected')])
+
+# r1 finishes; then r2 takes the slot and finishes too.
+expect(host_a, yes=[re_pd_any(r1, 'replication:Established peer-disk:UpToDate')])
+expect(host_a, yes=[re_pd_any(r2, 'replication:Established peer-disk:UpToDate')])
+# r1 and r2 are already drained above; r0 and r3 stayed UpToDate.
+
+
+# ---------- Phase 10: disconnect of slot-holder frees the slot ----
+
+log('=== Phase 10: disconnect of slot-holder lets max_parallel waiter resume ===')
+set_cap([host_a, host_b], 1)
+
+# r1 takes the slot, r2 is max_parallel-paused.
+node_b.drbdadm(['invalidate', r1.name])
+expect(host_b, yes=[re_pd_any(r1, 'replication:SyncTarget')])
+node_b.drbdadm(['invalidate', r2.name])
+expect(host_b, yes=[re_pd_any(r2, 'replication:PausedSyncT')])
+
+# Disconnect the slot-holder (r1) from both sides. The slot is freed; r2,
+# the max_parallel-paused waiter, should now take over.
+node_a.drbdadm(['disconnect', '{}:{}'.format(r1.name, node_b.name)])
+node_b.drbdadm(['disconnect', '{}:{}'.format(r1.name, node_a.name)])
+expect(host_a, yes=[re_conn(r1, 'connection:StandAlone')])
+# On host_b, r2's slot-transfer event arrives before r1's StandAlone; match
+# both in one expect so the stream pointer doesn't skip past r2's transition.
+expect(host_b, yes=[re_conn(r1, 'connection:StandAlone'),
+                    re_pd_any(r2, 'replication:SyncTarget')])
+
+# Reconnect r1 and let everything finish.
+node_a.drbdadm(['connect', '{}:{}'.format(r1.name, node_b.name)])
+node_b.drbdadm(['connect', '{}:{}'.format(r1.name, node_a.name)])
+expect(host_a, yes=[re_conn(r1, 'connection:Connected')])
+
+# r2 finishes; then r1 takes the slot and finishes too.
+expect(host_a, yes=[re_pd_any(r2, 'replication:Established peer-disk:UpToDate')])
+expect(host_a, yes=[re_pd_any(r1, 'replication:Established peer-disk:UpToDate')])
+
+
+# ---------- Cleanup ----------
+
+log('* Reset cap to 0 and tear down')
+set_cap([host_a, host_b], 0)
+
+for r in resources:
+    r.down()
+cluster.teardown()

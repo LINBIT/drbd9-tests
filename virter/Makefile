@@ -11,6 +11,7 @@ base_image_%:
 	get_key() { printf %s "$$VM_JSON" | jq -r ".$$1 // empty" ; } && \
 	virter image build "$$(get_key metadata.SourceImage)" "$(or $(BASE_IMAGE_NAME),$*)" \
 		--id $(VIRTER_BUILD_ID) \
+		--memory 2G \
 		--set values.KernelRelease="$$(get_key metadata.KernelRelease)" \
 		--set values.KernelRepositoryURL="$$(get_key metadata.KernelRepositoryURL)" \
 		--set values.RepositoryDistribution="$$(get_key values.RepositoryDistribution)" \

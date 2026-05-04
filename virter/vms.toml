@@ -235,7 +235,7 @@ SourceImage = "ubuntu-resolute"
 
 
 [[vms]]
-base_image = "mainline-drbd-k7.1.0-rc1"
+base_image = "mainline-drbd-k6.9.0"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -251,8 +251,8 @@ RepositoryDistribution = "jammy"
 
 [vms.metadata]
 BuildDistribution = "mainline"
-BuildKernel = "7.1.0-rc1"
-KernelRelease = "7.1.0-rc1"
+BuildKernel = "6.9.0-linbit"
+KernelRelease = "6.9.0-linbit"
 SourceImage = "ubuntu-jammy"
 KernelRepositoryURL = "https://nexus.at.linbit.com/repository/mainline-kernels/"
 

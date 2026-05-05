@@ -92,7 +92,7 @@ build:rebuild_drbd:
 
 build:drbd:
   stage: build
-  image: registry.gitlab.com/finestructure/pipeline-trigger
+  image: registry.gitlab.com/sven.schmidt/pipeline-trigger
   rules:
     - if: $DRBD_REF
   needs: []

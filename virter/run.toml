@@ -51,7 +51,10 @@ fi
 
 # cloud-init configuration with multiple interfaces is tricky, and sometimes they fail.
 # Just ignore those services.
-systemctl reset-failed "network*.service" || true
+# grub-initrd-fallback.service and grub2-common.service are boot-counter
+# housekeeping that race on first boot of cloud images; they have no effect
+# on a throwaway test VM, so reset them too.
+systemctl reset-failed "network*.service" "grub*.service" || true
 
 while true; do
 	running=$(systemctl is-system-running || true)

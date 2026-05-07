@@ -155,7 +155,7 @@ SourceImage = "rhel:7.9"
 
 
 [[vms]]
-base_image = "ubuntu-focal-drbd-k190"
+base_image = "ubuntu-focal-drbd-k216"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -177,7 +177,7 @@ SourceImage = "ubuntu-focal"
 
 
 [[vms]]
-base_image = "ubuntu-jammy-drbd-k117"
+base_image = "ubuntu-jammy-drbd-k177"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]
@@ -199,7 +199,7 @@ SourceImage = "ubuntu-jammy"
 
 
 [[vms]]
-base_image = "ubuntu-noble-drbd-k39"
+base_image = "ubuntu-noble-drbd-k111"
 vcpus = 2
 memory = "1G"
 disks = ["name=data,size=1G,bus=scsi,format=qcow2,pool=scratch"]

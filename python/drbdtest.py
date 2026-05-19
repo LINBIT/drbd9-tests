@@ -417,9 +417,40 @@ class Nodes(Collection):
     def peer_device_options(self, opts=[]):
         self.drbdadm(['peer-device-options', self.resource().name] + opts)
 
-    def new_path(self):
-        self.drbdadm(['new-path', self.resource().name])
-        self.connections.event(r'create path')
+    def new_path(self, peer=None, net_number=None):
+        """Add paths to the running configuration.
+
+        With no arguments, drbdadm new-path picks up paths from the
+        configured .res file. With (peer, net_number), drbdsetup new-path
+        adds the specific path (self.host.addrs[net_number],
+        peer.host.addrs[net_number]) on every node in this collection."""
+        if peer is None:
+            self.drbdadm(['new-path', self.resource().name])
+            self.connections.event(r'create path')
+        else:
+            for node in self.members:
+                local = 'ipv4:{}:{}'.format(node.host.addrs[net_number], node.port)
+                remote = 'ipv4:{}:{}'.format(peer.host.addrs[net_number], peer.port)
+                node.run(['drbdsetup', 'new-path', self.resource().name,
+                          str(peer.id), local, remote])
+
+    def del_path(self, peer=None, net_number=None):
+        """Remove paths from the running configuration.
+
+        With no arguments, drbdadm del-path removes any kernel paths
+        that are no longer listed in the .res file. With (peer,
+        net_number), drbdsetup del-path removes the specific path
+        (self.host.addrs[net_number], peer.host.addrs[net_number])
+        on every node in this collection."""
+        if peer is None:
+            self.drbdadm(['del-path', self.resource().name])
+            self.connections.event(r'destroy path')
+        else:
+            for node in self.members:
+                local = 'ipv4:{}:{}'.format(node.host.addrs[net_number], node.port)
+                remote = 'ipv4:{}:{}'.format(peer.host.addrs[net_number], peer.port)
+                node.run(['drbdsetup', 'del-path', self.resource().name,
+                          str(peer.id), local, remote])
 
     def up_unconnected(self):
         self.new_resource()
@@ -2075,8 +2106,11 @@ class Node():
     def peer_device_options(self):
         Nodes([self]).peer_device_options()
 
-    def new_path(self):
-        Nodes([self]).new_path()
+    def new_path(self, peer=None, net_number=None):
+        Nodes([self]).new_path(peer, net_number)
+
+    def del_path(self, peer=None, net_number=None):
+        Nodes([self]).del_path(peer, net_number)
 
     def up_unconnected(self):
         Nodes([self]).up_unconnected()

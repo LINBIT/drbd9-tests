@@ -1,0 +1,45 @@
+#! /usr/bin/env python3
+### vmshed: { "vms_all": [2], "vms_ci": null, "drbd_version_min": "9.2", "networks": [{"dhcp": true}] }
+
+# Reproduces a use-after-free in drbd_transport_tcp:dtt_wait_for_connect().
+#
+# Setup: 2-path connection, each my_addr served by its own listener.
+# Only node A is brought up, so its receiver is stuck in Connecting
+# and loops in dtt_connect(), sleeping in
+# wait_event_interruptible_timeout( listener->wait, ...) for the path
+# it is currently trying.
+#
+# Each my_addr has exactly one path referencing its listener, so a
+# concurrent del-path drops the listener's last kref and frees it.
+# If the receiver was sleeping on the freed listener's wait queue,
+# finish_wait() corrupts a freed wait_queue_head_t's list and trips:
+#
+#   kernel BUG at lib/list_debug.c:51!
+#
+# Present in drbd-9.2.18, drbd-9.3.2 and earlier releases.
+
+import time
+
+from python import drbdtest
+from python.drbdtest import connections, log
+
+resource = drbdtest.setup_resource(max_nodes=2, multi_paths=True)
+resource.add_disk('4M')
+resource.net_options = 'connect-int 2; ping-int 1;'
+
+node_a, node_b = resource.nodes
+
+node_a.up()
+connections(node_a, node_b).event(r'connection .* connection:Connecting')
+
+log('Churning path 1 to race against dtt_wait_for_connect()')
+for i in range(30):
+    node_a.del_path(node_b, 1)
+    time.sleep(0.7)
+    node_a.new_path(node_b, 1)
+    time.sleep(0.7)
+
+log('No use-after-free observed in this run.')
+
+node_a.down()
+resource.cluster.teardown()
